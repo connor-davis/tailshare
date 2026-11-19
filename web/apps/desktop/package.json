@@ -8,7 +8,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -b",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tanstack/react-query": "5.108.1",
@@ -30,6 +31,7 @@
     "electron": "45.4.1",
     "electron-vite": "6.0.0",
     "tailwindcss": "4.3.5",
-    "vite": "8.3.8"
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
   }
 }

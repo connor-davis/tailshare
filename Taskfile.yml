@@ -51,12 +51,13 @@ tasks:
       - go test -timeout 10m {{.GO_PKGS}}
 
   check:
-    desc: gofmt, vet, staticcheck and Go tests
+    desc: gofmt, vet, staticcheck, Go tests, web lint and web tests
     cmds:
       - task: fmt:check
       - task: vet
       - task: test
       - task: lint:web
+      - task: test:web
 
   web:install:
     desc: Install the npm workspace dependencies
@@ -64,7 +65,8 @@ tasks:
       - cd web && npm install
 
   dev:
-    desc: Run the desktop app in development
+    desc: Run the desktop app in development (builds the sidecar first)
+    deps: [build]
     cmds:
       - cd web && npm run dev --workspace @tailshare/desktop
 
@@ -73,6 +75,11 @@ tasks:
     cmds:
       - cd web && npx turbo run typecheck lint
       - cd web && npx prettier --check .
+
+  test:web:
+    desc: Desktop main-process tests (offline, no Electron needed)
+    cmds:
+      - cd web && npx turbo run test
 
   build:web:
     desc: Build the desktop bundles

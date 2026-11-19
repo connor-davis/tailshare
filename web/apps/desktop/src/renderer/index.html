@@ -3,9 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- ponytail: the sidecar port is dynamic and a file:// page gets no per-launch
+      header CSP, so connect-src allows any loopback port; the bearer token is the
+      real gate. Upgrade: serve the page from an app:// protocol and set an
+      exact-port CSP header (this changes the page Origin from null). -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <title>Tailshare</title>
   </head>

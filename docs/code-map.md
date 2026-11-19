@@ -71,8 +71,17 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | --- | --- |
 | npm workspace, task graph, shared compiler/format/lint rules | `web/package.json`, `web/turbo.json`, `web/tsconfig.json`, `web/prettier.config.js`, `web/eslint.config.js` |
 | Desktop commands and isolated build targets | `package.json`, `electron.vite.config.ts`, `tsconfig*.json` |
-| Secure window and Electron lifecycle | `src/main/index.ts` |
-| Empty typed desktop bridge and browser declaration | `src/preload/index.ts`, `src/shared/bridge.ts`, `src/renderer/src/types/desktop.d.ts` |
+| Electron lifecycle and wiring (quit waits for the sidecar to stop) | `src/main/index.ts` |
+| Window options and navigation lock | `src/main/window.ts` |
+| Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
+| Real sidecar process (spawn, token, stdin pipe) | `src/main/sidecar-process.ts` |
+| Ready-line parsing with a size bound | `src/main/ready-line.ts` |
+| Health check call | `src/main/health.ts` |
+| Sidecar binary path (dev `bin/`, packaged resources) | `src/main/config.ts` |
+| IPC handlers: sender check, schema checks, folder dialog | `src/main/ipc.ts` |
+| IPC channel names and payload schemas | `src/shared/ipc-schema.ts` |
+| Typed bridge (`window.tailshare`) and its browser declaration | `src/preload/index.ts`, `src/shared/bridge.ts`, `src/renderer/src/types/desktop.d.ts` |
+| Desktop tests (`task test:web`) | `src/**/*.test.ts` (vitest) |
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
 | Query client, hash router and system colour preference | `src/renderer/src/main.tsx` |
 | Root outlet and placeholder home route | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/routes/index.tsx` |

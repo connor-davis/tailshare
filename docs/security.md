@@ -90,3 +90,32 @@ What it does not cover:
 - The folder the user picks is trusted. Anything the user already put inside it
   is shared, including files other programs can change while we read.
 - Names and sizes are shown to the other computer as they are.
+
+## Desktop shell
+
+The Electron main process starts the Go sidecar and is the only place that
+knows its address and token.
+
+- The window has context isolation and the sandbox on and Node off. It refuses
+  every new window, navigation, redirect and webview. `window.tailshare` is the
+  only thing the page can reach: `getConnectionInfo`, `chooseFolder` and
+  `onSidecarStatus`. No `ipcRenderer`, no generic invoke.
+- Each IPC handler checks that the call came from our window, refuses extra
+  arguments, and checks its reply with an `effect/Schema` schema before it
+  leaves main. A folder path is only ever returned from the native dialog.
+- The token is 32 random bytes (64 hex characters), new for every sidecar
+  start, kept in memory, never logged and never in a URL. It goes to the sidecar
+  in the environment and to the page only after the health check passes.
+- The sidecar prints one line, `TAILSHARE_READY http://127.0.0.1:<port>`. Main
+  reads at most 4 KiB before that line and refuses anything that is not
+  `127.0.0.1` with a real port.
+- Main keeps the sidecar's stdin open. The sidecar exits when it closes, so a
+  crashed or killed Electron cannot leave it running. A normal quit closes
+  stdin first and kills only if it has not gone after 3 seconds.
+- The page's CSP lets `connect-src` reach `http://127.0.0.1:*` and
+  `ws://127.0.0.1:*`: the port is dynamic and a `file://` page gets no
+  per-launch header. Loopback only, plus the bearer token on every call.
+  ponytail: the upgrade is an `app://` protocol with an exact-port CSP header
+  (it changes the page Origin from `null`, so the sidecar allowlist changes too).
+- The dev renderer is pinned to port 5173 (`strictPort`) because the sidecar
+  only accepts that dev Origin.

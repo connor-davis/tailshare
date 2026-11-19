@@ -13,6 +13,8 @@ export default defineConfig({
     },
   },
   renderer: {
+    // The sidecar only allows this exact dev origin, so never drift to 5174.
+    server: { port: 5173, strictPort: true },
     resolve: { alias: { "@": resolve("src/renderer/src") } },
     plugins: [
       tanstackRouter({
