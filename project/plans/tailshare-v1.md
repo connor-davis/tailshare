@@ -28,9 +28,9 @@ streams for file data, one TCP stream per transfer.
 | 5 | **Transfers** | `internal/services/transfer` | Two-way upload/download with a queue, pause, cancel, resume by offset and SHA-256 verify. A test kills a transfer mid-way and resumes it. |
 | 6 | ✅ **Chat** | in `peer` | Session-only, in memory, never written to disk. |
 | 7 | **Local API** | `internal/api` (Fiber v3 + WS) | Routes for session, files, transfers and chat. Live events over WS, no polling. Every route checks the token. |
-| 8 | **Web workspace** | `web/` (npm workspaces + turbo, as in viper), `web/apps/desktop` | electron-vite, React 19, Tailwind 4, shadcn@latest init, TanStack Router (file routes), Query, Table, Virtual, Effect. |
+| 8 | ✅ **Web workspace** | `web/` (npm workspaces + turbo, as in viper), `web/apps/desktop` | electron-vite, React 19, Tailwind 4, shadcn@latest init, TanStack Router (file routes), Query, Table, Virtual, Effect. |
 | 9 | **Electron main** | `web/apps/desktop/src/main` | Effect layer: spawn and health-check the sidecar, restart on crash, native folder picker, typed IPC. |
-| 10 | **Design system** | `DESIGN.md`, tokens CSS | Polyphron brand colours, light and dark, patterns from viper/3reco. |
+| 10 | ✅ **Design system** | `DESIGN.md`, tokens CSS | Polyphron brand colours, light and dark, patterns from viper/3reco. |
 | 11 | **UI** | routes: `/` (connect: host or join by code), `/session` (two panes, transfer queue dock, chat drawer) | Modern FTP layout. Drag a file between panes to transfer. Empty, loading and error states. |
 | 12 | **Docs pass** | `docs/` (start-here, code-map, protocol), doc comments everywhere | Every exported symbol documented. |
 | 13 | **Package + prove** | electron-builder NSIS, `task dist` | Installer bundles the Go exe. Two PCs move 1 GB both ways with a matching hash. |

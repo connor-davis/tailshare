@@ -1,0 +1,5 @@
+node_modules/
+out/
+.turbo/
+**/routeTree.gen.ts
+**/*.tsbuildinfo

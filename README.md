@@ -10,12 +10,16 @@ step ([plan](project/plans/tailshare-v1.md)).
 
 ## Develop
 
-Needs Go 1.27 and [Task](https://taskfile.dev).
+Needs Go 1.27, Node.js 22.13+ and [Task](https://taskfile.dev).
 
 ```sh
-task check      # format, vet, staticcheck, tests
+task check      # Go checks plus desktop types, lint and formatting
 task test:net   # also run the live relay test (needs internet)
 task build      # build bin/tailshare
+task web:install # install desktop dependencies
+task dev        # launch the desktop shell
+task lint:web   # types, lint and formatting
+task build:web  # build desktop bundles
 ```
 
 Start with [docs/start-here.md](docs/start-here.md). Agents read

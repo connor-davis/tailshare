@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --background: #faf9f6;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #fa7a00;
+  --primary-foreground: #000000;
+  --link: #b85600;
+  --secondary: #ffffff;
+  --secondary-foreground: #000000;
+  --muted: #ffffff;
+  --muted-foreground: #3d4650;
+  --accent: #ffffff;
+  --accent-foreground: #000000;
+  --destructive: #d3212c;
+  --warning: #ca8a04;
+  --success: #24963e;
+  --border: #d0d0ce;
+  --input: #c0c0c0;
+  --ring: #0f1c2e;
+  --radius: 6px;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0f0f10;
+  --foreground: #ededee;
+  --card: #171718;
+  --card-foreground: #ededee;
+  --popover: #171718;
+  --popover-foreground: #ededee;
+  --primary: #fa7a00;
+  --primary-foreground: #0f0f10;
+  --link: #fa7a00;
+  --secondary: #1e1e20;
+  --secondary-foreground: #ededee;
+  --muted: #1e1e20;
+  --muted-foreground: #a1a1a7;
+  --accent: #1e1e20;
+  --accent-foreground: #ededee;
+  --destructive: #ff7b72;
+  --warning: #e8c547;
+  --success: #3dd68c;
+  --border: #262629;
+  --input: #36363a;
+  --ring: #fa7a00;
+}
+
+@theme inline {
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+  --font-mono: Consolas, ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-link: var(--link);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background font-sans text-sm text-foreground;
+    margin: 0;
+  }
+
+  a {
+    @apply text-link underline-offset-4;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+}

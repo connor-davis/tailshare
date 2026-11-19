@@ -62,3 +62,20 @@ line when you add an owner.
 | --- | --- |
 | No file over 900 lines; doc comment on every exported Go name | `tests/style_test.go` |
 | Staticcheck settings | `staticcheck.conf` |
+
+## Desktop app
+
+Paths below are relative to `web/apps/desktop` unless stated otherwise.
+
+| Job | Owner |
+| --- | --- |
+| npm workspace, task graph, shared compiler/format/lint rules | `web/package.json`, `web/turbo.json`, `web/tsconfig.json`, `web/prettier.config.js`, `web/eslint.config.js` |
+| Desktop commands and isolated build targets | `package.json`, `electron.vite.config.ts`, `tsconfig*.json` |
+| Secure window and Electron lifecycle | `src/main/index.ts` |
+| Empty typed desktop bridge and browser declaration | `src/preload/index.ts`, `src/shared/bridge.ts`, `src/renderer/src/types/desktop.d.ts` |
+| Renderer entry and Content Security Policy | `src/renderer/index.html` |
+| Query client, hash router and system colour preference | `src/renderer/src/main.tsx` |
+| Root outlet and placeholder home route | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/routes/index.tsx` |
+| Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
+| shadcn generation, button and class utility | `components.json`, `src/renderer/src/components/ui/button.tsx`, `src/renderer/src/lib/utils.ts` |
+| Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |

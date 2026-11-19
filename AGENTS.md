@@ -38,9 +38,9 @@ no-account WireGuard library.
   [style guide](docs/style-guide.md), [security](docs/security.md).
 - `project` - scope briefs, plans, decisions and delivery records.
   `mystuff` - local notes, maps and design mockups, untracked.
-- Coming in later plan steps: `internal/api` (Fiber v3 local API and
-  WebSocket), `web/apps/desktop` (Electron main, preload and the React
-  renderer).
+- `web/` - npm workspace and Turbo tooling; `web/apps/desktop` holds the
+  Electron main, typed preload and React renderer.
+- Coming in later plan steps: `internal/api` (Fiber v3 local API and WebSocket).
 
 ## Code map
 
@@ -56,7 +56,11 @@ All commands run through [Task](https://taskfile.dev); `task` lists them.
 - `task test` - Go tests. They run offline.
 - `task test:net` - the same plus the live Tailcat relay test
   (`TAILSHARE_NET=1`). It needs the internet.
-- `task check` - gofmt, vet, staticcheck and Go tests. Run it before every PR.
+- `task check` - Go checks plus TypeScript, ESLint and Prettier. Run it before every PR.
+- `task web:install` - install desktop workspace dependencies.
+- `task dev` - launch the Electron desktop app.
+- `task lint:web` - TypeScript, ESLint and Prettier checks (also in `check`).
+- `task build:web` - build the desktop bundles.
 - Other tasks: `fmt`, `fmt:check`, `vet`.
 
 ## Code style

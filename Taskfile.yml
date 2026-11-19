@@ -56,3 +56,25 @@ tasks:
       - task: fmt:check
       - task: vet
       - task: test
+      - task: lint:web
+
+  web:install:
+    desc: Install the npm workspace dependencies
+    cmds:
+      - cd web && npm install
+
+  dev:
+    desc: Run the desktop app in development
+    cmds:
+      - cd web && npm run dev --workspace @tailshare/desktop
+
+  lint:web:
+    desc: Check TypeScript types, ESLint and formatting
+    cmds:
+      - cd web && npx turbo run typecheck lint
+      - cd web && npx prettier --check .
+
+  build:web:
+    desc: Build the desktop bundles
+    cmds:
+      - cd web && npx turbo run build
