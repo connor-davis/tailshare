@@ -11,6 +11,16 @@ line when you add an owner.
 | Code to node key + pre-shared key (Argon2id), and code to full Tailcat address | `internal/services/codes/codes.go` (`Derive`, `Addr`) |
 | Parse/derive tests and the live relay spike | `internal/services/codes/codes_test.go` |
 
+## Sessions
+
+| Job | Owner |
+| --- | --- |
+| Tunnel lifetime, stream opening and accepting, session port | `internal/services/session/session.go` (`Session`, `Open`, `Accept`, `Close`) |
+| Host code, first-joiner admission and ten-minute expiry | `internal/services/session/host.go` (`Host`) |
+| Join by code and resolve the relay address | `internal/services/session/join.go` (`Join`) |
+| Fresh host keys, allowlisted reconnect and bootstrap acknowledgment | `internal/services/session/rekey.go` |
+| Offline local-DERP session, admission, expiry and rekey tests | `internal/services/session/session_test.go` |
+
 ## Settings and binary
 
 | Job | Owner |

@@ -23,7 +23,7 @@ streams for file data, one TCP stream per transfer.
 |---|------|-------|-----------|
 | 1 | ✅ **Seeded-keys spike** | `internal/services/codes`, `docs/security.md` | Live relay test passes (done 2026-11-19). |
 | 2 | ✅ **Repo skeleton** | `cmd/tailshare` (`version`, `env`), `internal/platform/config`, `tests/style_test.go`, `Taskfile.yml`, `staticcheck.conf`, `AGENTS.md`, `README.md`, `docs/{start-here,code-map,style-guide}.md` | Done 2026-11-20: `task check` green. `serve` and `apperr` move to step 7, when the API needs them. |
-| 3 | **Session service** | `internal/services/session` | Host: code, `AllowClient` admits only the first joiner, 10-min expiry, rekey to random keys. Join: by code. Test runs over a local DERP (`tstest/integration`), so it needs no internet. |
+| 3 | ✅ **Session service** | `internal/services/session` | Host: code, `AllowClient` admits only the first joiner, 10-min expiry, rekey to random keys. Join: by code. Test runs over a local DERP (`tstest/integration`), so it needs no internet. |
 | 4 | **Peer protocol + shared folder** | `internal/services/peer`, `internal/services/share` | List, stat and the path guard (`..`, absolute paths, symlink escape) are rejected, with tests. |
 | 5 | **Transfers** | `internal/services/transfer` | Two-way upload/download with a queue, pause, cancel, resume by offset and SHA-256 verify. A test kills a transfer mid-way and resumes it. |
 | 6 | **Chat** | in `peer` | Session-only, in memory, never written to disk. |

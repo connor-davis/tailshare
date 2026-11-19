@@ -36,12 +36,20 @@ Limits, all required:
 - **Slow derive.** Argon2id with 64 MiB makes each guess cost real memory and
   time. All 2^30 codes cost years of CPU on one machine, but a GPU farm can do
   it much faster.
-- **Single use.** The host admits only the first joiner (`AllowClient`), then
-  rejects everyone else.
+- **Single use.** The host admits only the first authenticated connection,
+  pins its node key with Tailcat's `AddAllowedClient`, and moves to a fresh
+  server allowlisted to that key. The bootstrap server closes after the
+  joiner acknowledges its reconnect, rejecting everyone else.
+  The host binds each stream to the key that authenticated it: Tailcat gives
+  every peer a fixed address made from its node key, so the host rebuilds
+  that address for each authenticated peer and matches the stream's source.
+  The joiner's claimed key must equal it. The random-key reconnect must
+  still authenticate as the admitted key.
 - **Short life.** A code expires 10 minutes after it is shown.
 - **Rekey.** Right after the first connect, both sides move to fresh random
-  Tailcat keys exchanged inside the tunnel. The code-derived keys only guard
-  the first seconds.
+  host Tailcat keys exchanged inside the tunnel. The joiner keeps its random
+  node key so the new host can admit only that computer. The code-derived
+  keys only guard the first seconds. A reconnect must finish within 30 seconds.
 - **Own relay later.** Moving to a self-hosted DERP relay removes the
   third-party operator from the threat.
 

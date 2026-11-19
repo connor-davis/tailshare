@@ -30,7 +30,8 @@ no-account WireGuard library.
 
 - `cmd/tailshare` - the sidecar binary: `version`, `env`, and later `serve`.
 - `internal/services/<area>` - the logic. `codes` turns a share code into
-  Tailcat keys and an address.
+  Tailcat keys and an address; `session` hosts or joins by code, admits one
+  joiner and rekeys.
 - `internal/platform` - shared pieces: `config` (every setting, from env).
 - `tests` - repo-wide checks (file size, doc comments).
 - `docs` - [start here](docs/start-here.md), [code map](docs/code-map.md),
@@ -127,6 +128,12 @@ How they work together:
 If a running sub-agent goes the wrong way, steer it with a message
 (`t3_thread_send` to its thread). Don't cancel it and start over.
 
+The Orchestrator answers every sub-agent question itself, and its own
+questions too. It researches first when unsure, and only asks the user
+about a real product choice. Every decision, by anyone, goes into
+`mystuff/decisions.md` (local, gitignored) with the date, the why and
+who decided.
+
 ## Learnings
 
 Add short notes here when something surprises you, under the closest group.
@@ -138,8 +145,18 @@ Add short notes here when something surprises you, under the closest group.
   be built from a code alone.
 - Tailcat's free relays are only regions 301 NYC, 302 SFO, 303 FRA and
   304 TOK (`https://tailcat.dev/derpmap.json`).
-- `key.NodePrivateFromRaw32` is deprecated. Build a node key from raw bytes
-  with `UnmarshalText("privkey:" + hex)`.
+- Tailcat v0.7.0 leaves `Status().Peer[k].TailscaleIPs` empty. A peer's
+  tunnel IP is `fd7a:115c:a1e0::/48` plus the first 10 bytes of its node
+  key (`session.tailcatIP`), so a stream's source names its key.
+- Tailcat v0.7.0 has `AddAllowedClient` / `AllowedClients`, not
+  `AllowClient`, and no way to drop a connected peer. Moving to a new
+  server is the only cut-off.
+- Offline tests use a local relay: `tstest/integration.RunDERPAndSTUN`,
+  plus the netcheck captive-portal hook in `TestMain`
+  (`internal/services/session/session_test.go`).
+- `key.NodePrivateFromRaw32` and `NodePublic.Raw32` are deprecated. Read
+  raw bytes with `AppendTo`; build a node key with
+  `UnmarshalText("privkey:" + hex)`.
 
 ### Windows and tooling
 
