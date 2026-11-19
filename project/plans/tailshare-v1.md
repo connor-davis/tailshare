@@ -31,7 +31,7 @@ streams for file data, one TCP stream per transfer.
 | 8 | ✅ **Web workspace** | `web/` (npm workspaces + turbo, as in viper), `web/apps/desktop` | electron-vite, React 19, Tailwind 4, shadcn@latest init, TanStack Router (file routes), Query, Table, Virtual, Effect. |
 | 9 | ✅ **Electron main** | `web/apps/desktop/src/main` | Effect layer: spawn and health-check the sidecar, restart on crash, native folder picker, typed IPC. |
 | 10 | ✅ **Design system** | `DESIGN.md`, tokens CSS | Polyphron brand colours, light and dark, patterns from viper/3reco. |
-| 11 | **UI** | routes: `/` (connect: host or join by code), `/session` (two panes, transfer queue dock, chat drawer) | Modern FTP layout. Drag a file between panes to transfer. Empty, loading and error states. |
+| 11 | ✅ **UI** | routes: `/` (connect: host or join by code), `/session` (two panes, transfer queue dock, chat drawer) | Modern FTP layout. Drag a file between panes to transfer. Empty, loading and error states. |
 | 12 | **Docs pass** | `docs/` (start-here, code-map, protocol), doc comments everywhere | Every exported symbol documented. |
 | 13 | **Package + prove** | electron-builder NSIS, `task dist` | Installer bundles the Go exe. Two PCs move 1 GB both ways with a matching hash. |
 
@@ -46,4 +46,4 @@ streams for file data, one TCP stream per transfer.
 
 Own DERP relay, macOS/Linux builds, saved history, more than 2 peers, auto-update, code signing.
 
-Steps 11–13 are next.
+Steps 12–13 are next.

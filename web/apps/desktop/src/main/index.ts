@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, session } from "electron"
 import { join } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
 import { CHANNELS } from "../shared/ipc-schema"
@@ -7,7 +7,7 @@ import { checkHealth } from "./health"
 import { registerIpc } from "./ipc"
 import { Sidecar, sidecarLayer } from "./sidecar"
 import { newToken, spawnSidecar } from "./sidecar-process"
-import { lockNavigation, windowOptions } from "./window"
+import { fixSocketOrigin, lockNavigation, windowOptions } from "./window"
 
 let window: BrowserWindow | null = null
 let quitting = false
@@ -76,6 +76,13 @@ async function main() {
     event.preventDefault()
     void runtime.dispose().finally(() => app.quit())
   })
+
+  // The packaged page is file://, and its socket needs the Origin the sidecar knows.
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ["ws://127.0.0.1:*/*"] },
+    (details, callback) =>
+      callback({ requestHeaders: fixSocketOrigin(details.requestHeaders) })
+  )
 
   createWindow()
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { lockNavigation, windowOptions } from "./window"
+import { fixSocketOrigin, lockNavigation, windowOptions } from "./window"
 
 describe("windowOptions", () => {
   const options = windowOptions("/app/preload/index.cjs")
@@ -41,5 +41,15 @@ describe("lockNavigation", () => {
       listeners.get(event)?.({ preventDefault })
       expect(preventDefault, event).toHaveBeenCalledOnce()
     }
+  })
+})
+
+describe("fixSocketOrigin", () => {
+  it("turns file:// into null and leaves other origins alone", () => {
+    expect(fixSocketOrigin({ Origin: "file://" })).toEqual({ Origin: "null" })
+    expect(fixSocketOrigin({ Origin: "http://localhost:5173" })).toEqual({
+      Origin: "http://localhost:5173",
+    })
+    expect(fixSocketOrigin({ Host: "x" })).toEqual({ Host: "x" })
   })
 })

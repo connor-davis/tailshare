@@ -113,7 +113,7 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	sess, code, err := session.Host(server.ctx, server.cfg)
 	if err != nil {
 		server.release()
-		return apperr.Unavailable(err.Error())
+		return connectError(err)
 	}
 
 	server.mu.Lock()
@@ -176,7 +176,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	sess, err := session.Join(ctx, in.Code, server.cfg)
 	if err != nil {
 		server.release()
-		return apperr.Unavailable(err.Error())
+		return connectError(err)
 	}
 
 	conn, err := sess.Open(ctx)
@@ -184,7 +184,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 		_ = sess.Close()
 		server.release()
 
-		return apperr.Unavailable(err.Error())
+		return connectError(err)
 	}
 
 	manager := transfer.New(root)
@@ -196,7 +196,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 		_ = sess.Close()
 		server.release()
 
-		return apperr.Unavailable(err.Error())
+		return connectError(err)
 	}
 
 	server.mu.Lock()

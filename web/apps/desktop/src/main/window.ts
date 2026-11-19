@@ -48,3 +48,14 @@ export function lockNavigation(contents: NavigationTarget): void {
     contents.on(event, (e) => e.preventDefault())
   }
 }
+
+/**
+ * The sidecar only allows the Origin `null`, which is what fetch sends from a
+ * packaged `file://` page. Chromium sends `file://` on a WebSocket, so the
+ * socket would get a 403. This swaps that one value, nothing else.
+ */
+export function fixSocketOrigin(
+  headers: Record<string, string>
+): Record<string, string> {
+  return headers.Origin === "file://" ? { ...headers, Origin: "null" } : headers
+}

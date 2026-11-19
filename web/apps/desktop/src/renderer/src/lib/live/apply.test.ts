@@ -1,0 +1,142 @@
+import { QueryClient } from "@tanstack/react-query"
+import { describe, expect, it } from "vitest"
+import { keys } from "../api/keys"
+import type {
+  ChatMessage,
+  SessionState,
+  TransferItem,
+  TransferView,
+} from "../api/types"
+import { applyEvent, upsertTransfer } from "./apply"
+
+const item = (over: Partial<TransferItem> = {}): TransferItem => ({
+  id: "t1",
+  direction: "upload",
+  source: "a.txt",
+  destination: "a.txt",
+  size: 100,
+  bytes: 0,
+  state: "running",
+  ...over,
+})
+
+const chat = (id: string): ChatMessage => ({
+  seq: 1,
+  id,
+  fromPeer: true,
+  text: id,
+  time: "2026-11-20T10:00:00Z",
+})
+
+const connected: SessionState = {
+  state: "connected",
+  peer: { displayName: "Other", sharedFolderName: "Pics" },
+}
+
+describe("applyEvent", () => {
+  it("seeds session, folder and transfers from a snapshot", () => {
+    const client = new QueryClient()
+
+    applyEvent(client, {
+      seq: 0,
+      type: "snapshot",
+      data: {
+        session: connected,
+        folder: { name: "Docs" },
+        transfers: [item()],
+      },
+    })
+
+    expect(client.getQueryData(keys.session)).toEqual(connected)
+    expect(client.getQueryData(keys.folder)).toEqual({ name: "Docs" })
+    expect(client.getQueryData<TransferView[]>(keys.transfers)).toHaveLength(1)
+  })
+
+  it("keeps a missing folder as null, not undefined", () => {
+    const client = new QueryClient()
+
+    applyEvent(client, {
+      seq: 0,
+      type: "snapshot",
+      data: { session: { state: "idle" }, folder: null, transfers: [] },
+    })
+
+    expect(client.getQueryData(keys.folder)).toBeNull()
+  })
+
+  it("replaces the session on session.state", () => {
+    const client = new QueryClient()
+    client.setQueryData(keys.session, { state: "idle" })
+
+    applyEvent(client, { seq: 1, type: "session.state", data: connected })
+
+    expect(client.getQueryData(keys.session)).toEqual(connected)
+  })
+
+  it("forgets chat when the session goes idle", () => {
+    const client = new QueryClient()
+    client.setQueryData(keys.chat, [chat("a")])
+
+    applyEvent(client, {
+      seq: 2,
+      type: "session.state",
+      data: { state: "idle" },
+    })
+
+    expect(client.getQueryData(keys.chat)).toBeUndefined()
+  })
+
+  it("appends chat once and keeps order", () => {
+    const client = new QueryClient()
+
+    for (const id of ["a", "b", "a"]) {
+      applyEvent(client, { seq: 1, type: "chat.message", data: chat(id) })
+    }
+
+    expect(
+      client.getQueryData<ChatMessage[]>(keys.chat)?.map((m) => m.id)
+    ).toEqual(["a", "b"])
+  })
+
+  it("upserts transfers by id for progress and state", () => {
+    const client = new QueryClient()
+
+    applyEvent(client, { seq: 1, type: "transfer.state", data: item() })
+    applyEvent(client, {
+      seq: 2,
+      type: "transfer.progress",
+      data: item({ bytes: 50 }),
+    })
+    applyEvent(client, {
+      seq: 3,
+      type: "transfer.state",
+      data: item({ id: "t2", state: "queued" }),
+    })
+
+    const list = client.getQueryData<TransferView[]>(keys.transfers)
+    expect(list).toHaveLength(2)
+    expect(list?.[0].bytes).toBe(50)
+  })
+
+  it("ignores unknown types", () => {
+    const client = new QueryClient()
+
+    applyEvent(client, { seq: 1, type: "something.new", data: {} })
+
+    expect(client.getQueryCache().getAll()).toHaveLength(0)
+  })
+})
+
+describe("upsertTransfer", () => {
+  it("shows no speed until two samples exist, then smooths", () => {
+    const client = new QueryClient()
+    const speed = () =>
+      client.getQueryData<TransferView[]>(keys.transfers)?.[0].speed
+
+    upsertTransfer(client, item({ bytes: 0 }), 1000)
+    expect(speed()).toBeUndefined()
+
+    upsertTransfer(client, item({ bytes: 1000 }), 2000)
+    expect(speed()).toBe(1000)
+  })
+})

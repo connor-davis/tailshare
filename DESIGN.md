@@ -105,7 +105,7 @@ shape cues. Respect reduced motion and do not add motion to this placeholder.
 | Component | Contract |
 | --- | --- |
 | Button | Generated shadcn primitive; semantic colours; dark text on orange; visible keyboard focus; disabled controls cannot trigger actions. |
-| Shell route | One title and disabled connection placeholder; Query and hash router providers; no connection behavior until step 11. |
+| Connect and session routes | `/` picks a folder, then hosts (shows a code) or joins (types one). `/session` has two file panes, a transfer dock and a chat sheet. Live data comes over one socket; chat stays in memory. |
 
 The renderer applies `.dark` before React mounts and follows changes to
 `prefers-color-scheme`. There is no saved override or theme switch yet. Native

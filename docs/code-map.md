@@ -100,10 +100,16 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | IPC handlers: sender check, schema checks, folder dialog | `src/main/ipc.ts` |
 | IPC channel names and payload schemas | `src/shared/ipc-schema.ts` |
 | Typed bridge (`window.tailshare`) and its browser declaration | `src/preload/index.ts`, `src/shared/bridge.ts`, `src/renderer/src/types/desktop.d.ts` |
-| Desktop tests (`task test:web`) | `src/**/*.test.ts` (vitest) |
+| Desktop tests (`task test:web`; `@` alias for tests) | `src/**/*.test.ts(x)` (vitest), `vitest.config.ts` |
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
 | Query client, hash router and system colour preference | `src/renderer/src/main.tsx` |
-| Root outlet and placeholder home route | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/routes/index.tsx` |
+| Root outlet, live socket start, sidecar banner, announcements | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/components/sidecar-banner.tsx`, `src/renderer/src/components/status-region.tsx` |
+| Connect screen (folder, host code, join by code) | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` |
+| Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
+| Byte, speed, time and date text | `src/renderer/src/lib/format.ts` |
+| Local API client, query keys, hooks and types (match `internal/api`) | `src/renderer/src/lib/api/` |
+| One live socket, seq ordering, reconnect, cache updates | `src/renderer/src/lib/live/` |
+| Session screen: two panes, transfer dock, chat sheet | `src/renderer/src/routes/session.tsx`, `src/renderer/src/routes/session/-components/` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation, button and class utility | `components.json`, `src/renderer/src/components/ui/button.tsx`, `src/renderer/src/lib/utils.ts` |
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |

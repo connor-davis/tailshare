@@ -106,6 +106,17 @@ func errUnreachable() *apperr.Error {
 	return apperr.Unavailable("Could not reach the other computer.")
 }
 
+// connectError turns a failed host or join into a plain sentence. The
+// services already speak in sentences, but a timeout or cancel arrives as
+// Go's own text ("context deadline exceeded"), which must not reach the page.
+func connectError(err error) *apperr.Error {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return errUnreachable()
+	}
+
+	return apperr.Unavailable(err.Error())
+}
+
 // errNotConnected is the answer to a request that needs a joined session.
 func errNotConnected() *apperr.Error {
 	return apperr.Conflict("not_connected", "Connect to another computer first.")

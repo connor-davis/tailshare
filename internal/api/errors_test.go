@@ -60,3 +60,17 @@ func TestToAppError(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectErrorHidesGoText(t *testing.T) {
+	timeout := fmt.Errorf("dial: %w", context.DeadlineExceeded)
+
+	got := connectError(timeout)
+	if got.Message != errUnreachable().Message {
+		t.Fatalf("timeout message = %q, want the unreachable sentence", got.Message)
+	}
+
+	plain := errors.New("Could not reach the other computer.")
+	if got := connectError(plain); got.Message != plain.Error() {
+		t.Fatalf("plain message = %q, want it kept", got.Message)
+	}
+}
