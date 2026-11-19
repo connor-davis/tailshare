@@ -90,6 +90,10 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | --- | --- |
 | npm workspace, task graph, shared compiler/format/lint rules | `web/package.json`, `web/turbo.json`, `web/tsconfig.json`, `web/prettier.config.js`, `web/eslint.config.js` |
 | Desktop commands and isolated build targets | `package.json`, `electron.vite.config.ts`, `tsconfig*.json` |
+| Windows installer, packaged sidecar and placeholder icon | `electron-builder.yml`, `build/icon.ico` |
+| Ordered release build and sidecar version from desktop package metadata | root `Taskfile.yml` (`dist`, `build`) |
+| Installer build instructions, unsigned builds and firewall guidance | `README.md` |
+| Windows package smoke evidence and two-PC transfer proof runbook | root `project/delivery/tailshare-v1-proof.md` |
 | Electron lifecycle and wiring (quit waits for the sidecar to stop) | `src/main/index.ts` |
 | Window options and navigation lock | `src/main/window.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |

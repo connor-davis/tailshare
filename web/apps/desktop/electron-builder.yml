@@ -1,0 +1,27 @@
+appId: ai.polyphron.tailshare
+productName: Tailshare
+asar: true
+directories:
+  output: ../../../dist
+files:
+  - out/**
+extraResources:
+  - from: ../../../bin/tailshare.exe
+    to: tailshare.exe
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # ponytail: Polyphron placeholder; replace with a Tailshare mark before release.
+  icon: build/icon.ico
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  packElevateHelper: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false

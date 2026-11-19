@@ -1,6 +1,8 @@
 {
   "name": "@tailshare/desktop",
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Send files between two computers with a six-character code.",
+  "author": "Polyphron",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -34,6 +36,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
     "electron": "45.4.1",
+    "electron-builder": "26.18.1",
     "electron-vite": "6.0.0",
     "jsdom": "31.0.1",
     "tailwindcss": "4.3.5",

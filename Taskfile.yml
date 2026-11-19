@@ -6,7 +6,7 @@ version: "3"
 
 vars:
   BIN: bin/tailshare{{exeExt}}
-  VERSION_FLAG: -X github.com/Polyphron-AI/tailshare/internal/platform/config.Version=dev
+  VERSION: dev
   # Name the Go roots so go never walks into web/ node_modules.
   GO_PKGS: ./cmd/... ./internal/... ./tests/...
 
@@ -19,8 +19,26 @@ tasks:
 
   build:
     desc: Build the sidecar into bin/
+    vars:
+      VERSION_FLAG: -X github.com/Polyphron-AI/tailshare/internal/platform/config.Version={{.VERSION}}
     cmds:
       - go build -trimpath -ldflags "{{.VERSION_FLAG}}" -o {{.BIN}} ./cmd/tailshare
+
+  dist:
+    desc: Build the Windows x64 sidecar and desktop NSIS installer
+    vars:
+      RELEASE_VERSION:
+        sh: node -p "JSON.parse(require('node:fs').readFileSync('web/apps/desktop/package.json', 'utf8')).version"
+    env:
+      GOOS: windows
+      GOARCH: amd64
+    cmds:
+      - task: build
+        vars:
+          BIN: bin/tailshare.exe
+          VERSION: "{{.RELEASE_VERSION}}"
+      - task: build:web
+      - cd web/apps/desktop && npx electron-builder --win nsis --x64
 
   fmt:
     desc: Format Go code
