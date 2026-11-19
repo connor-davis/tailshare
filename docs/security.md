@@ -112,9 +112,20 @@ knows its address and token.
 - Main keeps the sidecar's stdin open. The sidecar exits when it closes, so a
   crashed or killed Electron cannot leave it running. A normal quit closes
   stdin first and kills only if it has not gone after 3 seconds.
-- The page's CSP lets `connect-src` reach `http://127.0.0.1:*` and
+- The page's CSP is set in `web/apps/desktop/src/renderer/index.html`:
+  `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+  img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*;
+  object-src 'none'; base-uri 'none'; form-action 'none'`. Scripts only run
+  from our own files. `connect-src` reaches `http://127.0.0.1:*` and
   `ws://127.0.0.1:*`: the port is dynamic and a `file://` page gets no
   per-launch header. Loopback only, plus the bearer token on every call.
+  `'unsafe-inline'` is for styles only: the screen sets inline `style`
+  attributes (the transfer dock height, and the resizable and sheet parts set
+  their own sizes), and a style attribute cannot be allowed any other way.
+- A packaged page loads from `file://`, and Chromium sends `Origin: file://`
+  on a WebSocket. `fixSocketOrigin` in `src/main/window.ts` rewrites that one
+  value to `null` for socket requests, so the sidecar's exact `null` check
+  still holds. Nothing else about the request changes.
   ponytail: the upgrade is an `app://` protocol with an exact-port CSP header
   (it changes the page Origin from `null`, so the sidecar allowlist changes too).
 - The dev renderer is pinned to port 5173 (`strictPort`) because the sidecar
@@ -152,6 +163,17 @@ including finished attempts, and duplicate pending stream registrations are
 refused. Unknown or late data streams close without writing a file. Stream
 headers have a ten-second read deadline; stream and verdict waits are bounded
 at thirty seconds.
+
+## Chat
+
+Chat travels over the same encrypted tunnel as everything else, and it is
+kept as little as possible.
+
+- It lives in memory only. It is never written to disk and never logged.
+- Only the last 200 lines are kept. Older ones are dropped.
+- It is gone when the session ends.
+- Text is at most 8 KiB of valid UTF-8, and the ID has no control characters,
+  so the other computer cannot send anything the screen cannot show.
 
 ## Local API
 

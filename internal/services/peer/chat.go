@@ -27,7 +27,7 @@ type EventKind string
 const (
 	// EventChat is a chat message, sent or received.
 	EventChat EventKind = "chat"
-	// EventTransfer is a transfer.* event from the other computer (step 5).
+	// EventTransfer is a transfer.* event from the other computer.
 	EventTransfer EventKind = "transfer"
 	// EventClosed means the conversation has ended. It is the last event.
 	EventClosed EventKind = "closed"
@@ -36,20 +36,26 @@ const (
 // ChatMessage is one line of chat. Chat lives in memory only: it is never
 // written to disk and never logged.
 type ChatMessage struct {
-	Seq      int64     `json:"seq"`
-	ID       string    `json:"id"`
-	FromPeer bool      `json:"fromPeer"`
-	Text     string    `json:"text"`
-	Time     time.Time `json:"time"`
+	// Seq counts the lines this computer has recorded. It is not the other side's count.
+	Seq int64 `json:"seq"`
+	// ID is random text from the sender, at most 64 characters with no control characters.
+	ID       string `json:"id"`
+	FromPeer bool   `json:"fromPeer"`
+	// Text is at most 8 KiB of valid UTF-8.
+	Text string    `json:"text"`
+	Time time.Time `json:"time"`
 }
 
 // Event is something the screen should hear about. Seq grows by one for every
 // event of any kind.
 type Event struct {
-	Seq    int64           `json:"seq"`
-	Kind   EventKind       `json:"kind"`
-	Chat   *ChatMessage    `json:"chat,omitempty"`
-	Method string          `json:"method,omitempty"`
+	Seq  int64     `json:"seq"`
+	Kind EventKind `json:"kind"`
+	// Chat is set only when Kind is chat.
+	Chat *ChatMessage `json:"chat,omitempty"`
+	// Method is set only for transfer events, such as transfer.offer.
+	Method string `json:"method,omitempty"`
+	// Params is the raw JSON for Method. Set only for transfer events.
 	Params json.RawMessage `json:"params,omitempty"`
 }
 

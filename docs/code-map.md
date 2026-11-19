@@ -23,9 +23,11 @@ line when you add an owner.
 
 ## Peer protocol
 
+The wire format is written up in [protocol.md](protocol.md).
+
 | Job | Owner |
 | --- | --- |
-| Start a conversation, hello and version choice, request/response/event API for the local API, extra handlers for step 5 | `internal/services/peer/peer.go` (`Start`, `Peer`, `Call`, `Notify`, `Options`) |
+| Start a conversation, hello and version choice, request/response/event API for the local API, extra handlers | `internal/services/peer/peer.go` (`Start`, `Peer`, `Call`, `Notify`, `Options`) |
 | Frame format: 4-byte length + JSON, 1 MiB cap | `internal/services/peer/frame.go` |
 | Envelope, method names, error codes, typed hello/list/chat and transfer payloads | `internal/services/peer/message.go` |
 | The one reader, request routing, answers, closing | `internal/services/peer/dispatch.go` |
@@ -79,7 +81,7 @@ line when you add an owner.
 
 | Job | Owner |
 | --- | --- |
-| No file over 900 lines; doc comment on every exported Go name | `tests/style_test.go` |
+| No file over 900 lines; doc comment on every exported top-level Go name (struct fields only where the [style guide](style-guide.md) asks) | `tests/style_test.go` |
 | Staticcheck settings | `staticcheck.conf` |
 
 ## Desktop app
@@ -95,7 +97,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Installer build instructions, unsigned builds and firewall guidance | `README.md` |
 | Windows package smoke evidence and two-PC transfer proof runbook | root `project/delivery/tailshare-v1-proof.md` |
 | Electron lifecycle and wiring (quit waits for the sidecar to stop) | `src/main/index.ts` |
-| Window options and navigation lock | `src/main/window.ts` |
+| Window options, navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
 | Real sidecar process (spawn, token, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
@@ -115,7 +117,8 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | One live socket, seq ordering, reconnect, cache updates | `src/renderer/src/lib/live/` |
 | Session screen: two panes, transfer dock, chat sheet | `src/renderer/src/routes/session.tsx`, `src/renderer/src/routes/session/-components/` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
-| shadcn generation, button and class utility | `components.json`, `src/renderer/src/components/ui/button.tsx`, `src/renderer/src/lib/utils.ts` |
+| shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |
+| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`breadcrumb.tsx`, `button.tsx`, `context-menu.tsx`, `input.tsx`, `label.tsx`, `resizable.tsx`, `sheet.tsx`, `table.tsx`) |
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |
 
 ## Transfers

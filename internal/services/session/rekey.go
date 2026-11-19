@@ -14,8 +14,9 @@ import (
 	"tailscale.com/types/key"
 )
 
-// ponytail: rekey uses one bounded text line and an ack; step 4's peer JSON
-// framing will replace this temporary wire format.
+// Rekey is one bounded text line and an ack. It runs on the code's server,
+// before the peer conversation (and its JSON frames) exists, so it keeps its
+// own tiny format. See docs/protocol.md.
 const rekeyPrefix = "rekey "
 
 func readJoiner(

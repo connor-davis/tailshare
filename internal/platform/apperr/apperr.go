@@ -9,6 +9,7 @@ import "net/http"
 // Error is an error a caller may see. Message is always a plain sentence with
 // no Go error text and no local path.
 type Error struct {
+	// Status is the HTTP status. It is never sent to the page.
 	Status  int    `json:"-"`
 	Code    string `json:"code"`
 	Message string `json:"message"`

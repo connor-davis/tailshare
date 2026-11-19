@@ -34,15 +34,20 @@ const (
 // SessionState is what the screen knows about the session. The code is shown
 // only while hosting.
 type SessionState struct {
-	State string    `json:"state"`
-	Role  string    `json:"role,omitempty"`
-	Code  string    `json:"code,omitempty"`
-	Peer  *PeerInfo `json:"peer,omitempty"`
+	// State is the phase: idle, connecting, hosting or connected.
+	State string `json:"state"`
+	// Role is host or joiner. Empty while idle.
+	Role string `json:"role,omitempty"`
+	Code string `json:"code,omitempty"`
+	// Peer is nil until the other computer has connected.
+	Peer *PeerInfo `json:"peer,omitempty"`
 }
 
 // PeerInfo is what the other computer said about itself.
 type PeerInfo struct {
-	DisplayName      string `json:"displayName"`
+	// DisplayName is at most 64 characters.
+	DisplayName string `json:"displayName"`
+	// SharedFolderName is at most 255 characters.
 	SharedFolderName string `json:"sharedFolderName"`
 }
 

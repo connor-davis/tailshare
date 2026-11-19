@@ -19,6 +19,7 @@ const (
 // TransferRequest asks for one file to move. Source and Destination are
 // paths on the sending and receiving side; the manager checks them.
 type TransferRequest struct {
+	// Direction is upload or download.
 	Direction   string `json:"direction"`
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
@@ -27,14 +28,18 @@ type TransferRequest struct {
 // TransferItem is one transfer in the queue. State is one of queued, starting,
 // running, paused, done, failed or canceled.
 type TransferItem struct {
-	ID          string `json:"id"`
+	ID string `json:"id"`
+	// Direction is upload or download.
 	Direction   string `json:"direction"`
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
-	Size        int64  `json:"size"`
-	Bytes       int64  `json:"bytes"`
-	State       string `json:"state"`
-	Error       string `json:"error,omitempty"`
+	// Size is the whole file size in bytes, at most 1 TiB.
+	Size int64 `json:"size"`
+	// Bytes is how many bytes have moved so far, including any resumed prefix.
+	Bytes int64  `json:"bytes"`
+	State string `json:"state"`
+	// Error is empty unless the transfer failed. It is a plain sentence.
+	Error string `json:"error,omitempty"`
 }
 
 // TransferEvent says a transfer moved or changed. Type is "transfer.progress"
@@ -44,7 +49,7 @@ type TransferEvent struct {
 	Item TransferItem `json:"item"`
 }
 
-// Transfers is what the API needs from the transfer manager (step 5). Errors
+// Transfers is what the API needs from the transfer manager. Errors
 // may be *apperr.Error, which the API passes through as is. List must never
 // wait on a subscriber, because the live socket calls it while holding its lock.
 type Transfers interface {

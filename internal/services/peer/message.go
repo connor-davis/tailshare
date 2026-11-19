@@ -35,15 +35,15 @@ const (
 	MethodStat = "stat"
 	// MethodChat delivers one chat message.
 	MethodChat = "chat"
-	// MethodTransferOffer offers a file in one direction (step 5).
+	// MethodTransferOffer offers a file in one direction.
 	MethodTransferOffer = "transfer.offer"
-	// MethodTransferCancel stops a transfer (step 5).
+	// MethodTransferCancel stops a transfer.
 	MethodTransferCancel = "transfer.cancel"
-	// MethodTransferResume asks to continue from an offset (step 5).
+	// MethodTransferResume asks to continue from an offset.
 	MethodTransferResume = "transfer.resume"
-	// MethodTransferComplete reports a finished transfer (step 5 event).
+	// MethodTransferComplete reports a finished transfer.
 	MethodTransferComplete = "transfer.complete"
-	// MethodTransferFailed reports a transfer that stopped early (step 5 event).
+	// MethodTransferFailed reports a transfer that stopped early.
 	MethodTransferFailed = "transfer.failed"
 )
 
@@ -118,7 +118,8 @@ type listParams struct {
 // knows whether to ask for more.
 type ListResult struct {
 	Entries []Entry `json:"entries"`
-	Total   int     `json:"total"`
+	// Total is the number of entries before paging, so the screen can page.
+	Total int `json:"total"`
 }
 
 type statParams struct {
@@ -144,36 +145,48 @@ const (
 	DirectionUpload Direction = "upload"
 )
 
-// TransferOffer is the payload of transfer.offer. Step 5 sends and answers it.
+// TransferOffer is the payload of transfer.offer.
 type TransferOffer struct {
-	TransferID string    `json:"transferID"`
-	Path       string    `json:"path"`
-	Direction  Direction `json:"direction"`
-	Size       int64     `json:"size"`
-	SHA256     string    `json:"sha256"`
+	TransferID string `json:"transferID"`
+	// Path is a slash path on the computer that receives this offer.
+	Path string `json:"path"`
+	// Direction is the offering side's view. The receiver flips it, using its own
+	// initiator flag, to learn whether it sends or receives the bytes.
+	Direction Direction `json:"direction"`
+	// Size is in bytes, at most 1 TiB.
+	Size int64 `json:"size"`
+	// SHA256 is the whole file's hash as 64 hex characters.
+	SHA256 string `json:"sha256"`
 }
 
 // TransferAccept is the payload of transfer.accept.
 type TransferAccept struct {
 	TransferID string `json:"transferID"`
 	Accepted   bool   `json:"accepted"`
-	Reason     string `json:"reason,omitempty"`
-	Size       int64  `json:"size,omitempty"`
-	SHA256     string `json:"sha256,omitempty"`
-	Offset     int64  `json:"offset,omitempty"`
+	// Reason is a plain sentence saying why the offer was refused. Empty when accepted.
+	Reason string `json:"reason,omitempty"`
+	// Size is the file size the receiver agrees to, in bytes. Omitted when zero.
+	Size int64 `json:"size,omitempty"`
+	// SHA256 is the hash the transfer will use, as 64 hex characters.
+	SHA256 string `json:"sha256,omitempty"`
+	// Offset is the bytes the receiver already holds. Zero means start at the beginning.
+	Offset int64 `json:"offset,omitempty"`
 }
 
 // TransferCancel is the payload of transfer.cancel.
 type TransferCancel struct {
 	TransferID string `json:"transferID"`
-	Reason     string `json:"reason,omitempty"`
+	// Reason is optional. Empty when no reason is given.
+	Reason string `json:"reason,omitempty"`
 }
 
 // TransferResume is the payload of transfer.resume.
 type TransferResume struct {
 	TransferID string `json:"transferID"`
-	Offset     int64  `json:"offset"`
-	SHA256     string `json:"sha256"`
+	// Offset is bytes already on disk. Must be between 0 and the file size.
+	Offset int64 `json:"offset"`
+	// SHA256 must equal the hash agreed in the offer and accept.
+	SHA256 string `json:"sha256"`
 }
 
 // TransferComplete is the payload of the transfer.complete event.

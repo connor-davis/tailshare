@@ -22,16 +22,20 @@ const (
 // message to a new client has type "snapshot" and the seq of the last event
 // before it, so nothing falls between the snapshot and what follows.
 type Event struct {
-	Seq  int64  `json:"seq"`
+	Seq int64 `json:"seq"`
+	// Type says what the data is: snapshot, session.state, chat.message,
+	// transfer.state or transfer.progress.
 	Type string `json:"type"`
-	Data any    `json:"data"`
+	// Data is the payload for Type; its shape depends on Type.
+	Data any `json:"data"`
 }
 
 // Snapshot is the data of the first live message: everything the screen needs
 // to draw itself before any event arrives. Chat is not included; read it from
 // /api/chat.
 type Snapshot struct {
-	Session   SessionState   `json:"session"`
+	Session SessionState `json:"session"`
+	// Folder is nil when no shared folder is chosen.
 	Folder    *FolderInfo    `json:"folder"`
 	Transfers []TransferItem `json:"transfers"`
 }

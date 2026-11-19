@@ -51,16 +51,19 @@ type Options struct {
 	// The caller owns it and closes it when the session ends.
 	Share *share.Root
 
-	// Handlers answer extra requests, such as the transfer controls (step 5).
+	// Handlers answer extra requests, such as the transfer controls.
 	// They cannot replace the built-in methods.
 	Handlers map[string]Handler
 }
 
 // Remote is what the other computer said about itself in hello.
 type Remote struct {
-	DisplayName      string `json:"displayName"`
+	// DisplayName is at most 64 characters.
+	DisplayName string `json:"displayName"`
+	// SharedFolderName is at most 255 characters.
 	SharedFolderName string `json:"sharedFolderName"`
-	Version          int    `json:"version"`
+	// Version is the protocol version both sides agreed in hello.
+	Version int `json:"version"`
 }
 
 // Peer is one side of an open conversation. It is safe for concurrent use.
@@ -166,7 +169,7 @@ func (peer *Peer) Close() error {
 
 // Call sends a request and waits for its answer, decoding the result into
 // result (nil to ignore it). A *RemoteError means the other side said no.
-// Step 5 uses it for the transfer controls.
+// The transfer manager uses it for the transfer controls.
 func (peer *Peer) Call(ctx context.Context, method string, params, result any) error {
 	raw, err := marshalOptional(params)
 	if err != nil {

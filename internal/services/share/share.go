@@ -20,7 +20,8 @@ const MaxPage = 1000
 
 // Entry describes one file or folder. Names are base names only.
 type Entry struct {
-	Name    string    `json:"name"`
+	Name string `json:"name"`
+	// Size is in bytes.
 	Size    int64     `json:"size"`
 	ModTime time.Time `json:"modTime"`
 	IsDir   bool      `json:"isDir"`

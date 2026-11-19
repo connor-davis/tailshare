@@ -31,17 +31,21 @@ no-account WireGuard library.
 - `cmd/tailshare` - the sidecar binary: `version`, `env` and `serve`.
 - `internal/services/<area>` - the logic. `codes` turns a share code into
   Tailcat keys and an address; `session` hosts or joins by code, admits one
-  joiner and rekeys.
+  joiner and rekeys; `peer` is the conversation over the tunnel; `share` is
+  the guarded shared folder; `transfer` is the queue, resume and checksums.
 - `internal/api` - the Fiber v3 local API and its WebSocket; `tailshare serve` runs it.
 - `internal/platform` - shared pieces: `config` (every setting, from env), `apperr`
   (errors the screen may see).
 - `tests` - repo-wide checks (file size, doc comments).
 - `docs` - [start here](docs/start-here.md), [code map](docs/code-map.md),
-  [style guide](docs/style-guide.md), [security](docs/security.md).
+  [style guide](docs/style-guide.md), [security](docs/security.md),
+  [protocol](docs/protocol.md).
 - `project` - scope briefs, plans, decisions and delivery records.
   `mystuff` - local notes, maps and design mockups, untracked.
 - `web/` - npm workspace and Turbo tooling; `web/apps/desktop` holds the
-  Electron main, typed preload and React renderer.
+  Electron main, typed preload and React renderer, plus the installer config
+  (`electron-builder.yml`, `build/`) and its [README](web/apps/desktop/README.md).
+  `project/delivery/` holds the proof records.
 
 ## Code map
 
@@ -57,10 +61,13 @@ All commands run through [Task](https://taskfile.dev); `task` lists them.
 - `task test` - Go tests. They run offline.
 - `task test:net` - the same plus the live Tailcat relay test
   (`TAILSHARE_NET=1`). It needs the internet.
-- `task check` - Go checks plus TypeScript, ESLint and Prettier. Run it before every PR.
+- `task check` - Go format, vet, staticcheck, Go tests, web lint and web tests.
+  Run it before every PR.
 - `task web:install` - install desktop workspace dependencies.
 - `task dev` - launch the Electron desktop app.
 - `task lint:web` - TypeScript, ESLint and Prettier checks (also in `check`).
+- `task test:web` - desktop main-process tests (also in `check`).
+- `task dist` - build the Windows x64 installer into `dist/`.
 - `task build:web` - build the desktop bundles.
 - Other tasks: `fmt`, `fmt:check`, `vet`.
 
@@ -69,8 +76,9 @@ All commands run through [Task](https://taskfile.dev); `task` lists them.
 The rules are in [docs/style-guide.md](docs/style-guide.md). In short:
 
 - Blank lines between steps. Comments say why, in plain words.
-- Go: a doc comment on every exported name (`tests/style_test.go` checks
-  it); a call goes on one line if it fits in 100 characters, otherwise one
+- Go: a doc comment on every exported top-level name and method
+  (`tests/style_test.go` checks it); a struct field only when its name and
+  type don't say it all (units, zero meaning, limits, wire quirks); a call goes on one line if it fits in 100 characters, otherwise one
   argument per line.
 - TypeScript: a TSDoc comment on every export.
 - No file over 900 lines. Split a long file by job; never squeeze lines to

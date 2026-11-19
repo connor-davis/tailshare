@@ -30,7 +30,10 @@ if err := json.Unmarshal(body, &in); err != nil {
 ## Comments
 
 - Say why, in plain words. The code already says what.
-- Every exported Go name gets a doc comment that starts with its name.
+- Every exported top-level Go name (type, func, method, const, var) gets a doc
+  comment that starts with its name. A struct field gets one only when its name
+  and type don't say it all: units, an empty or zero meaning, a limit, or a wire
+  quirk. `tests/style_test.go` checks top-level names only, on purpose.
 - Every exported TypeScript name gets a TSDoc comment (`/** ... */`).
   An unexported helper whose name explains itself needs none.
 - A decision id (`D-003`) may follow the why as a pointer. It never stands

@@ -32,25 +32,33 @@ const (
 type Transfer struct {
 	ID        string         `json:"id"`
 	Direction peer.Direction `json:"direction"`
-	Initiator bool           `json:"initiator"`
-	Name      string         `json:"name"`
+	// Initiator is true when this computer started the transfer.
+	Initiator bool   `json:"initiator"`
+	Name      string `json:"name"`
 	// LocalPath is relative to the shared folder, for local API path mapping only.
-	LocalPath string    `json:"-"`
-	PeerPath  string    `json:"peerPath"`
-	Size      int64     `json:"size"`
-	Bytes     int64     `json:"bytes"`
-	Offset    int64     `json:"offset"`
-	State     State     `json:"state"`
+	LocalPath string `json:"-"`
+	// PeerPath is the slash path on the other computer.
+	PeerPath string `json:"peerPath"`
+	// Size is the whole file size in bytes, at most 1 TiB.
+	Size int64 `json:"size"`
+	// Bytes is how many bytes have moved so far, including the resumed prefix.
+	Bytes int64 `json:"bytes"`
+	// Offset is the bytes already on disk when this attempt started. It is the resume point.
+	Offset int64 `json:"offset"`
+	State  State `json:"state"`
+	// Reason is empty unless the transfer failed or was canceled. It is a plain sentence.
 	Reason    string    `json:"reason"`
 	UpdatedAt time.Time `json:"updatedAt"`
-	Speed     float64   `json:"speed"`
+	// Speed is bytes per second for this attempt, averaged since it started.
+	Speed float64 `json:"speed"`
 }
 
 // Event is a state change or throttled progress update.
 type Event struct {
-	Kind     string    `json:"kind"`
+	// Kind says what changed. The only value in this package is "update".
+	Kind string `json:"kind"`
+	// Transfer is the new snapshot. It is the only field this package sets on Event.
 	Transfer *Transfer `json:"transfer,omitempty"`
-	ID       string    `json:"id,omitempty"`
 }
 
 var (

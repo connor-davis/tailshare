@@ -37,7 +37,8 @@ type Config struct {
 
 // EnvVar documents one setting.
 type EnvVar struct {
-	Name    string
+	Name string
+	// Default is the text used when the variable is unset. Empty means there is no default.
 	Default string
 	Help    string
 }
