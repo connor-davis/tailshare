@@ -1,0 +1,11 @@
+bin/
+dist/
+node_modules/
+out/
+
+# Local scratch (maps, design mockups)
+mystuff/
+
+# Product Ops runtime state
+.tmp/
+.product-ops-runtime/

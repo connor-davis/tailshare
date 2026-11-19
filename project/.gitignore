@@ -1,0 +1,9 @@
+# Product Ops learning-loop local state
+learnings/local.md
+learnings/.scrub-denylist
+.learning-loop-state/
+.learning-loop-inbox/
+metrics/learning-loop-health.jsonl
+metrics/runtime-events/
+metrics/worker-events.jsonl
+state/

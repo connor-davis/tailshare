@@ -1,0 +1,58 @@
+# Every everyday command in one place. Needs https://taskfile.dev
+#
+#   task          list all tasks
+#   task check    everything CI would check
+version: "3"
+
+vars:
+  BIN: bin/tailshare{{exeExt}}
+  VERSION_FLAG: -X github.com/Polyphron-AI/tailshare/internal/platform/config.Version=dev
+  # Name the Go roots so go never walks into web/ node_modules.
+  GO_PKGS: ./cmd/... ./internal/... ./tests/...
+
+tasks:
+  default:
+    desc: List all tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the sidecar into bin/
+    cmds:
+      - go build -trimpath -ldflags "{{.VERSION_FLAG}}" -o {{.BIN}} ./cmd/tailshare
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - gofmt -w cmd internal tests
+
+  fmt:check:
+    desc: Fail if any Go file is not gofmt-clean
+    cmds:
+      - test -z "$(gofmt -l cmd internal tests)" || (gofmt -l cmd internal tests && exit 1)
+
+  vet:
+    desc: go vet and staticcheck
+    cmds:
+      - go vet {{.GO_PKGS}}
+      - go run honnef.co/go/tools/cmd/staticcheck@latest {{.GO_PKGS}}
+
+  test:
+    desc: Go tests (offline)
+    cmds:
+      - go test -timeout 10m {{.GO_PKGS}}
+
+  test:net:
+    desc: Go tests including the live Tailcat relay test (needs internet)
+    env:
+      TAILSHARE_NET: "1"
+    cmds:
+      - go test -timeout 10m {{.GO_PKGS}}
+
+  check:
+    desc: gofmt, vet, staticcheck and Go tests
+    cmds:
+      - task: fmt:check
+      - task: vet
+      - task: test
