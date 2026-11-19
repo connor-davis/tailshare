@@ -229,7 +229,7 @@ func (peer *Peer) Call(ctx context.Context, method string, params, result any) e
 	}
 }
 
-// Notify sends an event. Nothing answers it. Step 5 uses it for progress.
+// Notify sends an event. Nothing answers it. Transfers use it for receiver verdicts and cancellation.
 func (peer *Peer) Notify(method string, params any) error {
 	raw, err := marshalOptional(params)
 	if err != nil {

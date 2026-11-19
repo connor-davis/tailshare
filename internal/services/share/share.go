@@ -102,6 +102,10 @@ func (shared *Root) List(dir string, offset, limit int) ([]Entry, int, error) {
 
 	entries := make([]Entry, 0, len(names))
 	for _, name := range names {
+		if strings.HasSuffix(strings.ToLower(strings.TrimRight(name, ". ")), PartialSuffix) {
+			continue
+		}
+
 		// Stat follows links, but only inside the root.
 		info, err := shared.root.Stat(filepath.Join(local, name))
 		if err != nil {

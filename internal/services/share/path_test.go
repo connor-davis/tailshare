@@ -14,6 +14,7 @@ func TestLocalizeRejects(t *testing.T) {
 		"CON", "con", "Con.txt", "dir/NUL", "aux.tar.gz", "COM1", "lpt9.txt", "CONIN$", "conout$",
 		"CON.", "CON ", "nul .txt", "dir/PRN/file",
 		"bad\nname", "tab\tname",
+		"file.tailshare-part", "FILE.TAILSHARE-PART", "x.tailshare-part./child",
 	}
 
 	for _, wire := range bad {

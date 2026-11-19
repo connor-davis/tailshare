@@ -28,11 +28,13 @@ no-account WireGuard library.
 
 ## Layout
 
-- `cmd/tailshare` - the sidecar binary: `version`, `env`, and later `serve`.
+- `cmd/tailshare` - the sidecar binary: `version`, `env` and `serve`.
 - `internal/services/<area>` - the logic. `codes` turns a share code into
   Tailcat keys and an address; `session` hosts or joins by code, admits one
   joiner and rekeys.
-- `internal/platform` - shared pieces: `config` (every setting, from env).
+- `internal/api` - the Fiber v3 local API and its WebSocket; `tailshare serve` runs it.
+- `internal/platform` - shared pieces: `config` (every setting, from env), `apperr`
+  (errors the screen may see).
 - `tests` - repo-wide checks (file size, doc comments).
 - `docs` - [start here](docs/start-here.md), [code map](docs/code-map.md),
   [style guide](docs/style-guide.md), [security](docs/security.md).
@@ -40,7 +42,6 @@ no-account WireGuard library.
   `mystuff` - local notes, maps and design mockups, untracked.
 - `web/` - npm workspace and Turbo tooling; `web/apps/desktop` holds the
   Electron main, typed preload and React renderer.
-- Coming in later plan steps: `internal/api` (Fiber v3 local API and WebSocket).
 
 ## Code map
 

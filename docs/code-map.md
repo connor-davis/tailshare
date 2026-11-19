@@ -39,8 +39,27 @@ line when you add an owner.
 | --- | --- |
 | Open the shared folder once (`os.Root`), list, stat, close | `internal/services/share/share.go` (`Open`, `Root`) |
 | Peer path rules (slash paths, no `..`, drives, streams, device names) | `internal/services/share/path.go` (`Localize`) |
+| Partial-file access, regular-file checks and no-replace hard-link publication | `internal/services/share/partial.go` (`PartialSize`, `OpenPartial`, `ReadPartial`, `Commit`, `RemovePartial`) |
+| Private partial suffix, peer-path refusal and listing filter | `internal/services/share/path.go` (`PartialSuffix`), `internal/services/share/share.go` (`List`) |
 | Confined read and exclusive-create for downloads and uploads | `internal/services/share/files.go` (`OpenRead`, `Create`) |
 | Path table, escape, link and junction tests | `internal/services/share/*_test.go` |
+
+## Local API
+
+| Job | Owner |
+| --- | --- |
+| Error type for the screen (status, stable code, plain sentence) | `internal/platform/apperr/apperr.go` (`Error`, `New`, `BadRequest`, `Internal`) |
+| API construction, listener, shutdown, route table, the one state owner | `internal/api/server.go` (`Server`, `New`, `Listen`, `Serve`, `Shutdown`) |
+| Host, Origin and bearer-token guard, CORS preflight, live-socket handshake check | `internal/api/middleware.go` (`guard`) |
+| Service and peer errors to safe API errors, the JSON error handler | `internal/api/errors.go` (`errorHandler`, `toAppError`) |
+| Host, join, leave, session state and peer-loss cleanup | `internal/api/session.go` |
+| Shared folder choice, local and peer folder listing | `internal/api/files.go` |
+| Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
+| Transfer routes, the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
+| Manager adapter, direction/path mapping, state/progress events and subscription recovery | `internal/api/transfer_manager.go` (`managedTransfers`), `internal/api/session.go` (manager lifetime) |
+| One event hub, bounded client queues, snapshot-first WebSocket | `internal/api/live.go` (`hub`, `Event`, `Snapshot`) |
+| `tailshare serve`: startup checks, ready line, stdin/signal shutdown | `cmd/tailshare/serve.go` |
+| API route, guard, live, session and transfer tests (fake manager, SHA-256 upload/download over local relay, subscription overflow) | `internal/api/*_test.go`, `cmd/tailshare/serve_test.go` |
 
 ## Test support
 
@@ -54,7 +73,7 @@ line when you add an owner.
 | --- | --- |
 | Every env setting, its default and help text | `internal/platform/config/config.go` (`EnvVars`, `Load`) |
 | Build version string | `internal/platform/config/config.go` (`Version`), set by `task build` |
-| CLI commands | `cmd/tailshare/main.go` |
+| CLI commands (`version`, `env`, `serve`) | `cmd/tailshare/main.go`, `cmd/tailshare/serve.go` |
 
 ## Repo checks
 
@@ -88,3 +107,19 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation, button and class utility | `components.json`, `src/renderer/src/components/ui/button.tsx`, `src/renderer/src/lib/utils.ts` |
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |
+
+## Transfers
+
+| Job | Owner |
+| --- | --- |
+| Transfer states, snapshots, events and ID validation | `internal/services/transfer/transfer.go` (`State`, `Transfer`, `Event`) |
+| Queue, two shared slots, pause, cancel, resume and lifetime | `internal/services/transfer/manager.go` (`Manager`, `New`, `Attach`, `Done`) |
+| Offer and download-resume checks, duplicate offer refusal | `internal/services/transfer/offer.go` |
+| Data streams, bounded ID header, duplicate waiter refusal | `internal/services/transfer/stream.go` |
+| Negotiation, transfer execution and receiver verdicts | `internal/services/transfer/run.go` |
+| Source hashing and exact-size sending | `internal/services/transfer/send.go` |
+| Partial receive, full checksum and commit | `internal/services/transfer/receive.go` |
+| Throttled progress, average speed and subscriptions | `internal/services/transfer/progress.go` (`Subscribe`) |
+| Real-session upload/download, pause, disconnect, cancel and queue tests | `internal/services/transfer/transfer_test.go` |
+| Path, partial, duplicate ID, waiter and resume guards | `internal/services/transfer/guard_test.go` |
+| Checksum, no-replace commit, byte cap and progress tests | `internal/services/transfer/receive_test.go`, `internal/services/transfer/progress_test.go` |

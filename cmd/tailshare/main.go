@@ -3,8 +3,7 @@
 //
 //	tailshare version   print the version
 //	tailshare env       list every setting with its default
-//
-// `serve` (the local API) arrives with internal/api.
+//	tailshare serve     run the local API for the Electron app
 package main
 
 import (
@@ -37,11 +36,13 @@ func run(args []string) error {
 		}
 
 		return nil
+	case "serve":
+		return serveFromProcess()
 	}
 
 	return usage()
 }
 
 func usage() error {
-	return fmt.Errorf("usage: tailshare version | env")
+	return fmt.Errorf("usage: tailshare version | env | serve")
 }

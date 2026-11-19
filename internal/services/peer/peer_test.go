@@ -283,15 +283,15 @@ func TestTransferEventsReachSubscribers(t *testing.T) {
 	if err := alice.Notify("future.thing", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := alice.Notify(MethodTransferProgress, TransferProgress{TransferID: "t1", Bytes: 7}); err != nil {
+	if err := alice.Notify(MethodTransferComplete, TransferComplete{TransferID: "t1"}); err != nil {
 		t.Fatal(err)
 	}
 
 	select {
 	case event := <-events.Events:
-		var progress TransferProgress
-		if event.Kind != EventTransfer || event.Method != MethodTransferProgress ||
-			json.Unmarshal(event.Params, &progress) != nil || progress.Bytes != 7 {
+		var progress TransferComplete
+		if event.Kind != EventTransfer || event.Method != MethodTransferComplete ||
+			json.Unmarshal(event.Params, &progress) != nil {
 			t.Fatalf("event = %+v", event)
 		}
 	case <-time.After(5 * time.Second):

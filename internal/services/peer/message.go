@@ -37,14 +37,10 @@ const (
 	MethodChat = "chat"
 	// MethodTransferOffer offers a file in one direction (step 5).
 	MethodTransferOffer = "transfer.offer"
-	// MethodTransferAccept answers an offer (step 5).
-	MethodTransferAccept = "transfer.accept"
 	// MethodTransferCancel stops a transfer (step 5).
 	MethodTransferCancel = "transfer.cancel"
 	// MethodTransferResume asks to continue from an offset (step 5).
 	MethodTransferResume = "transfer.resume"
-	// MethodTransferProgress reports bytes moved (step 5 event).
-	MethodTransferProgress = "transfer.progress"
 	// MethodTransferComplete reports a finished transfer (step 5 event).
 	MethodTransferComplete = "transfer.complete"
 	// MethodTransferFailed reports a transfer that stopped early (step 5 event).
@@ -162,6 +158,9 @@ type TransferAccept struct {
 	TransferID string `json:"transferID"`
 	Accepted   bool   `json:"accepted"`
 	Reason     string `json:"reason,omitempty"`
+	Size       int64  `json:"size,omitempty"`
+	SHA256     string `json:"sha256,omitempty"`
+	Offset     int64  `json:"offset,omitempty"`
 }
 
 // TransferCancel is the payload of transfer.cancel.
@@ -175,12 +174,6 @@ type TransferResume struct {
 	TransferID string `json:"transferID"`
 	Offset     int64  `json:"offset"`
 	SHA256     string `json:"sha256"`
-}
-
-// TransferProgress is the payload of the transfer.progress event.
-type TransferProgress struct {
-	TransferID string `json:"transferID"`
-	Bytes      int64  `json:"bytes"`
 }
 
 // TransferComplete is the payload of the transfer.complete event.

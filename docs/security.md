@@ -119,3 +119,68 @@ knows its address and token.
   (it changes the page Origin from `null`, so the sidecar allowlist changes too).
 - The dev renderer is pinned to port 5173 (`strictPort`) because the sidecar
   only accepts that dev Origin.
+
+## Transfers
+
+Transfer sources and destinations use the same shared root and slash-path
+checks. A download destination is selected locally. Peer upload destinations
+and download sources pass through `share.Localize` and `os.Root`. Files only
+are supported, with two active transfers across both directions and a 1 TiB
+size limit. The declared size caps reads and writes on the data stream.
+
+Unfinished files use `.tailshare-part` beside the destination. These names
+are refused in peer paths and hidden from listings. Partial files must be
+regular files; links and folders are refused. Pause and connection loss keep
+the partial; cancel removes it. There is no free-space preflight: disk errors
+fail the transfer. The chosen folder and local programs modifying it remain
+trusted, as described above.
+
+The receiver re-reads the entire partial and verifies SHA-256 before publishing.
+A mismatch deletes the partial. Publication uses `os.Root.Link` followed by
+`Remove`, so an existing final name can never be replaced, including one that
+appears during transfer. Volumes without hard-link support fail with a plain
+sentence; there is no rename fallback. A crash between link and removal may
+leave both names for the same verified file.
+
+Download resume trusts the prefix size until the final whole-file checksum;
+a stale prefix is removed on mismatch and the user retries from zero. A
+prefix hash in `transfer.resume` is the future upgrade. Progress stays local;
+only completion, failure and cancel verdicts travel on the control stream.
+Transfer IDs must have the 26-character `rand.Text` base32 shape on every
+peer-sent control and data message. A responder refuses every known ID,
+including finished attempts, and duplicate pending stream registrations are
+refused. Unknown or late data streams close without writing a file. Stream
+headers have a ten-second read deadline; stream and verdict waits are bounded
+at thirty seconds.
+
+## Local API
+
+The Electron app talks to the Go sidecar over HTTP and a WebSocket on this
+machine (`internal/api`). Other programs and web pages must not be able to
+drive it.
+
+- **Loopback only.** `Listen` accepts only an IPv4 loopback address
+  (`127.0.0.1:port`); `0.0.0.0`, `::`, hostnames and other addresses are
+  refused at startup, before anything is printed.
+- **Token on every request.** Electron makes 32 random bytes as hex and
+  passes them in `TAILSHARE_TOKEN`. Every route, including health and unknown
+  paths, needs one `Authorization: Bearer <token>` header, compared in
+  constant time. The WebSocket (`/api/live`) takes the token as a second
+  subprotocol (`["tailshare.v1", token]`), checked before the upgrade. Query
+  strings are never read for the token, because URLs end up in logs. The
+  server agrees on `tailshare.v1` only, so the token is not echoed back.
+- **Host check.** Only `127.0.0.1:<port>` and `localhost:<port>` for the
+  bound port are accepted, so DNS rebinding cannot reach the API. Forwarded
+  headers are never trusted.
+- **Origin check.** If a request carries an `Origin`, it must be exactly
+  `null` (the packaged app) or `http://localhost:5173` (the Vite dev server).
+  Anything else is refused. The allowed origin is echoed back, never `*`, and
+  credentials are never allowed. A CORS preflight (`OPTIONS`) from an allowed
+  origin is answered without the token, because browsers do not send it
+  there; it grants nothing, and the real request still needs the token.
+- **Safe errors.** Callers only see `{code, message}` with a plain sentence.
+  Raw Go errors, local paths and text from the other computer are never sent
+  on. Unknown errors become a generic 500.
+- **Folder access.** The API opens the folder the picker chose with
+  `share.Open`, and every path from a query goes through `share.Localize` and
+  `os.Root`. The folder cannot change while a session is open.

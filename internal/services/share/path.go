@@ -8,6 +8,9 @@ import (
 	"unicode"
 )
 
+// PartialSuffix marks private, unfinished transfer files.
+const PartialSuffix = ".tailshare-part"
+
 // Plain-sentence errors a peer's request can cause. They are safe to show on
 // screen and never carry a local path.
 var (
@@ -49,7 +52,8 @@ func Localize(wire string) (string, error) {
 	}
 
 	for part := range strings.SplitSeq(wire, "/") {
-		if part == "." || part == ".." || hasControl(part) || isReserved(part) {
+		if part == "." || part == ".." || hasControl(part) || isReserved(part) ||
+			strings.HasSuffix(strings.ToLower(strings.TrimRight(part, ". ")), PartialSuffix) {
 			return "", ErrBadPath
 		}
 	}
