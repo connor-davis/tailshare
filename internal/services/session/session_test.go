@@ -11,36 +11,23 @@ import (
 
 	"github.com/Polyphron-AI/tailshare/internal/platform/config"
 	"github.com/Polyphron-AI/tailshare/internal/services/codes"
+	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
 	"github.com/tailscale/tailcat"
-	"tailscale.com/envknob"
-	"tailscale.com/net/netcheck"
-	"tailscale.com/syncs"
-	"tailscale.com/tailcfg"
-	"tailscale.com/tstest/integration"
 	"tailscale.com/types/key"
 )
 
 func TestMain(m *testing.M) {
-	// Engines must not probe the machine's gateway or public captive portal endpoints.
-	envknob.Setenv("IN_TS_TEST", "true")
-	netcheck.HookStartCaptivePortalDetection.SetForTest(func(
-		ctx context.Context,
-		client *netcheck.Client,
-		derpMap *tailcfg.DERPMap,
-		preferredDERP tailcfg.DERPRegionID,
-		setCaptivePortal func(bool),
-	) (<-chan struct{}, func()) {
-		return syncs.ClosedChan(), func() {}
-	})
+	tailcattest.Init()
 
 	os.Exit(m.Run())
 }
 
 func localSettings(t *testing.T) settings {
 	t.Helper()
-	derpMap := integration.RunDERPAndSTUN(t, t.Logf, "127.0.0.1")
+	derpMap := tailcattest.LocalDERP(t)
 	return settings{
-		regionID: 1, region: derpMap.Regions[1], derpMap: derpMap, expiry: 10 * time.Minute,
+		regionID: tailcattest.RegionID, region: derpMap.Regions[tailcattest.RegionID],
+		derpMap: derpMap, expiry: 10 * time.Minute,
 	}
 }
 

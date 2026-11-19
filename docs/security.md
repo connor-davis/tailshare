@@ -62,6 +62,31 @@ Tailcat upgrades to a direct link when NAT allows.
 
 ## Shared folders
 
-Every path from a peer is resolved inside the shared root. `..`, absolute
-paths and symlinks that leave the root are rejected. Uploads land only in the
-shared folder.
+`os.Root` is the guard. The shared folder is opened once with `os.OpenRoot`,
+and every peer path goes through that handle (`internal/services/share`). The
+check and the open are one step, so there is no gap to race. Peer paths are
+also checked in words first (`share.Localize`), because the protocol is
+stricter than any one OS: slash paths only, no `..`, no absolute paths, no
+drive letters, no colon (this also blocks NTFS streams), no backslash or NUL
+or control characters, and no Windows device names (`CON`, `NUL`, `COM1` and
+the rest, with any extension). A bad path is refused, never cleaned up into a
+good one. Uploads create a new file only and never overwrite.
+
+What `os.Root` covers:
+
+- `..` and symlinks or Windows junctions that point outside the folder. A
+  link that stays inside is allowed. Escaping links are hidden from listings.
+- Read, stat, list and create, all tested with a link and a junction pointing
+  out (the outside file is checked untouched). Windows holds the root open, so
+  the folder cannot be renamed or deleted while sharing.
+
+What it does not cover:
+
+- Mount points or bind mounts inside the folder are followed. Device files
+  on Unix are not blocked.
+- A junction whose last part is the link itself, in the changing calls
+  (`Mkdir`, `MkdirAll`), was a Go bug fixed in Go 1.27.2. We use 1.27.4. Keep
+  the Go version current, and test any new changing call we add.
+- The folder the user picks is trusted. Anything the user already put inside it
+  is shared, including files other programs can change while we read.
+- Names and sizes are shown to the other computer as they are.
