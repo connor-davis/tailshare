@@ -3,18 +3,18 @@
 ## Build identity
 
 - Date: 2026-11-20.
-- Desktop and packaged sidecar version: `0.0.0` (desktop `package.json`).
-- Git base commit: `370a83fd6faab699207a4928e642efa5e443f513` on
-  `cd/feat-skeleton`. This package includes the uncommitted step 13 changes;
-  the base commit alone does not reproduce it. The orchestrator must record
-  the committed release revision and rebuild before distributing a release.
+- Desktop and packaged sidecar version: `1.0.0` (desktop `package.json`).
+- Git commit: `313221f59ac800ecf8cf834580c9d8c0077c6af6` on
+  `cd/feat-skeleton`, clean tree. The installer below was rebuilt from it.
+  The first smoke ran on an uncommitted `0.0.0` build of the same packaging.
 - Windows: Microsoft Windows 11 Pro, version `10.0.26300`, build `26300`,
   64-bit.
 - Target: Windows x64; Electron `45.4.1`; electron-builder `26.18.1`.
-- Installer: `dist/Tailshare Setup 0.0.0.exe` (unsigned, assisted per-user NSIS).
-- Installer size: `148,845,607` bytes.
-- Installer SHA-256 (`certutil -hashfile "dist/Tailshare Setup 0.0.0.exe" SHA256`):
-  `d2196760909118863b6944c434bb63e94a18e12eb5c817015a316d5b5d490eeb`.
+- Installer: `dist/Tailshare Setup 1.0.0.exe` (unsigned, assisted per-user NSIS).
+- Installer size: `148,846,102` bytes.
+- Installer SHA-256 (`certutil -hashfile "dist/Tailshare Setup 1.0.0.exe" SHA256`):
+  `eb9bae2953a893a0b2088af1b431b6078ed046b9a1f42793d610c7ce967b3934`.
+- Packaged sidecar `version` command returns `1.0.0`.
 - Icon: temporary Polyphron mark, with 16/32/48/256 pixel ICO entries.
 
 ## Packaged smoke
