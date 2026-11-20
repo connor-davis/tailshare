@@ -6,8 +6,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/mesh"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/mesh"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 )
 
 func mergeHandlers(first, second map[string]peer.Handler) (map[string]peer.Handler, error) {

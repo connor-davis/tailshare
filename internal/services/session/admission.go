@@ -7,8 +7,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/mesh"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/mesh"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/tailscale/tailcat"
 )
 

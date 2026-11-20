@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/platform/config"
 )
 
 func main() {

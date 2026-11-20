@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 func TestSessionBadRequests(t *testing.T) {

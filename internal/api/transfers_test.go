@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/apperr"
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/platform/config"
 )
 
 // fakeTransfers is a manager that only remembers what it was asked.

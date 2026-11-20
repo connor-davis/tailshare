@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 )

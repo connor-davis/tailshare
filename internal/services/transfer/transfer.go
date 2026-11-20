@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 )
 
 // State describes a transfer's place in the queue.

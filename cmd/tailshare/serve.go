@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/api"
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/api"
+	"github.com/connor-davis/tailshare/internal/platform/config"
 )
 
 // shutdownTimeout is how long serve waits for open requests before it stops.

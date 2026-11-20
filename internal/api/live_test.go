@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/platform/config"
 	"github.com/fasthttp/websocket"
 )
 

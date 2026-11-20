@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/share"
 )
 
 func (manager *Manager) prepareReceiver(item *job) error {

@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
 )
 
 func checksum(data []byte) string {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/share"
 )
 
 // readLoop is the only reader of the stream. It never runs a slow handler

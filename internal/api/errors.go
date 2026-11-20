@@ -6,10 +6,10 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/apperr"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/services/transfer"
+	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/transfer"
 	"github.com/gofiber/fiber/v3"
 )
 

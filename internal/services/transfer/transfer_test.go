@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/session"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/session"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 func TestMain(tests *testing.M) {

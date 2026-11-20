@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/codes"
-	"github.com/Polyphron-AI/tailshare/internal/services/mesh"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/services/mesh"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/tailscale/tailcat"
 	"tailscale.com/tailcfg"
 )

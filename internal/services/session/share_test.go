@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 )
 
 func TestThreeMembersFullMesh(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/codes"
 	"github.com/tailscale/tailcat"
 	"tailscale.com/types/key"
 )

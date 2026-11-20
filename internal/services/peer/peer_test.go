@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 func TestMain(m *testing.M) {

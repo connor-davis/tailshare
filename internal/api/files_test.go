@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/platform/config"
 )
 
 func TestFolderChoice(t *testing.T) {

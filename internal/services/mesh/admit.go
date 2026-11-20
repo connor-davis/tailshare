@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 	"tailscale.com/types/key"
 )
 

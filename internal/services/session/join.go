@@ -5,10 +5,10 @@ import (
 	"errors"
 	"net"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/services/codes"
-	"github.com/Polyphron-AI/tailshare/internal/services/mesh"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/services/mesh"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/tailscale/tailcat"
 	"tailscale.com/types/key"
 )
