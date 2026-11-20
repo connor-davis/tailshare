@@ -114,12 +114,12 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Windows installer, packaged sidecar, app identity and GitHub update feed | `electron-builder.yml`, `src/main/index.ts` |
 | Ordered publish-free builds, version/channel overrides and pinned staticcheck | root `Taskfile.yml` (`dist`, `build`, `icons`, `vet`) |
 | SVG to verified multi-size ICO and app/tray PNGs | `scripts/export-icons.mjs`, `build/logo.svg`, `build/icon.ico`, `build/icon.png`, `build/tray-16.png`, `build/tray-32.png` |
-| Packaged update lifecycle, channel checks, download events and sidecar-safe installation | `src/main/updater.ts`, `src/main/updater.test.ts` |
+| Packaged update lifecycle, channel checks, bounded HTML-to-Markdown release notes, explicit downloads and sidecar-safe installation | `src/main/updater.ts`, `src/main/updater.test.ts` |
 | Atomic JSON desktop preferences in userData, corruption fallback | `src/main/settings.ts`, `src/main/settings.test.ts` |
-| Settings/update sender and argument guards, typed request/event bridge | `src/main/ipc.ts`, `src/shared/ipc-schema.ts`, `src/shared/bridge.ts`, `src/preload/index.ts` |
+| Settings/update sender and argument guards, HTTPS github.com external-link validation, typed request/event bridge | `src/main/ipc.ts`, `src/shared/ipc-schema.ts`, `src/shared/bridge.ts`, `src/preload/index.ts` |
 | Settings dialog (open state in context, gear buttons call `useOpenSettings`): menu You, Saving, Transfers, App, Updates | `src/renderer/src/components/settings/settings-dialog.tsx`, `settings-fields.tsx`, `setting-row.tsx`, `settings-dialog.test.tsx` beside them |
 | Settings load, push follow and save (plain-sentence errors) | `src/renderer/src/components/settings/use-settings.ts` |
-| Updates section of the settings dialog: Stable/Nightly choice, Check for updates and restart action | `src/renderer/src/components/settings/updates-card.tsx`, `updates-card.test.tsx` beside it |
+| Updates section of the settings dialog: Stable/Nightly choice, release notes, explicit Download, progress, Check for updates and restart action | `src/renderer/src/components/settings/updates-card.tsx`, `updates-card.test.tsx` beside it |
 | Light and dark follow the system (`followColorScheme`) | `src/renderer/src/lib/theme.ts`, `theme.test.ts` beside it |
 | jsdom stand-ins (ResizeObserver, matchMedia, scroll) for renderer tests | `src/test-setup.ts` (named in `vitest.config.ts`) |
 | Windows CI and source-branch enforcement | root `.github/workflows/ci.yml`, `.github/workflows/branch-flow.yml` |
@@ -133,7 +133,9 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
 | Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
 | Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
-| Custom title bar: logo, name, drag area, 138 px kept free for the native buttons | `src/renderer/src/components/title-bar.tsx` |
+| Custom title bar: logo, name, drag area, update dialog and per-version dismissal, 138 px kept free for the native buttons | `src/renderer/src/components/title-bar.tsx`, `title-bar.test.tsx` beside it |
+| Update event subscription and initial-read race guard, shared by Settings and title bar | `src/renderer/src/components/use-update-status.ts` |
+| Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and title dialog | `src/renderer/src/components/update-release.tsx` |
 | `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |
 | Recent rooms store: `recent-rooms.json` in userData, max 20, 30-day prune, atomic write, change listeners | `src/main/recent-rooms.ts`, `src/main/recent-rooms.test.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |

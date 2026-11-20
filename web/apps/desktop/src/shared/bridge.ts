@@ -41,7 +41,15 @@ export type SettingsPatch = Partial<Settings>
 /** Safe update state sent to the renderer without upstream error details. */
 export interface UpdateStatus {
   readonly state:
-    "disabled" | "checking" | "current" | "downloading" | "ready" | "error"
+    | "disabled"
+    | "checking"
+    | "current"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "error"
+  readonly version?: string
+  readonly notes?: string
   readonly percent?: number
 }
 
@@ -53,10 +61,20 @@ export function isUpdateStatus(value: unknown): value is UpdateStatus {
       "disabled",
       "checking",
       "current",
+      "available",
       "downloading",
       "ready",
       "error",
     ].includes(String(value.state))
+  )
+    return false
+  if (
+    value.state === "available" &&
+    (!("version" in value) ||
+      typeof value.version !== "string" ||
+      !("notes" in value) ||
+      typeof value.notes !== "string" ||
+      value.notes.length > 20_000)
   )
     return false
   return (
@@ -142,6 +160,10 @@ export interface TailshareBridge {
   readonly getUpdateStatus: () => Promise<UpdateStatus>
   /** Checks for an update now. Does nothing while a check runs or an update is ready. */
   readonly checkForUpdates: () => Promise<void>
+  /** Opens an HTTPS github.com release link in the system browser. */
+  readonly openReleaseLink: (url: string) => Promise<void>
+  /** Downloads an available release only after the user asks. */
+  readonly downloadUpdate: () => Promise<void>
   /** Stops the sidecar before installing a downloaded update. */
   readonly restartToUpdate: () => Promise<void>
   /** Subscribes to update state without polling. */
@@ -182,4 +204,26 @@ export interface TailshareBridge {
   readonly onSidecarStatus: (
     listener: (status: SidecarStatus) => void
   ) => () => void
+}
+
+/** Allows only explicit HTTPS GitHub URLs without credentials or a custom port. */
+export function isReleaseLink(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !/^https:\/\//i.test(value) ||
+    /[\s\\]/.test(value)
+  )
+    return false
+
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === "https:" &&
+      url.host === "github.com" &&
+      !url.username &&
+      !url.password
+    )
+  } catch {
+    return false
+  }
 }

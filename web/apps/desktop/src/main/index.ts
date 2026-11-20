@@ -5,6 +5,7 @@ import {
   ipcMain,
   nativeTheme,
   session,
+  shell,
   type Tray,
 } from "electron"
 import { release } from "node:os"
@@ -169,7 +170,7 @@ async function main() {
     },
   }
   await runtime.runPromise(registerIpc(host))
-  registerUpdateIpc(host, settings, updater)
+  registerUpdateIpc(host, settings, updater, (url) => shell.openExternal(url))
   const recentRooms = openRecentRooms(app.getPath("userData"))
   registerRecentRoomsIpc(host, recentRooms)
   recentRooms.onChange((rooms) => {

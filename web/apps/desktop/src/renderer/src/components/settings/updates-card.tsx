@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { Settings, UpdateStatus } from "../../../../shared/bridge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
+import { UpdateRelease } from "../update-release"
+import { useUpdateStatus } from "../use-update-status"
 import { SettingList, SettingRow } from "./setting-row"
 import { Section } from "./settings-fields"
 import type { SettingsHandle } from "./use-settings"
@@ -17,9 +20,10 @@ const messages: Record<UpdateStatus["state"], string> = {
   disabled: "Updates are off in development builds.",
   checking: "Checking for updates…",
   current: "No update available.",
+  available: "An update is available.",
   downloading: "Downloading an update…",
   ready: "An update is ready. Restart when your transfers are finished.",
-  error: "Could not check for updates. Tailshare will try again later.",
+  error: "Could not update Tailshare. Check for updates to try again.",
 }
 
 /** Update preferences and a restart action, in the settings dialog. */
@@ -35,33 +39,9 @@ export function UpdatesCard({
   /** True while a save runs. */
   saving: boolean
 }) {
-  const [status, setStatus] = useState<UpdateStatus | null>(null)
+  const { status, error: statusError } = useUpdateStatus()
   const [restarting, setRestarting] = useState(false)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    let alive = true
-    let receivedEvent = false
-    const unsubscribe = window.tailshare.onUpdateStatus((next) => {
-      receivedEvent = true
-      if (alive) setStatus(next)
-    })
-    window.tailshare
-      .getUpdateStatus()
-      .then((current) => {
-        if (alive && !receivedEvent) setStatus(current)
-      })
-      .catch(() => {
-        if (alive)
-          setError(
-            "Could not check for updates. Reopen Tailshare to try again."
-          )
-      })
-    return () => {
-      alive = false
-      unsubscribe()
-    }
-  }, [])
 
   async function checkNow() {
     setError("")
@@ -89,7 +69,7 @@ export function UpdatesCard({
     <Section
       id="updates-title"
       title="Updates"
-      description="Updates download in the background."
+      description="Review what’s new, then choose when to download."
     >
       <SettingList>
         <SettingRow
@@ -149,9 +129,24 @@ export function UpdatesCard({
           )}
         </SettingRow>
       </SettingList>
-      {error ? (
+      {status?.state === "available" ? (
+        <div className="grid min-w-0 gap-3">
+          <h3 className="text-sm font-medium">
+            What's new in {status.version}
+          </h3>
+          <UpdateRelease key={status.version} status={status} />
+        </div>
+      ) : null}
+      {status?.state === "downloading" ? (
+        <Progress
+          aria-label="Update download"
+          aria-valuenow={status.percent ?? 0}
+          value={status.percent ?? 0}
+        />
+      ) : null}
+      {error || statusError ? (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error || statusError}</AlertDescription>
         </Alert>
       ) : null}
     </Section>

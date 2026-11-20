@@ -22,6 +22,8 @@ let listener: (status: UpdateStatus) => void
 const unsubscribe = vi.fn()
 const getUpdateStatus = vi.fn(async () => ({ state: "current" }))
 const checkForUpdates = vi.fn(async () => {})
+const openReleaseLink = vi.fn<(url: string) => Promise<void>>(async () => {})
+const downloadUpdate = vi.fn(async () => {})
 const restartToUpdate = vi.fn(async () => {})
 const save = vi.fn(async () => true)
 
@@ -30,6 +32,8 @@ beforeEach(() => {
   vi.stubGlobal("tailshare", {
     getUpdateStatus,
     checkForUpdates,
+    downloadUpdate,
+    openReleaseLink,
     restartToUpdate,
     onUpdateStatus: (next: (status: UpdateStatus) => void) => {
       listener = next
@@ -98,6 +102,40 @@ describe("Updates card", () => {
     await waitFor(() => expect(restartToUpdate).toHaveBeenCalledOnce())
     view.unmount()
     expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it("renders Markdown release notes and downloads only on request", async () => {
+    render(<UpdatesCard settings={stable} save={save} saving={false} />)
+    await screen.findByText("No update available.")
+    act(() =>
+      listener({
+        state: "available",
+        version: "1.2.3",
+        notes:
+          "### Changes\n\n- Improved sharing\n\n[Details](https://github.com/team/repo/pull/1)\n\n<img src=x onerror=bad()>",
+      })
+    )
+    expect(screen.getByText("What's new in 1.2.3")).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { name: "Changes", level: 3 })
+    ).toBeTruthy()
+    expect(screen.getByRole("listitem").textContent).toBe("Improved sharing")
+    fireEvent.click(screen.getByRole("link", { name: "Details" }))
+    await waitFor(() =>
+      expect(openReleaseLink).toHaveBeenCalledExactlyOnceWith(
+        "https://github.com/team/repo/pull/1"
+      )
+    )
+    expect(document.querySelector("img")).toBeNull()
+    expect(downloadUpdate).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Download" }))
+    await waitFor(() => expect(downloadUpdate).toHaveBeenCalledOnce())
+    act(() => listener({ state: "downloading", percent: 42 }))
+    expect(
+      screen
+        .getByRole("progressbar", { name: "Update download" })
+        .getAttribute("aria-valuenow")
+    ).toBe("42")
   })
 
   it("keeps a failed restart actionable and reports a safe error", async () => {
