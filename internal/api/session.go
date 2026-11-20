@@ -5,12 +5,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/apperr"
-	"github.com/Polyphron-AI/tailshare/internal/services/codes"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/session"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/services/transfer"
+	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/session"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/transfer"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -25,10 +25,8 @@ const (
 	roleHost   = "host"
 	roleJoiner = "joiner"
 
-	// How long hello may take once the stream exists, and how long a join
-	// may take in all.
-	helloTimeout = 30 * time.Second
-	joinTimeout  = 60 * time.Second
+	// Leave room for the local prompt and link preparation.
+	joinTimeout = 90 * time.Second
 )
 
 // SessionState is what the screen knows about the session. The code is shown
@@ -41,6 +39,8 @@ type SessionState struct {
 	Code string `json:"code,omitempty"`
 	// Peer is nil until the other computer has connected.
 	Peer *PeerInfo `json:"peer,omitempty"`
+	// Join is present only while someone is waiting for local approval.
+	Join *session.PendingJoin `json:"join,omitempty"`
 }
 
 // PeerInfo is what the other computer said about itself.
@@ -68,6 +68,11 @@ func (server *Server) stateLocked() SessionState {
 		state.Peer = &PeerInfo{DisplayName: remote.DisplayName, SharedFolderName: remote.SharedFolderName}
 	}
 
+	if server.sess != nil {
+		if pending, ok := server.sess.Pending(); ok {
+			state.Join = &pending
+		}
+	}
 	return state
 }
 
@@ -115,8 +120,12 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 		return err
 	}
 
-	sess, code, err := session.Host(server.ctx, server.cfg)
+	manager := transfer.New(root)
+	sess, code, err := session.Host(server.ctx, server.cfg, displayName(), session.Options{
+		Root: root, Handlers: manager.Handlers(),
+	})
 	if err != nil {
+		_ = manager.Close()
 		server.release()
 		return connectError(err)
 	}
@@ -128,34 +137,54 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	server.mu.Unlock()
 
 	server.publishSession()
-	go server.awaitJoiner(sess, root)
+	go server.awaitJoiner(sess, manager)
 
 	return c.Status(fiber.StatusCreated).JSON(server.sessionState())
 }
 
-// awaitJoiner waits for the one joiner to open its stream, then says hello.
-// If the code expires or the host leaves first, Accept fails and we go idle.
-func (server *Server) awaitJoiner(sess *session.Session, root *share.Root) {
-	conn, err := sess.Accept()
-	if err != nil {
-		server.end(sess)
-		return
+// awaitJoiner publishes prompt changes and connects the first member with a control peer.
+func (server *Server) awaitJoiner(sess *session.Session, manager *transfer.Manager) {
+	connected := false
+	defer func() {
+		if !connected {
+			_ = manager.Close()
+		}
+	}()
+	for {
+		if !connected {
+			for _, member := range sess.Members() {
+				if other, ok := sess.Control(member.ID); ok {
+					server.connect(sess, other, manager, member.ID, true)
+					connected = true
+					break
+				}
+			}
+		}
+		if connected {
+			server.watchSession(sess)
+			return
+		}
+
+		server.publishSession()
+		select {
+		case <-sess.Done():
+			server.end(sess)
+			return
+		case <-sess.Changes():
+		}
 	}
+}
 
-	ctx, cancel := server.contextWithin(helloTimeout)
-	defer cancel()
-
-	manager := transfer.New(root)
-	other, err := peer.Start(ctx, conn, peer.Options{
-		DisplayName: displayName(), Share: root, Handlers: manager.Handlers(),
-	})
-	if err != nil {
-		_ = manager.Close()
-		server.end(sess)
-		return
+func (server *Server) watchSession(sess *session.Session) {
+	for {
+		select {
+		case <-sess.Done():
+			server.end(sess)
+			return
+		case <-sess.Changes():
+			server.publishSession()
+		}
 	}
-
-	server.connect(sess, other, manager, true)
 }
 
 func (server *Server) joinSession(c fiber.Ctx) error {
@@ -178,37 +207,37 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	ctx, cancel := server.contextWithin(joinTimeout)
 	defer cancel()
 
-	sess, err := session.Join(ctx, in.Code, server.cfg)
-	if err != nil {
-		server.release()
-		return connectError(err)
-	}
-
-	conn, err := sess.Open(ctx)
-	if err != nil {
-		_ = sess.Close()
-		server.release()
-
-		return connectError(err)
-	}
-
 	manager := transfer.New(root)
-	other, err := peer.Start(ctx, conn, peer.Options{
-		DisplayName: displayName(), Share: root, Handlers: manager.Handlers(),
+	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(), session.Options{
+		Root: root, Handlers: manager.Handlers(),
 	})
 	if err != nil {
 		_ = manager.Close()
+		server.release()
+		return connectError(err)
+	}
+
+	var other *peer.Peer
+	var memberID string
+	for _, member := range sess.Members() {
+		if control, ok := sess.Control(member.ID); ok {
+			other, memberID = control, member.ID
+			break
+		}
+	}
+	if other == nil {
+		_ = manager.Close()
 		_ = sess.Close()
 		server.release()
-
-		return connectError(err)
+		return errUnreachable()
 	}
 
 	server.mu.Lock()
 	server.sess = sess
 	server.mu.Unlock()
 
-	server.connect(sess, other, manager, false)
+	server.connect(sess, other, manager, memberID, false)
+	go server.watchSession(sess)
 
 	return c.JSON(server.sessionState())
 }
@@ -219,6 +248,7 @@ func (server *Server) connect(
 	sess *session.Session,
 	other *peer.Peer,
 	manager *transfer.Manager,
+	memberID string,
 	host bool,
 ) {
 	server.mu.Lock()
@@ -232,7 +262,14 @@ func (server *Server) connect(
 		return
 	}
 
-	if err := manager.Attach(server.ctx, sess, other, host); err != nil {
+	tunnel, ok := sess.Tunnel(memberID)
+	if !ok {
+		server.mu.Unlock()
+		_ = manager.Close()
+		server.end(sess)
+		return
+	}
+	if err := manager.Attach(server.ctx, tunnel, other, host); err != nil {
 		server.mu.Unlock()
 		_ = manager.Close()
 		_ = other.Close()
@@ -330,10 +367,10 @@ func (server *Server) endCurrent(expected *session.Session) {
 	if done != nil {
 		<-done
 	}
+	_ = sess.Leave()
 	if other != nil {
 		_ = other.Close()
 	}
-	_ = sess.Close()
 
 	server.mu.Lock()
 	server.sess, server.peer = nil, nil

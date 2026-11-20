@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/session"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/session"
+	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -136,6 +136,8 @@ func (server *Server) routes() {
 	api.Post("/session/host", server.hostSession)
 	api.Post("/session/join", server.joinSession)
 	api.Delete("/session", server.leaveSession)
+	api.Post("/session/joins/:id/allow", server.allowJoin)
+	api.Post("/session/joins/:id/deny", server.denyJoin)
 
 	api.Put("/folder", server.putFolder)
 	api.Get("/files/local", server.localFiles)

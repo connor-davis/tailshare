@@ -1,67 +1,82 @@
-package peer
+package peer_test
 
 import (
 	"context"
-	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/services/session"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/session"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 // TestOverRealSession runs the whole stack on a local relay: host and join by
 // code, then hello, list, stat and chat in both directions over the first
-// stream after the rekey.
+// mesh control stream after local approval.
 func TestOverRealSession(t *testing.T) {
 	derpMap := tailcattest.LocalDERP(t)
 	cfg := config.Config{Region: tailcattest.RegionID, DERPMapURL: tailcattest.ServeMap(t, derpMap)}
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
-	host, code, err := session.Host(ctx, cfg)
+	hostShare := realSessionFolder(t, map[string]string{"from-host.txt": "host file"})
+	joinShare := realSessionFolder(t, map[string]string{"docs/from-joiner.txt": "joiner file"})
+	host, code, err := session.Host(ctx, cfg, "Host", session.Options{Root: hostShare})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = host.Close() })
-
-	joiner, err := session.Join(ctx, code.String(), cfg)
+	allowed := make(chan error, 1)
+	go func() {
+		for {
+			if pending, ok := host.Pending(); ok {
+				allowed <- host.Allow(pending.ID)
+				return
+			}
+			select {
+			case <-host.Changes():
+			case <-ctx.Done():
+				allowed <- ctx.Err()
+				return
+			}
+		}
+	}()
+	joiner, err := session.Join(ctx, code.String(), cfg, "Joiner", session.Options{Root: joinShare})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := <-allowed; err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = joiner.Close() })
-
-	outgoing, err := joiner.Open(ctx)
-	if err != nil {
-		t.Fatal(err)
+	var hostPeer, joinPeer *peer.Peer
+	for hostPeer == nil {
+		for _, member := range host.Members() {
+			if control, ok := host.Control(member.ID); ok {
+				hostPeer = control
+			}
+		}
+		if hostPeer != nil {
+			break
+		}
+		select {
+		case <-host.Changes():
+		case <-ctx.Done():
+			t.Fatal("host control missing")
+		}
 	}
-
-	accepted := make(chan net.Conn, 1)
-	go func() {
-		conn, _ := host.Accept()
-		accepted <- conn
-	}()
-
-	hostShare := sharedFolder(t, map[string]string{"from-host.txt": "host file"})
-	joinShare := sharedFolder(t, map[string]string{"docs/from-joiner.txt": "joiner file"})
-
-	var hostPeer *Peer
-	started := make(chan error, 1)
-	go func() {
-		var err error
-		hostPeer, err = Start(ctx, <-accepted, Options{DisplayName: "Host", Share: hostShare})
-		started <- err
-	}()
-
-	joinPeer, err := Start(ctx, outgoing, Options{DisplayName: "Joiner", Share: joinShare})
-	if err != nil {
-		t.Fatal(err)
+	for _, member := range joiner.Members() {
+		if control, ok := joiner.Control(member.ID); ok {
+			joinPeer = control
+		}
 	}
-	if err := <-started; err != nil {
-		t.Fatal(err)
+	if joinPeer == nil {
+		t.Fatal("joiner control missing")
 	}
-	t.Cleanup(func() { _ = joinPeer.Close(); _ = hostPeer.Close() })
 
 	if joinPeer.Remote().DisplayName != "Host" || hostPeer.Remote().DisplayName != "Joiner" {
 		t.Fatalf("hello: %+v / %+v", joinPeer.Remote(), hostPeer.Remote())
@@ -88,4 +103,24 @@ func TestOverRealSession(t *testing.T) {
 	if len(hostLog) != 2 || hostLog[0].Text != "hi host" || !hostLog[0].FromPeer {
 		t.Fatalf("host chat log = %+v", hostLog)
 	}
+}
+
+func realSessionFolder(t *testing.T, files map[string]string) *share.Root {
+	t.Helper()
+	dir := t.TempDir()
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	root, err := share.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+	return root
 }

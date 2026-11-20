@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/platform/apperr"
 	"github.com/gofiber/fiber/v3"
 )
 

@@ -1,132 +1,228 @@
-// Package session connects two computers by a short, single-use share code.
+// Package session connects members by a short share code and local admission.
 package session
 
 import (
 	"context"
-	"errors"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/connor-davis/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/services/mesh"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/tailscale/tailcat"
 	"tailscale.com/tailcfg"
 )
 
-const sessionPort = 80
+const (
+	sessionPort = 80
+	allowWindow = 60 * time.Second
+	lostGrace   = 15 * time.Second
+	// leaveWait bounds how long Leave waits for members to see its notice.
+	leaveWait = 2 * time.Second
+)
 
-// Session owns a rekeyed tunnel. Hosts accept streams; joiners open streams.
-// Close releases the tunnel and any connection not yet handed to the caller.
+// Options supplies the shared folder and handlers before any control peer starts.
+type Options struct {
+	Root     *share.Root
+	Handlers map[string]peer.Handler
+}
+
+// PendingJoin is one person waiting for the local Allow or Deny.
+type PendingJoin struct {
+	// ID is a counter for this share, not a wire identity.
+	ID uint64 `json:"id"`
+	// DisplayName comes from hello, at most 64 characters.
+	DisplayName string `json:"displayName"`
+}
+
+// Session owns membership, control peers and the code server for one share.
 type Session struct {
-	mu            sync.Mutex
-	server        *tailcat.Server
-	client        *tailcat.Client
-	listener      net.Listener
-	first         net.Conn
-	bootstrap     net.Conn
-	bootstrapDone chan struct{}
-	timer         *time.Timer
-	closed        bool
-	incoming      chan net.Conn
-	done          chan struct{}
-	cancel        context.CancelFunc
+	mu         sync.Mutex
+	mesh       *mesh.Mesh
+	server     *tailcat.Server
+	listener   net.Listener
+	timer      *time.Timer
+	closed     bool
+	done       chan struct{}
+	changes    chan struct{}
+	ctx        context.Context
+	cancel     context.CancelFunc
+	settings   settings
+	code       codes.Code
+	controls   map[string]*peer.Peer
+	bootstraps map[net.Conn]struct{}
+	gate       *joinGate
+	nextJoin   uint64
 }
 
 type settings struct {
-	regionID tailcfg.DERPRegionID
-	mapURL   string
-	region   *tailcfg.DERPRegion
-	derpMap  *tailcfg.DERPMap
-	expiry   time.Duration
+	regionID    tailcfg.DERPRegionID
+	mapURL      string
+	region      *tailcfg.DERPRegion
+	derpMap     *tailcfg.DERPMap
+	expiry      time.Duration
+	name        string
+	allowWindow time.Duration
+	lostGrace   time.Duration
+	options     Options
 }
 
-func newSession(ctx context.Context) (*Session, context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	session := &Session{incoming: make(chan net.Conn), done: make(chan struct{}), cancel: cancel}
-
-	return session, ctx
-}
-
-// Open opens a stream to the host. It is available only on a joined session.
-func (session *Session) Open(ctx context.Context) (net.Conn, error) {
-	if err := ctx.Err(); err != nil {
+func newSession(ctx context.Context, options settings, code codes.Code) (*Session, error) {
+	network, err := mesh.New(ctx, mesh.Options{
+		DisplayName: options.name, RegionID: options.regionID,
+		Region: options.region, DERPMapURL: options.mapURL,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := mergeHandlers(network.Handlers(""), options.options.Handlers); err != nil {
+		_ = network.Close()
 		return nil, err
 	}
 
-	session.mu.Lock()
-	if session.closed {
-		session.mu.Unlock()
-		return nil, net.ErrClosed
+	copied, _ := mergeHandlers(nil, options.options.Handlers)
+	options.options.Handlers = copied
+	lifetime, cancel := context.WithCancel(ctx)
+	session := &Session{
+		mesh: network, done: make(chan struct{}), changes: make(chan struct{}, 1),
+		ctx: lifetime, cancel: cancel, settings: options, code: code,
+		controls: make(map[string]*peer.Peer), bootstraps: make(map[net.Conn]struct{}),
 	}
-
-	if session.first != nil {
-		conn := session.first
-		session.first = nil
-		session.mu.Unlock()
-		return conn, nil
-	}
-
-	client := session.client
-	session.mu.Unlock()
-	if client == nil {
-		return nil, errors.New("Only the joining computer can open a connection.")
-	}
-
-	conn, err := client.DialTCPPort(ctx, sessionPort)
-	if err != nil {
-		return nil, errors.New("Could not reach the other computer.")
-	}
-
-	return conn, nil
+	go session.acceptMesh()
+	go func() {
+		<-lifetime.Done()
+		_ = session.Close()
+	}()
+	return session, nil
 }
 
-// Accept waits for a stream on a hosted session, including while it is rekeying.
-func (session *Session) Accept() (net.Conn, error) {
-	session.mu.Lock()
-	joined := session.client != nil
-	session.mu.Unlock()
-	if joined {
-		return nil, errors.New("Only the hosting computer can accept a connection.")
-	}
-
-	select {
-	case conn := <-session.incoming:
-		return conn, nil
-	case <-session.done:
-		return nil, net.ErrClosed
-	}
-}
-
-// Close stops the session. Calling it more than once is safe.
-func (session *Session) Close() error {
+// Members returns a roster snapshot in join order, or an empty roster after close.
+func (session *Session) Members() []peer.ShareMember {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	if session.closed {
 		return nil
 	}
+	return session.mesh.Roster().Members
+}
+
+// Pending returns the current local prompt, if any.
+func (session *Session) Pending() (PendingJoin, bool) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.closed || session.gate == nil || session.gate.decided {
+		return PendingJoin{}, false
+	}
+	return session.gate.pending, true
+}
+
+// Changes signals that callers should read the current state again. Signals coalesce.
+func (session *Session) Changes() <-chan struct{} { return session.changes }
+
+// Done closes when the share ends on this computer.
+func (session *Session) Done() <-chan struct{} { return session.done }
+
+func (session *Session) changedLocked() {
+	select {
+	case session.changes <- struct{}{}:
+	default:
+	}
+}
+
+// Control returns a current member's control conversation.
+func (session *Session) Control(id string) (*peer.Peer, bool) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	control, ok := session.controls[id]
+	return control, ok && !session.closed
+}
+
+// Tunnel returns a member's data stream tunnel.
+func (session *Session) Tunnel(id string) (*mesh.Tunnel, bool) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.closed {
+		return nil, false
+	}
+	return session.mesh.Tunnel(id)
+}
+
+// Leave delivers a leave event before releasing the local share.
+func (session *Session) Leave() error {
+	session.mu.Lock()
+	controls := make([]*peer.Peer, 0, len(session.controls))
+	for _, control := range session.controls {
+		controls = append(controls, control)
+	}
+	session.mu.Unlock()
+
+	for _, control := range controls {
+		_ = control.Notify(peer.MethodShareLeave, peer.ShareLeave{})
+	}
+
+	// Closing the tunnel at once can drop the leave notice in flight. Each
+	// member closes its side when the notice arrives, so wait for that, briefly.
+	wait := time.NewTimer(leaveWait)
+	defer wait.Stop()
+	for _, control := range controls {
+		select {
+		case <-control.Done():
+		case <-wait.C:
+			return session.Close()
+		}
+	}
+	return session.Close()
+}
+
+// Close releases all local resources. Calling it again is safe.
+func (session *Session) Close() error {
+	session.mu.Lock()
+	if session.closed {
+		session.mu.Unlock()
+		return nil
+	}
 
 	session.closed = true
+	session.code = ""
 	close(session.done)
 	session.cancel()
 	if session.timer != nil {
 		session.timer.Stop()
 	}
-
-	var result error
-	for _, conn := range []net.Conn{session.first, session.bootstrap} {
-		if conn != nil {
-			result = errors.Join(result, conn.Close())
-		}
+	if session.gate != nil && !session.gate.decided {
+		session.decideLocked(session.gate, denied())
 	}
 
-	if session.listener != nil {
-		result = errors.Join(result, session.listener.Close())
-	}
-	if session.server != nil {
-		result = errors.Join(result, session.server.Close())
-	}
-	if session.client != nil {
-		result = errors.Join(result, session.client.Close())
+	var admission *mesh.Admission
+	if session.gate != nil {
+		admission = session.gate.admission
+		session.gate = nil
 	}
 
-	return result
+	server, listener := session.server, session.listener
+	controls := session.controls
+	session.controls = make(map[string]*peer.Peer)
+	for conn := range session.bootstraps {
+		_ = conn.Close()
+	}
+	session.changedLocked()
+	session.mu.Unlock()
+
+	if admission != nil {
+		admission.Close()
+	}
+
+	if listener != nil {
+		_ = listener.Close()
+	}
+	if server != nil {
+		_ = server.Close()
+	}
+	_ = session.mesh.Close()
+	for _, control := range controls {
+		_ = control.Close()
+	}
+	return nil
 }

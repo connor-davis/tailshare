@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/tailscale/tailcat"
 	"tailscale.com/types/key"
 )
@@ -334,4 +334,30 @@ func TestClosedAdmissionCannotPrepareLinks(t *testing.T) {
 	wantCode(t, err, peer.CodeJoinFailed)
 	_, err = admission.Handlers()[peer.MethodShareLinks](t.Context(), raw(peer.ShareLinks{}))
 	wantCode(t, err, peer.CodeJoinFailed)
+}
+
+func TestIsAdmitter(t *testing.T) {
+	mesh := localMesh(t, nil, "Self")
+	if !mesh.IsAdmitter() {
+		t.Fatal("initial member is not admitter")
+	}
+	self := mesh.Self()
+	first := member("First", 1)
+	self.JoinOrder = 2
+	if err := mesh.SetRoster(peer.ShareRoster{Members: []peer.ShareMember{first, self}}); err != nil {
+		t.Fatal(err)
+	}
+	if mesh.IsAdmitter() {
+		t.Fatal("later member is admitter")
+	}
+	if err := mesh.Remove(first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !mesh.IsAdmitter() {
+		t.Fatal("lowest survivor is not admitter")
+	}
+	_ = mesh.Close()
+	if mesh.IsAdmitter() {
+		t.Fatal("closed mesh is admitter")
+	}
 }

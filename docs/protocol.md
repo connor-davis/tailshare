@@ -4,17 +4,27 @@ How two Tailshare sidecars talk once the tunnel is up. Both sides run the same
 code (`internal/services/peer`), so every rule below holds in both directions.
 Why the tunnel is safe: [security.md](security.md).
 
-## Before the session: rekey
+## Before the session: join line and admission
 
-The code's own server only admits the joiner and hands it a fresh address.
-This runs before any frame below, so it uses plain text lines
-(`internal/services/session/rekey.go`), with a 30-second limit:
+The code server stays on its code-derived keys with no transport allowlist.
+Its streams begin with `join <node public key> <mesh Tailcat address>\n`,
+at most 4 KiB, read without consuming any following hello frame. The host
+matches the claimed key against the authenticated stream source and parses the
+mesh address. The 30-second join-line deadline is cleared before hello.
 
-1. Joiner → host: `join <node public key>\n` (max 1 KiB). The host checks the
-   key matches the one that opened the stream.
-2. Host → joiner: `rekey <new Tailcat address>\n` (max 16 KiB).
-3. The joiner dials the new address, then sends one byte, `1`, as the ack.
-   Only then does the host retire the code's server.
+Both sides then say hello. `share.roster` waits for local Allow or Deny.
+The prompt expires after 60 seconds with `join_denied`; the whole join call
+has 90 seconds. Allow starts a separate 30-second preparation window and stops
+the unused-code expiry. `share.links` prepares all members before the joiner
+dials independently keyed mesh links. The admission stream then closes.
+
+Every **mesh** Tailcat stream starts with one byte: `C` for control, `D` for
+data. The code-server stream uses the join line above instead. Mesh authenticates
+the source key before reading exactly one prefix byte, with a 5-second read
+deadline that is cleared afterwards. Bad prefixes and unknown sources close.
+`C` is followed by control frames; `D` by the existing 26-byte transfer ID and
+file data. Each member has a separate incoming data queue capped at 8 streams;
+an excess stream closes. Only the link dialer opens data streams.
 
 ## Two kinds of stream
 
@@ -92,11 +102,11 @@ Until hello is done, any other request gets `not_ready`.
 
 `bad_request`, `unknown_method`, `not_ready`, `not_sharing`,
 `unsupported_version`, `too_large`, `bad_path`, `not_found`, `exists`,
-`denied`, `internal`, `not_admitter`, `share_full`, `busy`, `join_failed`.
+`denied`, `internal`, `not_admitter`, `share_full`, `busy`, `join_failed`, `join_denied`.
 
 The share errors mean, respectively: only the earliest surviving member may
 admit; eight people are already sharing; another admission is in progress;
-or not every member could prepare the joiner's links.
+not every member could prepare the joiner's links; or the local prompt was denied or expired.
 
 A handler picks the code and sentence by returning a `*RemoteError`. Any other
 error becomes a generic sentence, so no Go error text or local path leaves the
@@ -116,10 +126,9 @@ open is treated as broken, and the connection closes.
 
 ## Group share methods (version 2)
 
-These are the mesh foundations. The session bootstrap above still uses rekey
-until the separate session admission change wires in mesh. Allow and Deny are
-local actions, never peer methods. A bootstrap peer gets these handlers only
-after local approval; ordinary mesh peers get only `share.admit`.
+Allow and Deny are local actions, never peer methods. The admission peer
+installs gated roster and links handlers before hello; neither releases share
+details before local approval. Ordinary mesh peers get only `share.admit`.
 
 | Method | Params | Result |
 | --- | --- | --- |

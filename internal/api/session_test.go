@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 func TestSessionBadRequests(t *testing.T) {
@@ -63,7 +65,7 @@ func TestSessionLifecycle(t *testing.T) {
 	})
 
 	// The code is shown only while hosting.
-	joined := join.send("POST", "/api/session/join", map[string]string{"code": code})
+	joined := joinWithApproval(t, host, join, code)
 	joined.expect(t, 200, "")
 
 	if joined.Body["state"] != phaseConnected || joined.Body["role"] != roleJoiner || joined.Body["code"] != nil {
@@ -71,10 +73,6 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 
 	join.send("POST", "/api/session/join", map[string]string{"code": code}).expect(t, 409, "conflict")
-
-	eventually(t, "the host to connect", func() bool {
-		return host.send("GET", "/api/session", nil).Body["state"] == phaseConnected
-	})
 
 	until(t, hostLive, "session.state", func(e Event) bool {
 		return strings.Contains(string(mustJSON(e.Data)), `"state":"connected"`)
@@ -112,10 +110,6 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("joiner after leaving = %s", got.Raw)
 	}
 
-	eventually(t, "the host to notice the joiner left", func() bool {
-		return host.send("GET", "/api/session", nil).Body["state"] == phaseIdle
-	})
-
 	until(t, hostLive, "session.state", func(e Event) bool {
 		return strings.Contains(string(mustJSON(e.Data)), `"state":"idle"`)
 	})
@@ -124,4 +118,81 @@ func TestSessionLifecycle(t *testing.T) {
 	host.send("GET", "/api/files/local", nil).expect(t, 200, "")
 	host.send("GET", "/api/chat", nil).expect(t, 409, "not_connected")
 	host.send("DELETE", "/api/session", nil).expect(t, 200, "")
+}
+
+func joinWithApproval(t *testing.T, host, join *fixture, code string) reply {
+	t.Helper()
+	live := host.dialLive()
+	defer live.Close()
+	next(t, live)
+	result := make(chan reply, 1)
+	go func() {
+		result <- join.send("POST", "/api/session/join", map[string]string{"code": code})
+	}()
+	event := until(t, live, "session.state", func(event Event) bool {
+		var state SessionState
+		_ = json.Unmarshal(mustJSON(event.Data), &state)
+		return state.Join != nil
+	})
+	var state SessionState
+	if err := json.Unmarshal(mustJSON(event.Data), &state); err != nil {
+		t.Fatal(err)
+	}
+	host.send("POST", fmt.Sprintf("/api/session/joins/%d/allow", state.Join.ID), nil).expect(t, 200, "")
+	joined := <-result
+	until(t, live, "session.state", func(event Event) bool {
+		var state SessionState
+		_ = json.Unmarshal(mustJSON(event.Data), &state)
+		return state.State == phaseConnected && state.Join == nil
+	})
+	return joined
+}
+
+func TestAllowDenyRoutes(t *testing.T) {
+	derp := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
+	cfg := config.Config{Region: tailcattest.RegionID, DERPMapURL: derp}
+	host, join := newFixture(t, cfg, nil), newFixture(t, cfg, nil)
+	host.chooseFolder()
+	join.chooseFolder()
+	for _, id := range []string{"0", "-1", "nope", "01", "18446744073709551616"} {
+		host.send("POST", "/api/session/joins/"+id+"/allow", nil).expect(t, 400, "bad_request")
+	}
+	host.send("POST", "/api/session/joins/1/deny", nil).expect(t, 409, "conflict")
+	hosted := host.send("POST", "/api/session/host", nil)
+	hosted.expect(t, 201, "")
+	live := host.dialLive()
+	defer live.Close()
+	next(t, live)
+	results := make(chan reply, 1)
+	go func() {
+		results <- join.send(
+			"POST",
+			"/api/session/join",
+			map[string]any{"code": hosted.Body["code"]},
+		)
+	}()
+	event := until(t, live, "session.state", func(event Event) bool {
+		var state SessionState
+		_ = json.Unmarshal(mustJSON(event.Data), &state)
+		return state.Join != nil
+	})
+	var state SessionState
+	if err := json.Unmarshal(mustJSON(event.Data), &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Join.DisplayName == "" {
+		t.Fatal("prompt name missing")
+	}
+	host.send(
+		"POST",
+		fmt.Sprintf("/api/session/joins/%d/allow", state.Join.ID+1),
+		nil,
+	).expect(t, 404, "not_found")
+	denied := host.send("POST", fmt.Sprintf("/api/session/joins/%d/deny", state.Join.ID), nil)
+	denied.expect(t, 200, "")
+	if denied.Body["join"] != nil {
+		t.Fatal("deny retained prompt")
+	}
+	(<-results).expect(t, 403, "join_denied")
+	host.send("POST", fmt.Sprintf("/api/session/joins/%d/allow", state.Join.ID), nil).expect(t, 409, "conflict")
 }

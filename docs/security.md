@@ -29,7 +29,7 @@ Run it with: `TAILSHARE_NET=1 go test -run SeededKeys ./internal/services/codes`
 40 bits is guessable offline. Anyone who sees the host's public key can try
 every code until one derives that key. The relay operator sees it, and
 Tailcat's free relays keep metadata logs. That attacker would then hold the
-pre-shared key and could join.
+pre-shared key and could request to join.
 
 Limits, all required:
 
@@ -37,20 +37,33 @@ Limits, all required:
   time. Eight base32 characters give 32^8 = 2^40 possible codes
   (1,099,511,627,776), 1,024 times the six-character space. The Argon2 cost
   per guess is unchanged; parallel hardware can still search faster.
-- **Single use.** The host admits only the first authenticated connection,
-  pins its node key with Tailcat's `AddAllowedClient`, and moves to a fresh
-  server allowlisted to that key. The bootstrap server closes after the
-  joiner acknowledges its reconnect, rejecting everyone else.
-  The host binds each stream to the key that authenticated it: Tailcat gives
-  every peer a fixed address made from its node key, so the host rebuilds
-  that address for each authenticated peer and matches the stream's source.
-  The joiner's claimed key must equal it. The random-key reconnect must
-  still authenticate as the admitted key.
-- **Short life.** A code expires 10 minutes after it is shown.
-- **Rekey.** Right after the first connect, both sides move to fresh random
-  host Tailcat keys exchanged inside the tunnel. The joiner keeps its random
-  node key so the new host can admit only that computer. The code-derived
-  keys only guard the first seconds. A reconnect must finish within 30 seconds.
+- **Local approval.** The code server stays reachable while the share lives,
+  with no Tailcat allowlist. Knowing the code permits asking to join, not
+  accessing files. The authenticated stream key must match the join line.
+  Hello supplies a display-only name; Allow or Deny is a local action. The
+  prompt expires after 60 seconds. One prompt or preparation is active at a
+  time, and the share holds at most eight members.
+- **Unused-code expiry.** A code expires ten minutes after it is shown unless
+  someone is allowed. Pending and denied requests do not stop expiry. The
+  first Allow stops expiry for the remainder of the share.
+- **Independent links.** Every member has a fresh random mesh server and a
+  fresh random client key for each outgoing link. Mesh starts with only its
+  own key allowlisted; admission adds expected link keys. Every stream is
+  checked against both its authenticated source and current membership.
+  Tailcat cannot remove allowlisted clients, so leave closes their streams
+  and the application roster refuses new streams from removed members.
+- **Takeover limits.** The lowest surviving join order admits. A clean leave
+  permits immediate takeover; loss waits fifteen seconds after the local
+  control stream reports it. This delay does not detect an unreachable host.
+  A network split
+  can leave two live servers using the same code key, and pairwise loss can
+  leave rosters inconsistent at a third member. Version 1 has no roster
+  resync. Members keep the code in memory only until the share ends, never
+  on disk or in logs, so a survivor can start the same code server.
+- **Member trust.** Rosters and admission messages distribute each member's
+  Tailcat address, including its pre-shared key, to other admitted members.
+  The address is not a secret from the share. The authenticated link key,
+  expected-key table and current roster are still checked on every stream.
 - **Own relay later.** Moving to a self-hosted DERP relay removes the
   third-party operator from the threat.
 
@@ -224,3 +237,7 @@ drive it.
 - **Folder access.** The API opens the folder the picker chose with
   `share.Open`, and every path from a query goes through `share.Localize` and
   `os.Root`. The folder cannot change while a session is open.
+
+The current local API still selects one control peer for browsing, chat and
+transfers. Losing that peer ends the local API session, including when other
+mesh members survive. Per-member API ownership is a later change.

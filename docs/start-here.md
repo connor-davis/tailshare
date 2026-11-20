@@ -27,9 +27,9 @@ version; a push to develop publishes a nightly with patch+1 and a UTC timestamp.
 2. Bob types the code. His sidecar derives the same keys, rebuilds Alice's
    Tailcat address and connects. Tailcat bootstraps through the relay, then
    switches to a direct link when it can.
-3. Both sides swap to fresh random keys inside the tunnel. The code is now
-   dead.
-4. They browse, upload, download and chat over that tunnel.
+3. Alice sees Bob's name and chooses **Allow** or **Deny**. Allow connects
+   independently keyed links to every member; the code stays open while sharing.
+4. They browse, upload, download and chat over those links.
 
 Why it is safe enough, and what it costs: [security.md](security.md).
 
@@ -40,7 +40,7 @@ Why it is safe enough, and what it costs: [security.md](security.md).
 | `cmd/tailshare` | The sidecar binary. |
 | `internal/api` | The local API and live WebSocket the screen talks to. |
 | `internal/services/codes` | Share code to Tailcat keys and address. |
-| `internal/services/session` | Host or join by code, admit one joiner, rekey. |
+| `internal/services/session` | Host or join by code, local admission and member links. |
 | `internal/services/peer` | The conversation over the tunnel: hello, lists, chat. |
 | `internal/services/share` | The shared folder, and the path checks that guard it. |
 | `internal/services/transfer` | The transfer queue, resume and checksums. |

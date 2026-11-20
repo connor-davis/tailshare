@@ -87,6 +87,8 @@ const (
 	CodeBusy = "busy"
 	// CodeJoinFailed means not every member could prepare the new link.
 	CodeJoinFailed = "join_failed"
+	// CodeJoinDenied means the host refused the local admission prompt.
+	CodeJoinDenied = "join_denied"
 )
 
 // RemoteError is an error the other computer sent back. Message is safe to

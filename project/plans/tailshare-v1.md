@@ -37,7 +37,7 @@ streams for file data, one TCP stream per transfer.
 
 ## Decisions made
 
-- Module `github.com/Polyphron-AI/tailshare`, Go 1.27.
+- Module `github.com/connor-davis/tailshare`, Go 1.27.
 - Fixed home relay region 303 (Frankfurt) in config. Self-hosted DERP comes later and only changes config.
 - Codes: 6 Crockford base32 chars; look-alikes (O/I/L) are folded on input.
 - Only one dependency was added beyond Tailcat: `golang.org/x/crypto/argon2`.

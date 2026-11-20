@@ -8,6 +8,7 @@ import { useFolder } from "@/lib/api/folder"
 import { useSession } from "@/lib/api/session"
 import { FolderRow } from "./-components/folder-row"
 import { HostCard } from "./-components/host-card"
+import { JoinRequest } from "./-components/join-request"
 import { JoinCard } from "./-components/join-card"
 
 /** The connect screen: pick a folder, then host a code or join with one. */
@@ -82,6 +83,9 @@ function Connect() {
         onHosted={setStartedAt}
         onCancelled={() => setCancelled(true)}
       />
+      {session.join ? (
+        <JoinRequest key={session.join.id} join={session.join} />
+      ) : null}
       <JoinCard enabled={ready} connecting={session.state === "connecting"} />
     </Page>
   )

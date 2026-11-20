@@ -15,11 +15,13 @@ line when you add an owner.
 
 | Job | Owner |
 | --- | --- |
-| Tunnel lifetime, stream opening and accepting, session port | `internal/services/session/session.go` (`Session`, `Open`, `Accept`, `Close`) |
-| Host code, first-joiner admission and ten-minute expiry | `internal/services/session/host.go` (`Host`) |
+| Share lifetime, roster snapshots, changes, per-member control and data tunnel access | `internal/services/session/session.go` (`Session`, `Options`, `Members`, `Pending`, `Close`) |
+| Code server, takeover startup and unused-code expiry | `internal/services/session/host.go` (`Host`) |
 | Join by code and resolve the relay address | `internal/services/session/join.go` (`Join`) |
-| Fresh host keys, allowlisted reconnect and bootstrap acknowledgment | `internal/services/session/rekey.go` |
-| Offline session, admission, expiry and rekey tests (on `tailcattest`) | `internal/services/session/session_test.go` |
+| Bounded authenticated join line without consuming hello, handshake deadline cleanup | `internal/services/session/joinline.go` |
+| Local Allow/Deny prompt, decision timeout and admission peer handlers | `internal/services/session/admission.go` |
+| Control startup, handler merge, leave/loss watchers and takeover delay | `internal/services/session/mesh.go` |
+| Offline session admission, identity, expiry, leave and takeover tests (on `tailcattest`) | `internal/services/session/*_test.go` |
 
 ## Peer protocol
 
@@ -38,14 +40,14 @@ The wire format is written up in [protocol.md](protocol.md).
 
 ## Mesh foundations
 
-Session bootstrap wiring is a separate change; the existing session owner rows
-above still describe the running app.
+Session owns the code server and local approval; mesh owns independently keyed member links.
 
 | Job | Owner |
 | --- | --- |
 | Mesh server lifetime, roster snapshots and installation, member removal and control-peer registration | `internal/services/mesh/mesh.go` (`New`, `Mesh`, `SetRoster`, `Remove`, `RegisterPeer`) |
 | Strict share payload, roster, name, public key and Tailcat address checks | `internal/services/mesh/validate.go` |
 | Fresh client per link, bounded dial, authenticated expected-key accept and member stream cleanup | `internal/services/mesh/link.go` (`Link`, `NewLink`, `Dial`, `Accept`) |
+| Per-member bounded data queues, outgoing data streams and close on departure | `internal/services/mesh/tunnel.go` (`Tunnel`) |
 | Locally approved admission slot, roster/links/admit handlers, preparation expiry and authenticated leave | `internal/services/mesh/admit.go` (`BeginAdmission`, `Admission.Handlers`, `Mesh.Handlers`, `HandleEvent`) |
 | Offline Tailcat facts: many clients, silent unlisted clients, duplicate-key starvation | `internal/services/mesh/tailcat_test.go` |
 | Mesh roster/admission abuse guards and real three-member links/departure | `internal/services/mesh/guard_test.go`, `internal/services/mesh/link_test.go` |
@@ -71,6 +73,7 @@ above still describe the running app.
 | Host, Origin and bearer-token guard, CORS preflight, live-socket handshake check | `internal/api/middleware.go` (`guard`) |
 | Service and peer errors to safe API errors, the JSON error handler | `internal/api/errors.go` (`errorHandler`, `toAppError`) |
 | Host, join, leave, session state and peer-loss cleanup | `internal/api/session.go` |
+| Local admission Allow/Deny routes and pending-ID validation | `internal/api/session_joins.go` |
 | Shared folder choice, local and peer folder listing | `internal/api/files.go` |
 | Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
 | Transfer routes, the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
@@ -146,6 +149,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Query client and hash router | `src/renderer/src/main.tsx` |
 | Root outlet, live socket start, sidecar banner, announcements | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/components/sidecar-banner.tsx`, `src/renderer/src/components/status-region.tsx` |
 | Connect screen (folder, host code, join by code) | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` |
+| Local join prompt, pending/error state and Allow/Deny actions | `src/renderer/src/routes/-components/join-request.tsx`, `join-request.test.tsx` beside it |
 | Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
 | Byte, speed, time and date text | `src/renderer/src/lib/format.ts` |
 | Local API client, query keys, hooks and types (match `internal/api`) | `src/renderer/src/lib/api/` |

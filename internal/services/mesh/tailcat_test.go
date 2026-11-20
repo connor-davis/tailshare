@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 	"github.com/tailscale/tailcat"
 	"tailscale.com/types/key"
 )
