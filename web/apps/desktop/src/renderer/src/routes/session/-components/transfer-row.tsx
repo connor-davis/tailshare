@@ -1,3 +1,4 @@
+import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { useTransferAction } from "@/lib/api/transfers"
 import type { TransferState, TransferView } from "@/lib/api/types"
@@ -45,10 +46,9 @@ export function TransferRow({
         <span className="min-w-0 flex-1 truncate" title={item.source}>
           {name}
         </span>
-        <progress
-          className="h-1.5 w-32 shrink-0 accent-primary"
-          max={Math.max(item.size, 1)}
-          value={Math.min(item.bytes, Math.max(item.size, 1))}
+        <Progress
+          className="h-1.5 w-32 shrink-0"
+          value={done}
           aria-label={`${name} progress`}
         />
         <span className="w-32 shrink-0 text-xs tabular-nums">

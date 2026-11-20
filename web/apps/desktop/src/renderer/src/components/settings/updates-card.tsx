@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { UpdateRelease } from "../update-release"
-import { useUpdateStatus } from "../use-update-status"
+import { useUpdateActions, useUpdateStatus } from "../use-update-status"
 import { SettingList, SettingRow } from "./setting-row"
 import { Section } from "./settings-fields"
 import type { SettingsHandle } from "./use-settings"
@@ -26,7 +26,7 @@ const messages: Record<UpdateStatus["state"], string> = {
   error: "Could not update Tailshare. Check for updates to try again.",
 }
 
-/** Update preferences and a restart action, in the settings dialog. */
+/** Update preferences, the release notes and the download and restart actions, in the settings dialog. */
 export function UpdatesCard({
   settings,
   save,
@@ -40,28 +40,17 @@ export function UpdatesCard({
   saving: boolean
 }) {
   const { status, error: statusError } = useUpdateStatus()
-  const [restarting, setRestarting] = useState(false)
-  const [error, setError] = useState("")
+  const actions = useUpdateActions()
+  const [checkError, setCheckError] = useState("")
+  const error = actions.error || checkError
 
   async function checkNow() {
-    setError("")
+    setCheckError("")
 
     try {
       await window.tailshare.checkForUpdates()
     } catch {
-      setError("Could not check for updates. Try again.")
-    }
-  }
-
-  async function restart() {
-    setRestarting(true)
-    setError("")
-
-    try {
-      await window.tailshare.restartToUpdate()
-    } catch {
-      setError("Could not restart to update. Try again.")
-      setRestarting(false)
+      setCheckError("Could not check for updates. Try again.")
     }
   }
 
@@ -110,8 +99,22 @@ export function UpdatesCard({
           }
         >
           {status?.state === "ready" ? (
-            <Button disabled={restarting} onClick={() => void restart()}>
-              {restarting ? "Restarting…" : "Restart to update"}
+            <Button
+              disabled={actions.pending === "restart"}
+              onClick={() => void actions.restart()}
+            >
+              {actions.pending === "restart"
+                ? "Restarting…"
+                : "Restart to update"}
+            </Button>
+          ) : status?.state === "available" ? (
+            <Button
+              disabled={actions.pending === "download"}
+              onClick={() => void actions.download()}
+            >
+              {actions.pending === "download"
+                ? "Starting download…"
+                : "Download"}
             </Button>
           ) : (
             <Button

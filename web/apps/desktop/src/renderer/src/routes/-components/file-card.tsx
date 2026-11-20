@@ -1,3 +1,4 @@
+import { Progress } from "@/components/ui/progress"
 import { useState } from "react"
 import { DownloadIcon, FileIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -46,10 +47,9 @@ export function FileCard({
       const done = percent(transfer.bytes, transfer.size)
       status = (
         <div className="flex flex-col gap-1">
-          <progress
-            className="h-1.5 w-full accent-primary"
+          <Progress
+            className="h-1.5"
             aria-label={`${attachment.name} progress`}
-            max={100}
             value={done}
           />
           <p className="text-xs text-muted-foreground tabular-nums">

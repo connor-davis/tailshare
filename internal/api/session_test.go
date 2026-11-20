@@ -48,8 +48,14 @@ func TestSessionLifecycle(t *testing.T) {
 	hostLive := host.dialLive()
 	next(t, hostLive)
 
-	hosting := host.send("POST", "/api/session/host", nil)
+	hosting := host.send("POST", "/api/session/host", map[string]string{
+		"displayName": "Hana", "roomName": "  Movie night  ",
+	})
 	hosting.expect(t, 201, "")
+
+	if hosting.Body["roomName"] != "Movie night" {
+		t.Fatalf("host room = %s", hosting.Raw)
+	}
 
 	code, _ := hosting.Body["code"].(string)
 	if err := os.WriteFile(filepath.Join(host.server.cfg.RoomsDir, code, "from-host.txt"), []byte("host"), 0o600); err != nil {
@@ -106,6 +112,11 @@ func TestSessionLifecycle(t *testing.T) {
 	hostState := host.send("GET", "/api/session", nil)
 	if hostState.Body["code"] != nil || hostState.Body["peer"] == nil {
 		t.Fatalf("host state = %s", hostState.Raw)
+	}
+
+	// Both sides show the host's name for the room.
+	if hostState.Body["roomName"] != "Movie night" || joined.Body["roomName"] != "Movie night" {
+		t.Fatalf("room names = %s / %s", hostState.Raw, joined.Raw)
 	}
 
 	// Each side lists the other's folder.
@@ -233,4 +244,35 @@ func TestAllowDenyRoutes(t *testing.T) {
 		t.Fatal("failed join retained its room resources")
 	}
 	host.send("POST", fmt.Sprintf("/api/session/joins/%d/allow", state.Join.ID), nil).expect(t, 409, "conflict")
+}
+
+func TestDisplayNamePrefersTheChosenName(t *testing.T) {
+	if got := displayName("  Sam  "); got != "Sam" {
+		t.Fatalf("chosen name: got %q", got)
+	}
+
+	fallback := displayName("")
+	for _, bad := range []string{"   ", "a\nb", strings.Repeat("x", 65), "\xff"} {
+		if got := displayName(bad); got != fallback {
+			t.Fatalf("displayName(%q) = %q, want the computer name %q", bad, got, fallback)
+		}
+	}
+}
+
+func TestRoomNameDefaults(t *testing.T) {
+	long := strings.Repeat("h", 64)
+
+	cases := []struct{ chosen, host, want string }{
+		{"", "Hana", "Hana's room"},
+		{"   ", "Hana", "Hana's room"},
+		{"bad\nname", "Hana", "Hana's room"},
+		{strings.Repeat("r", 65), "Hana", "Hana's room"},
+		{"Movie night", "Hana", "Movie night"},
+		{"", long, (long + "'s room")[:64]},
+	}
+	for _, c := range cases {
+		if got := roomName(c.chosen, c.host); got != c.want {
+			t.Errorf("roomName(%q, %q) = %q, want %q", c.chosen, c.host, got, c.want)
+		}
+	}
 }

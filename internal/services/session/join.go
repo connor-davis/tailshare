@@ -72,6 +72,11 @@ func join(ctx context.Context, input string, options settings) (*Session, error)
 	}
 	defer control.Close()
 
+	// The host names the room; every member shows the host's name.
+	session.mu.Lock()
+	session.roomName = control.Remote().RoomName
+	session.mu.Unlock()
+
 	var roster peer.ShareRoster
 	if err := control.Call(ctx, peer.MethodShareRoster, nil, &roster); err != nil {
 		return nil, err

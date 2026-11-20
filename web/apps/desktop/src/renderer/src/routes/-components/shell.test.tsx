@@ -118,12 +118,19 @@ describe("shell", () => {
     expect(screen.getByRole("complementary", { name: "Members" })).toBeTruthy()
   })
 
-  it("creates a room from the big button", () => {
+  it("asks for a room name, then creates the room with it", async () => {
     shell()
 
     fireEvent.click(screen.getByRole("button", { name: "Create room" }))
+    const box = (await screen.findByLabelText("Room name")) as HTMLInputElement
+    expect(box.value).toBe("Studio's room")
+    expect(hostMutate).not.toHaveBeenCalled()
+
+    fireEvent.change(box, { target: { value: "Movie night" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create" }))
 
     expect(hostMutate).toHaveBeenCalledOnce()
+    expect(hostMutate.mock.calls[0][0]).toBe("Movie night")
   })
 
   it("never asks for a folder, idle or in a room", () => {

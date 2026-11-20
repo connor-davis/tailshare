@@ -33,9 +33,10 @@ import logo from "../../../../../build/logo.svg"
 
 /** What the live room is called in the list. */
 function liveName(session: SessionState): string | null {
-  if (session.state === "hosting") return "Waiting for someone…"
+  if (session.state === "hosting")
+    return session.roomName ?? "Waiting for someone…"
   if (session.state === "connected" && session.peer)
-    return `${session.peer.displayName}'s room`
+    return session.roomName ?? `${session.peer.displayName}'s room`
 
   return null
 }

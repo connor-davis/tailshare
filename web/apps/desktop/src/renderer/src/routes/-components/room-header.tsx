@@ -13,6 +13,7 @@ import { useLiveStatus } from "@/lib/live/use-live"
  */
 export function RoomHeader({
   peer,
+  roomName,
   onLeave,
   leaving,
   code,
@@ -21,6 +22,8 @@ export function RoomHeader({
 }: {
   /** The other computer; missing while the host waits for someone. */
   peer?: PeerInfo
+  /** The host's name for the room. Falls back to the other computer's name. */
+  roomName?: string
   /** Leaves the room. */
   onLeave: () => void
   /** True while the leave call is running. */
@@ -44,13 +47,23 @@ export function RoomHeader({
     <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-card px-3">
       {peer ? (
         <p className="min-w-0 flex-1 truncate">
-          <span className="font-medium" title={peer.displayName}>
-            {peer.displayName}
+          <span className="font-medium" title={roomName ?? peer.displayName}>
+            {roomName ?? peer.displayName}
           </span>
         </p>
       ) : (
         <p className="min-w-0 flex-1 truncate">
-          <span className="font-medium">Waiting for someone to join…</span>
+          {roomName ? (
+            <span className="font-medium" title={roomName}>
+              {roomName}
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                · Waiting for someone to join…
+              </span>
+            </span>
+          ) : (
+            <span className="font-medium">Waiting for someone to join…</span>
+          )}
           <span className="text-sm text-muted-foreground">
             {" "}
             · <CodeCountdown startedAt={startedAt} />

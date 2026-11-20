@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { UpdateButton } from "./update-button"
 
 import type { UpdateStatus } from "../../../shared/bridge"
@@ -15,6 +16,7 @@ import type { UpdateStatus } from "../../../shared/bridge"
 let listener: (status: UpdateStatus) => void
 const openReleaseLink = vi.fn<(url: string) => Promise<void>>(async () => {})
 const downloadUpdate = vi.fn(async () => {})
+const restartToUpdate = vi.fn(async () => {})
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal("tailshare", {
@@ -24,6 +26,7 @@ beforeEach(() => {
       return () => {}
     },
     downloadUpdate,
+    restartToUpdate,
     openReleaseLink,
   })
 })
@@ -98,5 +101,21 @@ describe("UpdateButton", () => {
       screen.getByRole("button", { name: "Update available" })
     ).toBeTruthy()
     expect(downloadUpdate).not.toHaveBeenCalled()
+  })
+
+  it("shows a restart icon once the update is downloaded", () => {
+    render(
+      <TooltipProvider>
+        <UpdateButton />
+      </TooltipProvider>
+    )
+    expect(
+      screen.queryByRole("button", { name: "Restart to update" })
+    ).toBeNull()
+
+    act(() => listener({ state: "ready", version: "1.2.3" }))
+    fireEvent.click(screen.getByRole("button", { name: "Restart to update" }))
+
+    expect(restartToUpdate).toHaveBeenCalledOnce()
   })
 })

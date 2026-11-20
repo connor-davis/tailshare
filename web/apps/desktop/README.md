@@ -8,9 +8,12 @@ firewall rules. Uninstalling preserves app data.
 
 ## Updates and channels
 
-The connect screen's **Updates** card selects **Stable** (the default) or
-**Nightly**. Packaged builds check on start and every four hours, download in
-the background, then offer **Restart to update**. Finish transfers first.
+**Settings → Updates** selects **Stable** (the default) or **Nightly**.
+Packaged builds check on start and every four hours. When an update is
+available, the top bar shows **Update available** with the release notes, and
+Settings shows a **Download** button. Nothing downloads until you choose to.
+Once downloaded, the top bar shows a restart icon and Settings shows
+**Restart to update**. Finish transfers first.
 Restart stops the sidecar before running the installer. Closing the app alone
 does not install a downloaded update.
 

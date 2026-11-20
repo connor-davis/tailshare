@@ -53,6 +53,7 @@ type Server struct {
 	phase         string
 	role          string
 	code          string
+	roomName      string
 	sess          *session.Session
 	peer          *peer.Peer
 	root          *share.Root

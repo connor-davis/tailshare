@@ -2,7 +2,6 @@ import { useState } from "react"
 import Markdown from "react-markdown"
 import { isReleaseLink, type UpdateStatus } from "../../../shared/bridge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 const elements = [
@@ -26,23 +25,12 @@ const elements = [
   "br",
 ]
 
-/** Allowlisted Markdown release notes and the explicit download action shared by both surfaces. */
+/**
+ * Allowlisted Markdown release notes, shared by the top bar dialog and
+ * Settings. Each surface places its own Download button.
+ */
 export function UpdateRelease({ status }: { status: UpdateStatus }) {
-  const [pending, setPending] = useState(false)
   const [error, setError] = useState("")
-
-  async function download() {
-    setPending(true)
-    setError("")
-
-    try {
-      await window.tailshare.downloadUpdate()
-    } catch {
-      setError("Could not download the update. Try again.")
-    } finally {
-      setPending(false)
-    }
-  }
 
   return (
     <div className="grid min-w-0 gap-4">
@@ -87,13 +75,6 @@ export function UpdateRelease({ status }: { status: UpdateStatus }) {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <Button
-        className="justify-self-start"
-        disabled={pending}
-        onClick={() => void download()}
-      >
-        {pending ? "Starting download…" : "Download"}
-      </Button>
     </div>
   )
 }
