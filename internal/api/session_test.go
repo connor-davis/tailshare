@@ -16,13 +16,13 @@ func TestSessionBadRequests(t *testing.T) {
 	f.send("DELETE", "/api/session", nil).expect(t, 200, "")
 
 	// A bad code is refused before any network work, even without a folder.
-	for _, code := range []string{"", "nope", "7K3-Q9", "!!!!!!"} {
+	for _, code := range []string{"", "nope", "7K3-Q9", "7K3-Q9P", "7K3Q-9PXMX", "!!!!!!"} {
 		f.send("POST", "/api/session/join", map[string]string{"code": code}).expect(t, 400, "bad_request")
 	}
 	f.send("POST", "/api/session/join", "not an object").expect(t, 400, "bad_request")
 
 	// A good code still needs a folder first.
-	f.send("POST", "/api/session/join", map[string]string{"code": "7K3-Q9P"}).expect(t, 409, "no_folder")
+	f.send("POST", "/api/session/join", map[string]string{"code": "7K3Q-9PXM"}).expect(t, 409, "no_folder")
 
 	// A failed start leaves the session idle, so it can be tried again.
 	if got := f.send("GET", "/api/session", nil); got.Body["state"] != phaseIdle {
@@ -49,7 +49,7 @@ func TestSessionLifecycle(t *testing.T) {
 	hosting.expect(t, 201, "")
 
 	code, _ := hosting.Body["code"].(string)
-	if hosting.Body["state"] != phaseHosting || hosting.Body["role"] != roleHost || len(code) < 6 {
+	if hosting.Body["state"] != phaseHosting || hosting.Body["role"] != roleHost || len(code) != 9 {
 		t.Fatalf("host = %s", hosting.Raw)
 	}
 

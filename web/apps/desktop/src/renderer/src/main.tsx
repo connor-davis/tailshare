@@ -7,14 +7,14 @@ import {
   RouterProvider,
 } from "@tanstack/react-router"
 import { routeTree } from "./routeTree.gen"
+import { followColorScheme } from "./lib/theme"
 import "./styles/globals.css"
 
 // Apply before the first render and follow subsequent operating-system changes.
-const colorScheme = window.matchMedia("(prefers-color-scheme: dark)")
-const applyTheme = () =>
-  document.documentElement.classList.toggle("dark", colorScheme.matches)
-applyTheme()
-colorScheme.addEventListener("change", applyTheme)
+followColorScheme(
+  window.matchMedia("(prefers-color-scheme: dark)"),
+  document.documentElement
+)
 
 const queryClient = new QueryClient()
 const router = createRouter({ routeTree, history: createHashHistory() })

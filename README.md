@@ -1,6 +1,6 @@
 # Tailshare
 
-Send files between two computers with a 6-character code. No accounts, no
+Send files between two computers with an 8-character code. No accounts, no
 setup. Traffic is end-to-end encrypted with WireGuard through
 [Tailcat](https://github.com/tailscale/tailcat), and goes direct whenever the
 networks allow.

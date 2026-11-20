@@ -307,7 +307,7 @@ func checkHello(reply helloResult) (Remote, error) {
 		known = known || version == reply.Version
 	}
 	if !known {
-		return Remote{}, errVersion
+		return Remote{}, &RemoteError{Code: CodeUnsupportedVersion, Message: errVersion.Error()}
 	}
 
 	name, err := cleanName(reply.DisplayName, maxDisplayName, false)

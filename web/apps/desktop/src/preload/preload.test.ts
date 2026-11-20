@@ -22,10 +22,16 @@ describe("preload bridge", () => {
       "chooseFolder",
       "onSidecarStatus",
       "getSettings",
-      "setUpdateChannel",
+      "updateSettings",
+      "onSettingsChanged",
       "getUpdateStatus",
       "onUpdateStatus",
       "restartToUpdate",
+      "minimizeWindow",
+      "toggleMaximizeWindow",
+      "closeWindow",
+      "getWindowState",
+      "onWindowState",
     ]) {
       expect(source).toContain(`${name}:`)
     }

@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { useTransfers } from "@/lib/api/transfers"
 import type { TransferView } from "@/lib/api/types"
 import { TransferRow } from "./transfer-row"
@@ -78,15 +79,17 @@ export function TransferDock() {
             No transfers yet. Drag a file to the other pane.
           </p>
         ) : (
-          <ul className="min-h-0 flex-1 overflow-auto">
-            {items.map((item) => (
-              <TransferRow
-                key={item.id}
-                item={item}
-                onClear={(id) => hide([id])}
-              />
-            ))}
-          </ul>
+          <ScrollArea className="min-h-0 flex-1">
+            <ul>
+              {items.map((item) => (
+                <TransferRow
+                  key={item.id}
+                  item={item}
+                  onClear={(id) => hide([id])}
+                />
+              ))}
+            </ul>
+          </ScrollArea>
         )
       ) : null}
     </section>

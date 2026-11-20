@@ -7,7 +7,7 @@ line when you add an owner.
 
 | Job | Owner |
 | --- | --- |
-| Code alphabet, random codes, parsing user input (look-alikes, dashes) | `internal/services/codes/codes.go` (`New`, `Parse`, `Code.String`) |
+| Code alphabet, random eight-character codes, parsing user input (look-alikes, dashes), 4+4 display | `internal/services/codes/codes.go` (`New`, `Parse`, `Code.String`) |
 | Code to node key + pre-shared key (Argon2id), and code to full Tailcat address | `internal/services/codes/codes.go` (`Derive`, `Addr`) |
 | Parse/derive tests and the live relay spike | `internal/services/codes/codes_test.go` |
 
@@ -30,10 +30,26 @@ The wire format is written up in [protocol.md](protocol.md).
 | Start a conversation, hello and version choice, request/response/event API for the local API, extra handlers | `internal/services/peer/peer.go` (`Start`, `Peer`, `Call`, `Notify`, `Options`) |
 | Frame format: 4-byte length + JSON, 1 MiB cap | `internal/services/peer/frame.go` |
 | Envelope, method names, error codes, typed hello/list/chat and transfer payloads | `internal/services/peer/message.go` |
+| Protocol v2 share methods, member/link/admission payloads and size limits | `internal/services/peer/share.go` |
 | The one reader, request routing, answers, closing | `internal/services/peer/dispatch.go` |
 | List and stat, asking and answering | `internal/services/peer/browse.go` (`List`, `Stat`) |
 | Chat: checks, 200-message memory history, events and subscriptions | `internal/services/peer/chat.go` (`SendChat`, `Subscribe`, `Event`) |
 | Frame, protocol, chat and over-a-real-session tests | `internal/services/peer/*_test.go` |
+
+## Mesh foundations
+
+Session bootstrap wiring is a separate change; the existing session owner rows
+above still describe the running app.
+
+| Job | Owner |
+| --- | --- |
+| Mesh server lifetime, roster snapshots and installation, member removal and control-peer registration | `internal/services/mesh/mesh.go` (`New`, `Mesh`, `SetRoster`, `Remove`, `RegisterPeer`) |
+| Strict share payload, roster, name, public key and Tailcat address checks | `internal/services/mesh/validate.go` |
+| Fresh client per link, bounded dial, authenticated expected-key accept and member stream cleanup | `internal/services/mesh/link.go` (`Link`, `NewLink`, `Dial`, `Accept`) |
+| Locally approved admission slot, roster/links/admit handlers, preparation expiry and authenticated leave | `internal/services/mesh/admit.go` (`BeginAdmission`, `Admission.Handlers`, `Mesh.Handlers`, `HandleEvent`) |
+| Offline Tailcat facts: many clients, silent unlisted clients, duplicate-key starvation | `internal/services/mesh/tailcat_test.go` |
+| Mesh roster/admission abuse guards and real three-member links/departure | `internal/services/mesh/guard_test.go`, `internal/services/mesh/link_test.go` |
+| Version 1 refusal, validated EventShare and local-only Allow/Deny tests | `internal/services/peer/protocol_test.go`, `internal/services/peer/share_test.go` |
 
 ## Shared folders
 
@@ -98,12 +114,21 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Packaged update lifecycle, channel checks, download events and sidecar-safe installation | `src/main/updater.ts`, `src/main/updater.test.ts` |
 | Atomic JSON desktop preferences in userData, corruption fallback | `src/main/settings.ts`, `src/main/settings.test.ts` |
 | Settings/update sender and argument guards, typed request/event bridge | `src/main/ipc.ts`, `src/shared/ipc-schema.ts`, `src/shared/bridge.ts`, `src/preload/index.ts` |
-| Connect-screen Updates card, Stable/Nightly choice and restart action | `src/renderer/src/routes/-components/updates-card.tsx`, `updates-card.test.tsx` beside it |
+| Settings page (`/settings`): sections You, Saving, Transfers, App; gear buttons on the connect screen and session bar | `src/renderer/src/routes/settings.tsx`, `src/renderer/src/routes/settings/-components/settings-fields.tsx`, `settings-page.test.tsx` beside it |
+| Settings load, push follow and save (plain-sentence errors) | `src/renderer/src/routes/settings/-components/use-settings.ts` |
+| Updates card on the settings page: Stable/Nightly choice and restart action | `src/renderer/src/routes/settings/-components/updates-card.tsx`, `updates-card.test.tsx` beside it |
+| Light and dark follow the system (`followColorScheme`) | `src/renderer/src/lib/theme.ts`, `theme.test.ts` beside it |
+| jsdom stand-ins (ResizeObserver, matchMedia, scroll) for renderer tests | `src/test-setup.ts` (named in `vitest.config.ts`) |
 | Windows CI and source-branch enforcement | root `.github/workflows/ci.yml`, `.github/workflows/branch-flow.yml` |
 | Stable releases from main and versioned nightly prereleases from develop | root `.github/workflows/release.yml`, `.github/workflows/nightly.yml` |
 | Installer build instructions, unsigned builds and firewall guidance | `README.md` |
 | Windows package smoke evidence and owner-confirmed two-PC proof closure | root `project/delivery/tailshare-v1-proof.md` |
 | Electron lifecycle and wiring (quit waits for the sidecar to stop) | `src/main/index.ts` |
+| Settings store: schema defaults, tolerant read, `.bak` on a corrupt file, atomic write, change listeners | `src/main/settings.ts` |
+| Settings field rules (one place, shared by main and the bridge types) | `src/shared/ipc-schema.ts` (`SETTINGS_FIELDS`) |
+| Tray: Open / Quit menu, tooltip, icon paths (dev `build/`, packaged resources) | `src/main/tray.ts` |
+| Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
+| Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
 | Window options, navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
 | Real sidecar process (spawn, token, stdin pipe) | `src/main/sidecar-process.ts` |
@@ -115,7 +140,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Typed bridge (`window.tailshare`) and its browser declaration | `src/preload/index.ts`, `src/shared/bridge.ts`, `src/renderer/src/types/desktop.d.ts` |
 | Desktop tests (`task test:web`; `@` alias for tests) | `src/**/*.test.ts(x)` (vitest), `vitest.config.ts` |
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
-| Query client, hash router and system colour preference | `src/renderer/src/main.tsx` |
+| Query client and hash router | `src/renderer/src/main.tsx` |
 | Root outlet, live socket start, sidecar banner, announcements | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/components/sidecar-banner.tsx`, `src/renderer/src/components/status-region.tsx` |
 | Connect screen (folder, host code, join by code) | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` |
 | Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
@@ -125,7 +150,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Session screen: two panes, transfer dock, chat sheet | `src/renderer/src/routes/session.tsx`, `src/renderer/src/routes/session/-components/` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |
-| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`breadcrumb.tsx`, `button.tsx`, `card.tsx`, `select.tsx`, `context-menu.tsx`, `input.tsx`, `label.tsx`, `resizable.tsx`, `sheet.tsx`, `table.tsx`) |
+| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`alert.tsx`, `breadcrumb.tsx`, `button.tsx`, `card.tsx`, `context-menu.tsx`, `field.tsx`, `input.tsx`, `label.tsx`, `progress.tsx`, `radio-group.tsx`, `resizable.tsx`, `scroll-area.tsx`, `select.tsx`, `separator.tsx`, `sheet.tsx`, `skeleton.tsx`, `switch.tsx`, `table.tsx`, `tooltip.tsx`; added with shadcn CLI 4.23.0) |
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |
 
 ## Transfers

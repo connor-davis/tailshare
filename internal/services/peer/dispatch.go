@@ -174,9 +174,27 @@ func (peer *Peer) deliver(message envelope) {
 	}
 }
 
-// handleEvent passes the transfer events on to whoever is subscribed. Other
+// handleEvent passes transfer and share events to subscribers. Other
 // events are ignored so a newer build can send ones this build does not know.
 func (peer *Peer) handleEvent(message envelope) {
+	peer.mu.Lock()
+	greeted := peer.greeted
+	peer.mu.Unlock()
+	if !greeted {
+		return
+	}
+
+	if message.Method == MethodShareLeave {
+		var payload map[string]json.RawMessage
+		if len(message.Params) > MaxSharePayload || json.Unmarshal(message.Params, &payload) != nil ||
+			payload == nil || len(payload) != 0 {
+			return
+		}
+
+		peer.publish(Event{Kind: EventShare, Method: message.Method, Params: message.Params})
+		return
+	}
+
 	if !strings.HasPrefix(message.Method, "transfer.") {
 		return
 	}

@@ -4,9 +4,10 @@ import {
   ChosenFolderSchema,
   ConnectionInfoSchema,
   NoArgs,
-  UpdateChannelArgs,
   SettingsSchema,
+  WindowStateSchema,
 } from "../shared/ipc-schema"
+import type { WindowState } from "../shared/bridge"
 import type { SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
 import { Sidecar } from "./sidecar"
@@ -63,18 +64,43 @@ export function registerUpdateIpc(
     })
   }
 
-  host.handle(CHANNELS.setUpdateChannel, async (senderOk, args) => {
+  // The store checks the whole patch before it writes or tells anyone.
+  host.handle(CHANNELS.updateSettings, async (senderOk, args) => {
     if (!senderOk) throw refuse("answer this window")
-    const [channel] = await Effect.runPromise(
-      check(UpdateChannelArgs, args).pipe(
-        Effect.mapError(() => refuse("read that request"))
-      )
-    )
+    if (args.length !== 1) throw refuse("read that request")
 
-    const result = settings.setUpdateChannel(channel)
-    updater.setChannel(channel)
+    const result = settings.update(args[0])
     return Effect.runPromise(check(SettingsSchema, result))
   })
+}
+
+/** What the title bar can ask the window to do. */
+export interface WindowControls {
+  minimize(): void
+  toggleMaximize(): void
+  /** Goes through the window's close event, so close to tray still applies. */
+  close(): void
+  state(): WindowState
+}
+
+/** Registers the title bar requests behind the same window and tuple guards. */
+export function registerWindowIpc(host: IpcHost, controls: WindowControls) {
+  const actions: Record<string, () => unknown> = {
+    [CHANNELS.windowMinimize]: () => controls.minimize(),
+    [CHANNELS.windowToggleMaximize]: () => controls.toggleMaximize(),
+    [CHANNELS.windowClose]: () => controls.close(),
+    [CHANNELS.getWindowState]: () => controls.state(),
+  }
+
+  for (const [channel, action] of Object.entries(actions)) {
+    host.handle(channel, async (senderOk, args) => {
+      await Effect.runPromise(guard(senderOk, args))
+      const result = action()
+      return channel === CHANNELS.getWindowState
+        ? Effect.runPromise(check(WindowStateSchema, result))
+        : undefined
+    })
+  }
 }
 
 /**

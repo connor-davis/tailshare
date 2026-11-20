@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react"
-import type {
-  Settings,
-  UpdateChannel,
-  UpdateStatus,
-} from "../../../../shared/bridge"
+import type { Settings, UpdateStatus } from "../../../../../shared/bridge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -20,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { SettingsHandle } from "./use-settings"
 
 const messages: Record<UpdateStatus["state"], string> = {
   disabled: "Updates are off in development builds.",
@@ -30,11 +28,21 @@ const messages: Record<UpdateStatus["state"], string> = {
   error: "Could not check for updates. Tailshare will try again later.",
 }
 
-/** Update preferences and a restart action on the connect screen. */
-export function UpdatesCard() {
-  const [settings, setSettings] = useState<Settings | null>(null)
+/** Update preferences and a restart action, on the settings page. */
+export function UpdatesCard({
+  settings,
+  save,
+  saving,
+}: {
+  /** The saved settings. */
+  settings: Settings
+  /** Saves a patch; resolves to false when it was refused. */
+  save: SettingsHandle["save"]
+  /** True while a save runs. */
+  saving: boolean
+}) {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [restarting, setRestarting] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -44,19 +52,15 @@ export function UpdatesCard() {
       receivedEvent = true
       if (alive) setStatus(next)
     })
-    void Promise.all([
-      window.tailshare.getSettings(),
-      window.tailshare.getUpdateStatus(),
-    ])
-      .then(([saved, current]) => {
-        if (!alive) return
-        setSettings(saved)
-        if (!receivedEvent) setStatus(current)
+    window.tailshare
+      .getUpdateStatus()
+      .then((current) => {
+        if (alive && !receivedEvent) setStatus(current)
       })
       .catch(() => {
         if (alive)
           setError(
-            "Could not load update settings. Reopen Tailshare to try again."
+            "Could not check for updates. Reopen Tailshare to try again."
           )
       })
     return () => {
@@ -65,37 +69,21 @@ export function UpdatesCard() {
     }
   }, [])
 
-  async function changeChannel(value: string) {
-    if (value !== "latest" && value !== "nightly") return
-    setBusy(true)
-    setError("")
-
-    try {
-      setSettings(
-        await window.tailshare.setUpdateChannel(value as UpdateChannel)
-      )
-    } catch {
-      setError("Could not save your update channel. Try again.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function restart() {
-    setBusy(true)
+    setRestarting(true)
     setError("")
 
     try {
       await window.tailshare.restartToUpdate()
     } catch {
       setError("Could not restart to update. Try again.")
-      setBusy(false)
+      setRestarting(false)
     }
   }
 
   return (
     <Card
-      size="sm"
+      role="region"
       className="rounded-lg border ring-0"
       aria-labelledby="updates-title"
     >
@@ -108,9 +96,12 @@ export function UpdatesCard() {
       <CardContent className="flex flex-col gap-3">
         <Label htmlFor="update-channel">Release channel</Label>
         <Select
-          value={settings?.updateChannel ?? "latest"}
-          onValueChange={(value) => void changeChannel(value)}
-          disabled={!settings || busy}
+          value={settings.updateChannel}
+          onValueChange={(value) => {
+            if (value === "latest" || value === "nightly")
+              void save({ updateChannel: value })
+          }}
+          disabled={saving}
         >
           <SelectTrigger id="update-channel" className="w-full border-input">
             <SelectValue />
@@ -121,25 +112,25 @@ export function UpdatesCard() {
           </SelectContent>
         </Select>
         <CardDescription>
-          {settings?.updateChannel === "nightly"
+          {settings.updateChannel === "nightly"
             ? "Nightly follows development builds only. Changes may be unfinished."
             : "Stable follows tested releases. Returning from Nightly waits for a newer stable release."}
         </CardDescription>
         <CardDescription role="status">
-          {status ? messages[status.state] : "Loading update settings…"}
+          {status ? messages[status.state] : "Checking for updates…"}
           {status?.state === "downloading" && status.percent !== undefined
             ? ` ${Math.round(status.percent)}%`
             : ""}
         </CardDescription>
         {status?.state === "ready" ? (
-          <Button disabled={busy} onClick={() => void restart()}>
-            {busy ? "Restarting…" : "Restart to update"}
+          <Button disabled={restarting} onClick={() => void restart()}>
+            {restarting ? "Restarting…" : "Restart to update"}
           </Button>
         ) : null}
         {error ? (
-          <CardDescription role="alert" className="text-destructive">
-            {error}
-          </CardDescription>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         ) : null}
       </CardContent>
     </Card>

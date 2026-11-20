@@ -89,7 +89,7 @@ func TestHello(t *testing.T) {
 		Options{DisplayName: "Alice", Share: left},
 		Options{DisplayName: "  Bob  "})
 
-	if got := alice.Remote(); got.DisplayName != "Bob" || got.SharedFolderName != "" || got.Version != 1 {
+	if got := alice.Remote(); got.DisplayName != "Bob" || got.SharedFolderName != "" || got.Version != 2 {
 		t.Fatalf("alice sees %+v", got)
 	}
 	if got := bob.Remote(); got.DisplayName != "Alice" || got.SharedFolderName != left.Name() {

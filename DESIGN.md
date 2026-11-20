@@ -13,7 +13,7 @@ tokens:
   link: { light: "#B85600", dark: "#FA7A00" }
   muted-foreground: { light: "#3D4650", dark: "#A1A1A7" }
   border: { light: "#D0D0CE", dark: "#262629" }
-  input: { light: "#C0C0C0", dark: "#36363A" }
+  input: { light: "#858585", dark: "#6B6B72" }
   destructive: { light: "#D3212C", dark: "#FF7B72" }
   warning: { light: "#CA8A04", dark: "#E8C547" }
   success: { light: "#24963E", dark: "#3DD68C" }
@@ -105,7 +105,9 @@ shape cues. Respect reduced motion and do not add motion to this placeholder.
 | Component | Contract |
 | --- | --- |
 | Button | Generated shadcn primitive; semantic colours; dark text on orange; visible keyboard focus; disabled controls cannot trigger actions. |
-| Updates card | Connect screen uses generated shadcn Card and Select with existing semantic tokens in light and dark. Stable is the default; Nightly explicitly opts into development builds. Loading disables the channel; errors stay inline; downloaded updates expose Restart to update. No new tokens or elevation. |
+| Settings | `/settings` is one page of shadcn Cards (You, Saving, Transfers, App, Updates) built from Field, Input, RadioGroup, Switch and Select. Switches, the save mode and the channel save as soon as they change; text and number fields have a Save button and say why a value is refused. A refused save shows an inline Alert in plain words. A note says limits, name and transfers at once apply from the next update. A gear button reaches it from the connect screen and the session bar. |
+| Updates (in Settings) | Stable is the default; Nightly explicitly opts into development builds. Saving disables the channel; errors stay inline; downloaded updates expose Restart to update. No new tokens or elevation. |
+| Cards, alerts, tooltips | Hand-made boxes are gone: notices and errors use shadcn Alert, panels use Card, long names use Tooltip, scrolling uses ScrollArea, progress uses Progress, loading uses Skeleton. |
 | Connect and session routes | `/` picks a folder, then hosts (shows a code) or joins (types one). `/session` has two file panes, a transfer dock and a chat sheet. Live data comes over one socket; chat stays in memory. |
 
 The renderer applies `.dark` before React mounts and follows changes to

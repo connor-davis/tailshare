@@ -1,4 +1,5 @@
 import type { MouseEvent, ReactNode } from "react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -38,9 +39,9 @@ export function RowMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div onContextMenu={onContext} className="min-h-0 flex-1 overflow-auto">
+        <ScrollArea onContextMenu={onContext} className="min-h-0 flex-1">
           {children}
-        </div>
+        </ScrollArea>
       </ContextMenuTrigger>
       <ContextMenuContent>
         {openLabel ? (

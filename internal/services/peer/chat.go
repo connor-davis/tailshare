@@ -29,6 +29,8 @@ const (
 	EventChat EventKind = "chat"
 	// EventTransfer is a transfer.* event from the other computer.
 	EventTransfer EventKind = "transfer"
+	// EventShare carries a validated share.leave event.
+	EventShare EventKind = "share"
 	// EventClosed means the conversation has ended. It is the last event.
 	EventClosed EventKind = "closed"
 )
@@ -53,9 +55,9 @@ type Event struct {
 	Kind EventKind `json:"kind"`
 	// Chat is set only when Kind is chat.
 	Chat *ChatMessage `json:"chat,omitempty"`
-	// Method is set only for transfer events, such as transfer.offer.
+	// Method is set only for transfer or share events, such as transfer.offer.
 	Method string `json:"method,omitempty"`
-	// Params is the raw JSON for Method. Set only for transfer events.
+	// Params is the raw JSON for Method. Set only for transfer or share events.
 	Params json.RawMessage `json:"params,omitempty"`
 }
 

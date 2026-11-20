@@ -15,7 +15,28 @@ export type UpdateChannel = "latest" | "nightly"
 /** Persistent desktop preferences. Chat never belongs here. */
 export interface Settings {
   readonly updateChannel: UpdateChannel
+  /** Shown to the other side. 1 to 64 characters. */
+  readonly displayName: string
+  /** `folder` saves into {@link Settings.saveFolder}; `ask` asks each time. */
+  readonly saveMode: "folder" | "ask"
+  /** Absolute path where downloads land. */
+  readonly saveFolder: string
+  /** KiB per second. 0 means unlimited. */
+  readonly uploadLimitKiB: number
+  /** KiB per second. 0 means unlimited. */
+  readonly downloadLimitKiB: number
+  /** How many transfers run together, 1 to 8. */
+  readonly transfersAtOnce: number
+  /** Launch hidden in the tray when Windows signs in. */
+  readonly startWithWindows: boolean
+  /** Closing the window hides it instead of quitting. */
+  readonly closeToTray: boolean
+  /** Windows 11 Mica background. */
+  readonly mica: boolean
 }
+
+/** Any subset of {@link Settings}. A patch is applied whole or not at all. */
+export type SettingsPatch = Partial<Settings>
 
 /** Safe update state sent to the renderer without upstream error details. */
 export interface UpdateStatus {
@@ -47,6 +68,26 @@ export function isUpdateStatus(value: unknown): value is UpdateStatus {
   )
 }
 
+/** What the window reports to the title bar. */
+export interface WindowState {
+  /** The window fills the screen, so the page leaves room for the overhang. */
+  readonly maximized: boolean
+  /** Windows 11 Mica is really on. False on Windows 10 or when it is off. */
+  readonly mica: boolean
+}
+
+/** Checks window events without loading Effect in the sandboxed preload. */
+export function isWindowState(value: unknown): value is WindowState {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "maximized" in value &&
+    "mica" in value &&
+    typeof value.maximized === "boolean" &&
+    typeof value.mica === "boolean"
+  )
+}
+
 /** Where the local API listens and the secret that opens it. */
 export interface ConnectionInfo {
   /** Loopback origin such as `http://127.0.0.1:51234`, with no path. */
@@ -60,10 +101,14 @@ export interface ConnectionInfo {
  * exposes `ipcRenderer`, `process` or a way to call other channels.
  */
 export interface TailshareBridge {
-  /** Reads the saved update channel. */
+  /** Reads the saved settings. */
   readonly getSettings: () => Promise<Settings>
-  /** Persists the channel and schedules a check on that feed. */
-  readonly setUpdateChannel: (channel: UpdateChannel) => Promise<Settings>
+  /** Checks and saves a patch, then resolves to the new settings. */
+  readonly updateSettings: (patch: SettingsPatch) => Promise<Settings>
+  /** Calls `listener` after every saved change. Returns an unsubscribe. */
+  readonly onSettingsChanged: (
+    listener: (settings: Settings) => void
+  ) => () => void
   /** Reads the current state, including events sent before the page loaded. */
   readonly getUpdateStatus: () => Promise<UpdateStatus>
   /** Stops the sidecar before installing a downloaded update. */
@@ -72,6 +117,16 @@ export interface TailshareBridge {
   readonly onUpdateStatus: (
     listener: (status: UpdateStatus) => void
   ) => () => void
+  /** Minimises the window. */
+  readonly minimizeWindow: () => Promise<void>
+  /** Maximises the window, or restores it if it already fills the screen. */
+  readonly toggleMaximizeWindow: () => Promise<void>
+  /** Closes the window. Close to tray may hide it instead of quitting. */
+  readonly closeWindow: () => Promise<void>
+  /** Reads the window state, including changes sent before the page loaded. */
+  readonly getWindowState: () => Promise<WindowState>
+  /** Calls `listener` on each maximise, restore and Mica change. */
+  readonly onWindowState: (listener: (state: WindowState) => void) => () => void
   /**
    * Resolves once the sidecar passed its health check. Rejects with a plain
    * sentence if it is down for good.
