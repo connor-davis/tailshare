@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { announce } from "@/components/status-region"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useJoin } from "@/lib/api/session"
 import { foldCode } from "@/lib/code-input"
@@ -22,40 +24,45 @@ export function JoinCard({
   const busy = join.isPending || connecting
 
   return (
-    <section
+    <Card
+      role="region"
       aria-labelledby="join-title"
       aria-busy={busy}
-      className="flex flex-col gap-3 rounded-lg border bg-card p-4"
+      className="rounded-lg border ring-0"
     >
-      <h2 id="join-title" className="text-sm font-semibold">
-        Join
-      </h2>
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!valid || busy) return
-          join.mutate(code, { onSuccess: () => announce("Connected.") })
-        }}
-      >
-        <Label htmlFor="join-code">Code from the other computer</Label>
-        <CodeInput
-          value={code}
-          onChange={setCode}
-          disabled={!enabled || busy}
-          describedBy="join-code-hint"
-        />
-        <div>
-          <Button type="submit" disabled={!enabled || !valid || busy}>
-            {busy ? "Connecting…" : "Connect"}
-          </Button>
-        </div>
-      </form>
-      {join.error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {join.error.message}
-        </p>
-      ) : null}
-    </section>
+      <CardHeader>
+        <CardTitle id="join-title" role="heading" aria-level={2}>
+          Join
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!valid || busy) return
+            join.mutate(code, { onSuccess: () => announce("Connected.") })
+          }}
+        >
+          <Label htmlFor="join-code">Code from the other computer</Label>
+          <CodeInput
+            value={code}
+            onChange={setCode}
+            disabled={!enabled || busy}
+            describedBy="join-code-hint"
+          />
+          <div>
+            <Button type="submit" disabled={!enabled || !valid || busy}>
+              {busy ? "Connecting…" : "Connect"}
+            </Button>
+          </div>
+        </form>
+        {join.error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{join.error.message}</AlertDescription>
+          </Alert>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }

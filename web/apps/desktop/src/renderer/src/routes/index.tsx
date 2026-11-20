@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import { SettingsIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useFolder } from "@/lib/api/folder"
 import { useSession } from "@/lib/api/session"
 import { FolderRow } from "./-components/folder-row"
 import { HostCard } from "./-components/host-card"
 import { JoinCard } from "./-components/join-card"
-import { UpdatesCard } from "./-components/updates-card"
 
 /** The connect screen: pick a folder, then host a code or join with one. */
 export const Route = createFileRoute("/")({
@@ -58,14 +60,18 @@ function Connect() {
   return (
     <Page>
       {notice === "left" ? (
-        <p role="status" className="rounded-lg border bg-card p-3">
-          The other computer left the session.
-        </p>
+        <Alert role="status">
+          <AlertDescription>
+            The other computer left the session.
+          </AlertDescription>
+        </Alert>
       ) : null}
       {ranOut ? (
-        <p role="status" className="rounded-lg border bg-card p-3">
-          That code ran out. Show a new code.
-        </p>
+        <Alert role="status">
+          <AlertDescription>
+            That code ran out. Show a new code.
+          </AlertDescription>
+        </Alert>
       ) : null}
       <FolderRow name={folder?.name ?? null} canChange={idle} />
       <HostCard
@@ -83,9 +89,15 @@ function Connect() {
 function Page({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center gap-4 p-8">
-      <h1 className="text-xl font-semibold">Tailshare</h1>
+      <header className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Tailshare</h1>
+        <Button variant="ghost" size="icon" aria-label="Settings" asChild>
+          <Link to="/settings">
+            <SettingsIcon aria-hidden />
+          </Link>
+        </Button>
+      </header>
       {children}
-      <UpdatesCard />
     </main>
   )
 }

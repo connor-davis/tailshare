@@ -1,5 +1,11 @@
 import { FolderIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useChooseFolder } from "@/lib/api/folder"
 
 /** The folder that will be shared, and the button to change it. */
@@ -21,9 +27,14 @@ export function FolderRow({
       </h2>
       <div className="flex items-center gap-3">
         <FolderIcon aria-hidden className="size-4 shrink-0" />
-        <p className="min-w-0 flex-1 truncate" title={name ?? undefined}>
-          {name ?? "Choose a folder to share first."}
-        </p>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <p className="min-w-0 flex-1 truncate" tabIndex={0}>
+              {name ?? "Choose a folder to share first."}
+            </p>
+          </TooltipTrigger>
+          {name ? <TooltipContent>{name}</TooltipContent> : null}
+        </Tooltip>
         <Button
           variant={name ? "outline" : "default"}
           disabled={!canChange || choose.isPending}
@@ -33,9 +44,9 @@ export function FolderRow({
         </Button>
       </div>
       {choose.error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {choose.error.message}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{choose.error.message}</AlertDescription>
+        </Alert>
       ) : null}
     </section>
   )

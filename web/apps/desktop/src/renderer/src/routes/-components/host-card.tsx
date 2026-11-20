@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
 import { announce } from "@/components/status-region"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useHost, useLeave } from "@/lib/api/session"
 import type { SessionState } from "@/lib/api/types"
 import { formatCode } from "@/lib/code-input"
@@ -37,66 +39,78 @@ export function HostCard({
 
   if (hosting) {
     return (
-      <section
+      <Card
+        role="region"
         aria-labelledby="host-title"
-        className="flex flex-col gap-3 rounded-lg border bg-card p-4"
+        className="rounded-lg border ring-0"
       >
-        <h2 id="host-title" className="text-sm font-semibold">
-          Share this code
-        </h2>
-        <Code code={session.code ?? ""} />
-        <p className="text-muted-foreground">Waiting for the other computer.</p>
-        <Countdown startedAt={startedAt} />
-        <div>
-          <Button
-            variant="outline"
-            disabled={leave.isPending}
-            onClick={() => {
-              onCancelled()
-              leave.mutate()
-            }}
-          >
-            Cancel
-          </Button>
-        </div>
-        {leave.error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {leave.error.message}
+        <CardHeader>
+          <CardTitle id="host-title" role="heading" aria-level={2}>
+            Share this code
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Code code={session.code ?? ""} />
+          <p className="text-muted-foreground">
+            Waiting for the other computer.
           </p>
-        ) : null}
-      </section>
+          <Countdown startedAt={startedAt} />
+          <div>
+            <Button
+              variant="outline"
+              disabled={leave.isPending}
+              onClick={() => {
+                onCancelled()
+                leave.mutate()
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+          {leave.error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{leave.error.message}</AlertDescription>
+            </Alert>
+          ) : null}
+        </CardContent>
+      </Card>
     )
   }
 
   const busy = host.isPending || session.state === "connecting"
 
   return (
-    <section
+    <Card
+      role="region"
       aria-labelledby="host-title"
-      className="flex flex-col gap-3 rounded-lg border bg-card p-4"
+      className="rounded-lg border ring-0"
     >
-      <h2 id="host-title" className="text-sm font-semibold">
-        Host
-      </h2>
-      <p className="text-muted-foreground">
-        Show a code. Type it on the other computer.
-      </p>
-      <div>
-        <Button
-          disabled={!enabled || busy}
-          onClick={() =>
-            host.mutate(undefined, { onSuccess: () => onHosted(Date.now()) })
-          }
-        >
-          {host.isPending ? "Making a code…" : "Show a code"}
-        </Button>
-      </div>
-      {host.error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {host.error.message}
+      <CardHeader>
+        <CardTitle id="host-title" role="heading" aria-level={2}>
+          Host
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-muted-foreground">
+          Show a code. Type it on the other computer.
         </p>
-      ) : null}
-    </section>
+        <div>
+          <Button
+            disabled={!enabled || busy}
+            onClick={() =>
+              host.mutate(undefined, { onSuccess: () => onHosted(Date.now()) })
+            }
+          >
+            {host.isPending ? "Making a code…" : "Show a code"}
+          </Button>
+        </div>
+        {host.error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{host.error.message}</AlertDescription>
+          </Alert>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }
 

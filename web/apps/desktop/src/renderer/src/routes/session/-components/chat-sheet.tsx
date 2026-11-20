@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Sheet,
   SheetContent,
@@ -30,12 +31,16 @@ export function ChatSheet({
   const { data: messages = [], error } = useChat(true)
   const send = useSendChat()
   const [text, setText] = useState("")
-  const log = useRef<HTMLDivElement>(null)
+  // State, not a ref: the sheet mounts its content a moment after `open`,
+  // and the effect below must run again when the log appears.
+  const [log, setLog] = useState<HTMLDivElement | null>(null)
 
-  // Keep the newest message in view.
+  // Keep the newest message in view. The scrolling part is the viewport
+  // inside the ScrollArea, not the ScrollArea itself.
   useEffect(() => {
-    log.current?.scrollTo({ top: log.current.scrollHeight })
-  }, [messages.length, open])
+    const viewport = log?.querySelector('[data-slot="scroll-area-viewport"]')
+    viewport?.scrollTo({ top: viewport.scrollHeight })
+  }, [messages.length, log])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -46,38 +51,40 @@ export function ChatSheet({
             With {peerName}. Messages last only while you are connected.
           </SheetDescription>
         </SheetHeader>
-        <div
-          ref={log}
+        <ScrollArea
+          ref={setLog}
           role="log"
           aria-live="polite"
           aria-label="Chat messages"
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4"
+          className="min-h-0 flex-1"
         >
-          {messages.length === 0 ? (
-            <p className="text-muted-foreground">
-              No messages yet. Messages last only while you are connected.
-            </p>
-          ) : (
-            messages.map((message) => (
-              <p key={message.id} className="flex flex-col">
-                <span className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">
-                    {message.fromPeer ? "Them" : "You"}
-                  </span>{" "}
-                  <time dateTime={message.time}>
-                    {formatTime(message.time)}
-                  </time>
-                </span>
-                <span className="break-words">{message.text}</span>
+          <div className="flex flex-col gap-3 px-4">
+            {messages.length === 0 ? (
+              <p className="text-muted-foreground">
+                No messages yet. Messages last only while you are connected.
               </p>
-            ))
-          )}
-          {error ? (
-            <p role="alert" className="text-destructive">
-              {error.message}
-            </p>
-          ) : null}
-        </div>
+            ) : (
+              messages.map((message) => (
+                <p key={message.id} className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">
+                      {message.fromPeer ? "Them" : "You"}
+                    </span>{" "}
+                    <time dateTime={message.time}>
+                      {formatTime(message.time)}
+                    </time>
+                  </span>
+                  <span className="break-words">{message.text}</span>
+                </p>
+              ))
+            )}
+            {error ? (
+              <p role="alert" className="text-destructive">
+                {error.message}
+              </p>
+            ) : null}
+          </div>
+        </ScrollArea>
         <form
           className="flex flex-col gap-2 border-t p-4"
           onSubmit={(event) => {

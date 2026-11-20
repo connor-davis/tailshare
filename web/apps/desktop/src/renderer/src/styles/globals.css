@@ -23,7 +23,7 @@
   --warning: #ca8a04;
   --success: #24963e;
   --border: #d0d0ce;
-  --input: #c0c0c0;
+  --input: #858585;
   --ring: #0f1c2e;
   --radius: 6px;
 }
@@ -49,7 +49,7 @@
   --warning: #e8c547;
   --success: #3dd68c;
   --border: #262629;
-  --input: #36363a;
+  --input: #6b6b72;
   --ring: #fa7a00;
 }
 
@@ -81,6 +81,14 @@
   --radius-md: var(--radius);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 2px);
+}
+
+/*
+ * Radix wraps scroll content in a `display: table` div, which breaks
+ * `min-h-full` and centring inside it. Keep that div a plain block.
+ */
+[data-slot="scroll-area-viewport"] > div {
+  display: block !important;
 }
 
 /* Mica shows through only when main says it is really on (Windows 11). */
