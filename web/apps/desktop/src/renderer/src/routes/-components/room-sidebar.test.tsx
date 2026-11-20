@@ -92,6 +92,13 @@ describe("RoomSidebar", () => {
     ).toBe(true)
   })
 
+  it("shows the host's name for the room", () => {
+    show({ ...connected, roomName: "Movie night" })
+
+    expect(screen.getByText("Movie night")).toBeTruthy()
+    expect(screen.queryByText("Pat's room")).toBeNull()
+  })
+
   it("opens the Join dialog and joins with a pasted link", () => {
     const { onJoin } = show(idle)
 

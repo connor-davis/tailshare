@@ -43,7 +43,7 @@ func (session *Session) startControl(ctx context.Context, id string, conn net.Co
 	bounded, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	control, err := peer.Start(bounded, conn, peer.Options{
-		DisplayName: session.settings.name, Share: session.settings.options.Root, Handlers: handlers,
+		DisplayName: session.settings.name, RoomName: session.RoomName(), Share: session.settings.options.Root, Handlers: handlers,
 	})
 	if err != nil {
 		return nil, err

@@ -3,14 +3,14 @@ import type { RecentRoom } from "../../../../shared/bridge"
 import { foldCode } from "@/lib/code-input"
 
 /**
- * Saves a room in the recent list. The name is "<owner>'s room" when the
- * owner's name is known, otherwise the code itself.
+ * Saves a room in the recent list under the name the host gave it, or the
+ * code itself when that name is not known.
  */
-export function rememberRoom(owner: string | undefined, code: string) {
+export function rememberRoom(roomName: string | undefined, code: string) {
   const bare = foldCode(code)
   if (!bare) return
 
-  const name = owner ? `${owner}'s room`.slice(0, 64) : bare
+  const name = roomName ? roomName.slice(0, 64) : bare
 
   // A failed save only costs a missing entry in the list.
   Promise.resolve(window.tailshare.touchRecentRoom({ name, code: bare })).catch(

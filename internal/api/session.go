@@ -3,7 +3,10 @@ package api
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
 	"github.com/connor-davis/tailshare/internal/services/codes"
@@ -37,6 +40,9 @@ type SessionState struct {
 	// Role is host or joiner. Empty while idle.
 	Role string `json:"role,omitempty"`
 	Code string `json:"code,omitempty"`
+	// RoomName is the host's name for the room: the host's own, or the one
+	// the host sent a joiner. At most 64 characters.
+	RoomName string `json:"roomName,omitempty"`
 	// Peer is nil until the other computer has connected.
 	Peer *PeerInfo `json:"peer,omitempty"`
 	// Join is present only while someone is waiting for local approval.
@@ -73,7 +79,7 @@ func (server *Server) sessionState() SessionState {
 }
 
 func (server *Server) stateLocked() SessionState {
-	state := SessionState{State: server.phase, Role: server.role}
+	state := SessionState{State: server.phase, Role: server.role, RoomName: server.roomName}
 	if server.phase == phaseHosting {
 		state.Code = server.code
 	}
@@ -141,12 +147,22 @@ func (server *Server) release() {
 	server.manager = nil
 	server.phase = phaseIdle
 	server.role = ""
+	server.roomName = ""
 	server.mu.Unlock()
 
 	server.publishSession()
 }
 
 func (server *Server) hostSession(c fiber.Ctx) error {
+	var in struct {
+		DisplayName string `json:"displayName"`
+		RoomName    string `json:"roomName"`
+	}
+	// An empty body is fine: the computer name stands in.
+	if len(c.Body()) > 0 && json.Unmarshal(c.Body(), &in) != nil {
+		return apperr.BadRequest("The request could not be understood.")
+	}
+
 	selected := codes.New()
 	root, err := server.reserve(roleHost, selected)
 	if err != nil {
@@ -154,8 +170,11 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	}
 
 	manager := server.roomManager(root)
-	sess, code, err := session.Host(server.ctx, server.cfg, displayName(), session.Options{
-		Root: root, Handlers: manager.Handlers(), Code: selected,
+	host := displayName(in.DisplayName)
+	// ponytail: the name is fixed when the room is created; renaming later is not built.
+	room := roomName(in.RoomName, host)
+	sess, code, err := session.Host(server.ctx, server.cfg, host, session.Options{
+		Root: root, Handlers: manager.Handlers(), Code: selected, RoomName: room,
 	})
 	if err != nil {
 		_ = manager.Close()
@@ -166,6 +185,7 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	server.mu.Lock()
 	server.sess = sess
 	server.code = code.String()
+	server.roomName = room
 	server.phase = phaseHosting
 	server.mu.Unlock()
 
@@ -222,7 +242,8 @@ func (server *Server) watchSession(sess *session.Session) {
 
 func (server *Server) joinSession(c fiber.Ctx) error {
 	var in struct {
-		Code string `json:"code"`
+		Code        string `json:"code"`
+		DisplayName string `json:"displayName"`
 	}
 	if err := json.Unmarshal(c.Body(), &in); err != nil {
 		return apperr.BadRequest("The request could not be understood.")
@@ -242,7 +263,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	defer cancel()
 
 	manager := server.roomManager(root)
-	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(), session.Options{
+	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(in.DisplayName), session.Options{
 		Root: root, Handlers: manager.Handlers(),
 	})
 	if err != nil {
@@ -268,6 +289,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 
 	server.mu.Lock()
 	server.sess = sess
+	server.roomName = sess.RoomName()
 	server.mu.Unlock()
 
 	server.connect(sess, other, manager, memberID, false)
@@ -415,7 +437,7 @@ func (server *Server) endCurrent(expected *session.Session) {
 
 	server.mu.Lock()
 	server.sess, server.peer = nil, nil
-	server.phase, server.role, server.code = phaseIdle, "", ""
+	server.phase, server.role, server.code, server.roomName = phaseIdle, "", "", ""
 	server.transferDone = nil
 	if server.root != nil {
 		_ = server.root.Close()
@@ -429,12 +451,39 @@ func (server *Server) endCurrent(expected *session.Session) {
 	server.publishSession()
 }
 
-// displayName is how this computer introduces itself to the other one.
-func displayName() string {
+// displayName is how this computer introduces itself to the other one: the
+// name from Settings when it is usable, otherwise the computer name.
+func displayName(chosen string) string {
+	if name, ok := usableName(chosen); ok {
+		return name
+	}
+
 	name, err := os.Hostname()
 	if err != nil || name == "" {
 		return "Tailshare"
 	}
 
 	return name[:min(len(name), 64)]
+}
+
+// roomName is the room's name: the host's pick when it is usable, otherwise
+// "<host>'s room". The default is cut to 64 characters like any name.
+func roomName(chosen, host string) string {
+	if name, ok := usableName(chosen); ok {
+		return name
+	}
+
+	fallback := []rune(host + "'s room")
+
+	return string(fallback[:min(len(fallback), 64)])
+}
+
+// usableName trims a typed name and says whether it can be shown: valid
+// UTF-8, 1 to 64 characters and no control characters.
+func usableName(chosen string) (string, bool) {
+	chosen = strings.TrimSpace(chosen)
+	ok := chosen != "" && utf8.ValidString(chosen) && utf8.RuneCountInString(chosen) <= 64 &&
+		!strings.ContainsFunc(chosen, unicode.IsControl)
+
+	return chosen, ok
 }

@@ -26,7 +26,10 @@ const (
 // Options supplies the room space and handlers before any control peer starts.
 type Options struct {
 	// Code optionally preselects the host code so its room root can open first.
-	Code     codes.Code
+	Code codes.Code
+	// RoomName is the host's name for the room, at most 64 characters. A
+	// joiner leaves it empty and learns it from the host.
+	RoomName string
 	Root     *share.Root
 	Handlers map[string]peer.Handler
 }
@@ -57,6 +60,7 @@ type Session struct {
 	bootstraps map[net.Conn]struct{}
 	gate       *joinGate
 	nextJoin   uint64
+	roomName   string
 }
 
 type settings struct {
@@ -89,7 +93,7 @@ func newSession(ctx context.Context, options settings, code codes.Code) (*Sessio
 	lifetime, cancel := context.WithCancel(ctx)
 	session := &Session{
 		mesh: network, done: make(chan struct{}), changes: make(chan struct{}, 1),
-		ctx: lifetime, cancel: cancel, settings: options, code: code,
+		ctx: lifetime, cancel: cancel, settings: options, code: code, roomName: options.options.RoomName,
 		controls: make(map[string]*peer.Peer), bootstraps: make(map[net.Conn]struct{}),
 	}
 	go session.acceptMesh()
@@ -108,6 +112,14 @@ func (session *Session) Members() []peer.ShareMember {
 		return nil
 	}
 	return session.mesh.Roster().Members
+}
+
+// RoomName is the host's name for the room. A joiner has it once Join returns.
+func (session *Session) RoomName() string {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	return session.roomName
 }
 
 // SelfID is this computer's member ID in the roster, or empty after close.

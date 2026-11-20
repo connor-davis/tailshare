@@ -14,6 +14,7 @@ import { MembersPanel } from "./-components/members-panel"
 import { MainBar } from "./-components/main-bar"
 import { usePanelLayout, usePanelOpen } from "./-components/panel-layout"
 import { rememberRoom } from "./-components/recent-rooms"
+import { NewRoomDialog } from "./-components/new-room-dialog"
 import { RoomSidebar } from "./-components/room-sidebar"
 import { RoomView } from "./-components/room-view"
 
@@ -26,11 +27,12 @@ export const Route = createFileRoute("/")({ component: Shell })
 function Shell() {
   const { data: session } = useSession()
   const { settings } = useSettings()
-  const host = useHost()
-  const join = useJoin()
+  const host = useHost(settings?.displayName)
+  const join = useJoin(settings?.displayName)
   const leave = useLeave()
   // The open room, saved to the recent list once this computer is out of it.
-  const openRoom = useRef<{ owner?: string; code: string } | null>(null)
+  const openRoom = useRef<{ roomName?: string; code: string } | null>(null)
+  const [naming, setNaming] = useState(false)
   const [roomsOpen, toggleRooms] = usePanelOpen("rooms")
   const [membersOpen, toggleMembers] = usePanelOpen("members")
   // Each mix of shown columns keeps its own saved sizes.
@@ -75,7 +77,7 @@ function Shell() {
       onSuccess: (next) => {
         announce("Connected.")
         setJoinedCode(code)
-        openRoom.current = { owner: next.peer?.displayName, code }
+        openRoom.current = { roomName: next.roomName, code }
       },
     })
 
@@ -96,12 +98,13 @@ function Shell() {
   // The open room joins the recent list only once this computer is out of
   // it, however it ended: Leave, the code running out or the other side going.
   const code = session?.state === "hosting" ? session.code : undefined
+  const roomName = session?.roomName
   useEffect(() => {
-    if (code) openRoom.current = { owner: settings?.displayName, code }
-  }, [code, settings?.displayName])
+    if (code) openRoom.current = { roomName, code }
+  }, [code, roomName])
   useEffect(() => {
     if (state !== "idle" || !openRoom.current) return
-    rememberRoom(openRoom.current.owner, openRoom.current.code)
+    rememberRoom(openRoom.current.roomName, openRoom.current.code)
     openRoom.current = null
   }, [state])
 
@@ -118,8 +121,8 @@ function Shell() {
   const busy =
     host.isPending || join.isPending || session.state === "connecting"
   const error = host.error ?? join.error ?? leave.error
-  const createRoom = () =>
-    host.mutate(undefined, { onSuccess: () => setStartedAt(Date.now()) })
+  const createRoom = (name: string) =>
+    host.mutate(name, { onSuccess: () => setStartedAt(Date.now()) })
   const leaveRoom = () => {
     setOwnEnd(true)
     leave.mutate(undefined, { onError: () => setOwnEnd(false) })
@@ -129,7 +132,7 @@ function Shell() {
     <EmptyState
       enabled={ready}
       busy={busy}
-      onCreate={createRoom}
+      onCreate={() => setNaming(true)}
       onJoin={joinCode}
     />
   )
@@ -141,6 +144,7 @@ function Shell() {
     content = (
       <RoomView
         peer={session.peer}
+        roomName={session.roomName}
         leaving={leave.isPending}
         code={
           session.role === "host"
@@ -160,6 +164,13 @@ function Shell() {
 
   return (
     <main className="h-full min-h-0">
+      <NewRoomDialog
+        open={naming}
+        onOpenChange={setNaming}
+        defaultName={`${settings?.displayName ?? "My"}'s room`.slice(0, 64)}
+        busy={busy}
+        onCreate={createRoom}
+      />
       <ResizablePanelGroup
         key={`${roomsOpen}-${membersOpen}`}
         id="app"
@@ -177,7 +188,7 @@ function Shell() {
               <RoomSidebar
                 session={session}
                 busy={busy}
-                onNewRoom={createRoom}
+                onNewRoom={() => setNaming(true)}
                 onJoin={joinCode}
                 onRejoin={joinCode}
               />

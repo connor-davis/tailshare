@@ -68,10 +68,13 @@ Both sides call `peer.Start` and each sends a `hello` request, then waits for
 the other's reply.
 
 - The request carries `versions` (the list this build speaks, now `[2]`),
-  `displayName` and `sharedFolderName`.
-- The reply carries `version` (the one chosen), `displayName` and
-  `sharedFolderName`.
-- A display name is at most 64 characters. A folder name is at most 255.
+  `displayName`, `sharedFolderName` and an optional `roomName`.
+- The reply carries `version` (the one chosen), `displayName`,
+  `sharedFolderName` and an optional `roomName`.
+- A display name and a room name are at most 64 characters. A folder name is
+  at most 255.
+- `roomName` is the name the host gave the room. Only the host sends one;
+  every member shows it. Older builds leave it out, so the version stays 2.
 - If the two lists share no version, the reply is `unsupported_version`.
   Version 1 peers are refused; the envelope itself remains version 1.
 

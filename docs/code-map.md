@@ -120,6 +120,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | SVG to verified multi-size ICO and app/tray PNGs | `scripts/export-icons.mjs`, `build/logo.svg`, `build/icon.ico`, `build/icon.png`, `build/tray-16.png`, `build/tray-32.png` |
 | Packaged update lifecycle, channel checks, bounded HTML-to-Markdown release notes, explicit downloads and sidecar-safe installation | `src/main/updater.ts`, `src/main/updater.test.ts` |
 | Atomic JSON desktop preferences in userData, corruption fallback | `src/main/settings.ts`, `src/main/settings.test.ts` |
+| `--profile=<name>` flag: a separate userData folder and single-copy lock, for a second copy on one computer | `src/main/profile.ts`, `src/main/profile.test.ts` |
 | Settings/update sender and argument guards, HTTPS github.com external-link validation, typed request/event bridge | `src/main/ipc.ts`, `src/shared/ipc-schema.ts`, `src/shared/bridge.ts`, `src/preload/index.ts` |
 | Settings dialog (open state in context, gear buttons call `useOpenSettings`): menu You, Saving, Transfers, App, Updates | `src/renderer/src/components/settings/settings-dialog.tsx`, `settings-fields.tsx`, `setting-row.tsx`, `settings-dialog.test.tsx` beside them |
 | Settings load, push follow and save (plain-sentence errors) | `src/renderer/src/components/settings/use-settings.ts` |
@@ -139,7 +140,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
 | Window drag strip on top of each column (no window-wide title bar; 138 px kept free for the native buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
 | Update available button and dialog with per-version dismissal, shown in the main top bar | `src/renderer/src/components/update-button.tsx`, `update-button.test.tsx` beside it |
-| Shell pieces: main top bar, empty state, join form and dialog, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `share-code`, `code-countdown`, `name-editor`) |
+| Shell pieces: main top bar, empty state, join form and dialog, new-room name dialog, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `new-room-dialog`, `share-code`, `code-countdown`, `name-editor`) |
 | Update event subscription and initial-read race guard, shared by Settings and the update button | `src/renderer/src/components/use-update-status.ts` |
 | Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and the update dialog | `src/renderer/src/components/update-release.tsx` |
 | `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |

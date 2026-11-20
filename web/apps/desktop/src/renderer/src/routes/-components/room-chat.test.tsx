@@ -257,10 +257,8 @@ describe("file cards", () => {
     mocks.startMutate.mock.calls[0][1].onSuccess({ id: "t1" })
     view.rerender(<RoomChat />)
 
-    const bar = screen.getByLabelText(
-      "plan.pdf progress"
-    ) as HTMLProgressElement
-    expect(bar.value).toBe(40)
+    const bar = screen.getByRole("progressbar", { name: "plan.pdf progress" })
+    expect(bar.getAttribute("aria-valuenow")).toBe("40")
 
     mocks.transfers = [transfer({ state: "done", bytes: 100 })]
     view.rerender(<RoomChat />)

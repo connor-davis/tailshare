@@ -33,6 +33,7 @@ import { applyLoginItem } from "./login-item"
 import { openRecentRooms } from "./recent-rooms"
 import { callMainApi, registerRoomIpc } from "./room-ipc"
 import type { AddFilesResult, ConnectionInfo } from "../shared/bridge"
+import { findProfile } from "./profile"
 import { openSettings } from "./settings"
 import { createTray, trayIconPaths } from "./tray"
 import { createUpdater } from "./updater"
@@ -87,11 +88,14 @@ async function main() {
   app.setAppUserModelId("connor.davis.Tailshare")
   // Dev runs the generic Electron binary, which must be told the app script.
   // Windows may still ask the user which app opens tailshare: links.
-  if (process.defaultApp && process.argv.length >= 2)
-    app.setAsDefaultProtocolClient("tailshare", process.execPath, [
-      resolve(process.argv[1]!),
-    ])
-  else app.setAsDefaultProtocolClient("tailshare")
+  // A side profile leaves tailshare: links to the main copy.
+  if (!profile) {
+    if (process.defaultApp && process.argv.length >= 2)
+      app.setAsDefaultProtocolClient("tailshare", process.execPath, [
+        resolve(process.argv[1]!),
+      ])
+    else app.setAsDefaultProtocolClient("tailshare")
+  }
 
   const binary = resolveSidecarPath({
     packaged: app.isPackaged,
@@ -306,7 +310,12 @@ app.on("window-all-closed", () => {
   if (quitWhenAllClosed({ platform: process.platform, closeToTray })) app.quit()
 })
 
-// One copy only: a second launch just brings the first window forward.
+// Each profile gets its own folder. The single-copy lock lives in that
+// folder, so a profile runs beside the main copy instead of focusing it.
+const profile = findProfile(process.argv)
+if (profile) app.setPath("userData", `${app.getPath("userData")}-${profile}`)
+
+// One copy per profile: a second launch just brings the first window forward.
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {

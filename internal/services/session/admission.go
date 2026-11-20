@@ -118,7 +118,7 @@ func (session *Session) admitStream(server *tailcat.Server, conn net.Conn) {
 	}
 	ctx, cancel := context.WithTimeout(session.ctx, 30*time.Second)
 	control, err := peer.Start(ctx, conn, peer.Options{
-		DisplayName: session.settings.name, Handlers: handlers,
+		DisplayName: session.settings.name, RoomName: session.RoomName(), Handlers: handlers,
 	})
 	cancel()
 	if err != nil {

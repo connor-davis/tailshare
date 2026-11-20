@@ -29,6 +29,8 @@ export interface SessionState {
   role?: "host" | "joiner"
   /** The share code. Present only while hosting. */
   code?: string
+  /** The host's name for the room, shown to every member. */
+  roomName?: string
   /** The other computer. Present only while connected. */
   peer?: PeerInfo
   /** One person waiting for local approval. */

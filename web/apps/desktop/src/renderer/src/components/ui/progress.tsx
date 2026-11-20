@@ -12,6 +12,8 @@ function Progress({
   return (
     <ProgressPrimitive.Root
       data-slot="progress"
+      // Screen readers read the amount from the root, so it needs the value too.
+      value={value}
       className={cn(
         "relative flex h-1 w-full items-center overflow-x-hidden rounded-full bg-muted",
         className

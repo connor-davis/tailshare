@@ -118,12 +118,15 @@ type helloParams struct {
 	Versions         []int  `json:"versions"`
 	DisplayName      string `json:"displayName"`
 	SharedFolderName string `json:"sharedFolderName"`
+	// RoomName is the name the host gave the room. Older builds omit it.
+	RoomName string `json:"roomName,omitempty"`
 }
 
 type helloResult struct {
 	Version          int    `json:"version"`
 	DisplayName      string `json:"displayName"`
 	SharedFolderName string `json:"sharedFolderName"`
+	RoomName         string `json:"roomName,omitempty"`
 }
 
 type listParams struct {
