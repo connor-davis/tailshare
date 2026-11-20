@@ -94,9 +94,11 @@ describe("update IPC", () => {
       status: vi.fn(() => ({ state: "ready" as const })),
       setChannel: vi.fn(),
       checkNow: vi.fn(),
+      download: vi.fn(async () => {}),
       restart: vi.fn(async () => {}),
       stop: vi.fn(),
     }
+    const openExternal = vi.fn<(url: string) => Promise<void>>(async () => {})
     registerUpdateIpc(
       {
         handle: (channel, handler) => {
@@ -105,11 +107,13 @@ describe("update IPC", () => {
         pickFolder: async () => null,
       },
       settings,
-      updater
+      updater,
+      openExternal
     )
     return {
       handler: (channel: string) => handlers.get(channel)!,
       settings,
+      openExternal,
       updater,
     }
   }
@@ -127,6 +131,8 @@ describe("update IPC", () => {
     })
     await handler(CHANNELS.checkForUpdates)(true, [])
     expect(updater.checkNow).toHaveBeenCalledOnce()
+    await handler(CHANNELS.downloadUpdate)(true, [])
+    expect(updater.download).toHaveBeenCalledOnce()
     await handler(CHANNELS.restartToUpdate)(true, [])
     expect(updater.restart).toHaveBeenCalledOnce()
   })
@@ -135,6 +141,8 @@ describe("update IPC", () => {
     CHANNELS.getSettings,
     CHANNELS.getUpdateStatus,
     CHANNELS.checkForUpdates,
+    CHANNELS.downloadUpdate,
+    CHANNELS.openReleaseLink,
     CHANNELS.restartToUpdate,
     CHANNELS.updateSettings,
   ])("rejects other windows and malformed arguments on %s", async (channel) => {
@@ -151,6 +159,53 @@ describe("update IPC", () => {
     expect(settings.update).not.toHaveBeenCalled()
     expect(updater.restart).not.toHaveBeenCalled()
     expect(updater.checkNow).not.toHaveBeenCalled()
+    expect(updater.download).not.toHaveBeenCalled()
+  })
+
+  it("opens an HTTPS GitHub URL through the injected system browser", async () => {
+    const { handler, openExternal } = setupUpdates()
+    const url = "https://github.com/connor-davis/tailshare/releases/tag/v1.2.3"
+    await handler(CHANNELS.openReleaseLink)(true, [url])
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(url)
+  })
+
+  it.each([
+    [],
+    [1],
+    [null],
+    ["https://github.com/", "extra"],
+    ["http://github.com/releases"],
+    ["https://example.com/releases"],
+    ["https://github.com.evil.test/"],
+    ["https://sub.github.com/"],
+    ["https://github.com@evil.test/"],
+    ["https://evil.test@github.com/"],
+    ["https://github.com:444/"],
+    ["file:///C:/Windows"],
+    ["javascript:alert(1)"],
+    ["//github.com/"],
+    ["https://github.com\\@evil.test/"],
+    ["https://github.com/\n"],
+    [{}],
+  ])("rejects unsafe release link arguments %j", async (...args) => {
+    const { handler, openExternal } = setupUpdates()
+    await expect(handler(CHANNELS.openReleaseLink)(true, args)).rejects.toThrow(
+      "could not read that request"
+    )
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it("refuses release links from another window and gives a safe opener error", async () => {
+    const { handler, openExternal } = setupUpdates()
+    const url = "https://github.com/releases"
+    await expect(
+      handler(CHANNELS.openReleaseLink)(false, [url])
+    ).rejects.toThrow("could not answer this window")
+    expect(openExternal).not.toHaveBeenCalled()
+    openExternal.mockRejectedValueOnce(new Error("private process details"))
+    await expect(
+      handler(CHANNELS.openReleaseLink)(true, [url])
+    ).rejects.toThrow("could not open this release link. Try again.")
   })
 
   it("saves a valid patch and replies with every setting", async () => {

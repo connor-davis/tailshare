@@ -31,6 +31,9 @@ const bridge: TailshareBridge = Object.freeze({
   },
   getUpdateStatus: () => ipcRenderer.invoke("tailshare:get-update-status"),
   checkForUpdates: () => ipcRenderer.invoke("tailshare:check-for-updates"),
+  openReleaseLink: (url: string) =>
+    ipcRenderer.invoke("tailshare:open-release-link", url),
+  downloadUpdate: () => ipcRenderer.invoke("tailshare:download-update"),
   restartToUpdate: () => ipcRenderer.invoke("tailshare:restart-to-update"),
   onUpdateStatus: (listener: (status: UpdateStatus) => void) => {
     const handler = (_event: unknown, status: unknown) => {

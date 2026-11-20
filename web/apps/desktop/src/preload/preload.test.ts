@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { isJoinCode, isRecentRooms } from "../shared/bridge"
+import { isJoinCode, isRecentRooms, isUpdateStatus } from "../shared/bridge"
 import { CHANNELS } from "../shared/ipc-schema"
 
 const source = readFileSync(join(import.meta.dirname, "index.ts"), "utf8")
@@ -28,6 +28,8 @@ describe("preload bridge", () => {
       "getUpdateStatus",
       "onUpdateStatus",
       "checkForUpdates",
+      "downloadUpdate",
+      "openReleaseLink",
       "restartToUpdate",
       "getWindowState",
       "onWindowState",
@@ -78,5 +80,20 @@ describe("preload checks for join links and recent rooms", () => {
       expect(source).toContain(`ipcRenderer.on("tailshare:${channel}"`)
       expect(source).toContain(`ipcRenderer.off("tailshare:${channel}"`)
     }
+  })
+})
+
+describe("preload update validation", () => {
+  it("requires a version and bounded text for an available release", () => {
+    expect(
+      isUpdateStatus({ state: "available", version: "1.0.1", notes: "Changes" })
+    ).toBe(true)
+    for (const value of [
+      { state: "available" },
+      { state: "available", version: 1, notes: "Changes" },
+      { state: "available", version: "1.0.1", notes: {} },
+      { state: "available", version: "1.0.1", notes: "x".repeat(20_001) },
+    ])
+      expect(isUpdateStatus(value)).toBe(false)
   })
 })

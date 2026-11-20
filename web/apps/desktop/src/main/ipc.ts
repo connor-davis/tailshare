@@ -8,7 +8,7 @@ import {
   SettingsSchema,
   WindowStateSchema,
 } from "../shared/ipc-schema"
-import type { WindowState } from "../shared/bridge"
+import { isReleaseLink, type WindowState } from "../shared/bridge"
 import type { RecentRoomsStore } from "./recent-rooms"
 import type { SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
@@ -48,12 +48,14 @@ const guard = (senderOk: boolean, args: unknown[]) =>
 export function registerUpdateIpc(
   host: IpcHost,
   settings: SettingsStore,
-  updater: UpdateController
+  updater: UpdateController,
+  openExternal: (url: string) => Promise<void>
 ) {
   const actions: Record<string, () => unknown | Promise<unknown>> = {
     [CHANNELS.getSettings]: () => settings.get(),
     [CHANNELS.getUpdateStatus]: () => updater.status(),
     [CHANNELS.checkForUpdates]: () => updater.checkNow(),
+    [CHANNELS.downloadUpdate]: () => updater.download(),
     [CHANNELS.restartToUpdate]: () => updater.restart(),
   }
 
@@ -66,6 +68,18 @@ export function registerUpdateIpc(
         : result
     })
   }
+
+  host.handle(CHANNELS.openReleaseLink, async (senderOk, args) => {
+    if (!senderOk) throw refuse("answer this window")
+    if (args.length !== 1 || !isReleaseLink(args[0]))
+      throw refuse("read that request")
+
+    try {
+      await openExternal(args[0])
+    } catch {
+      throw refuse("open this release link. Try again")
+    }
+  })
 
   // The store checks the whole patch before it writes or tells anyone.
   host.handle(CHANNELS.updateSettings, async (senderOk, args) => {
