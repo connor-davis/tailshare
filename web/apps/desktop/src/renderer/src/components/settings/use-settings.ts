@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import type { Settings, SettingsPatch } from "../../../../../shared/bridge"
+import type { Settings, SettingsPatch } from "../../../../shared/bridge"
 
 /** What the settings page shows when a save is refused. */
 const SAVE_FAILED = "Could not save that. Check the value and try again."

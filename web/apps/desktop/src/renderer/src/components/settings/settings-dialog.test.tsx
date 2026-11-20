@@ -7,22 +7,14 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react"
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  Outlet,
-  RouterProvider,
-} from "@tanstack/react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type {
   Settings,
   SettingsPatch,
   TailshareBridge,
-} from "../../../../../shared/bridge"
+} from "../../../../shared/bridge"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { Route } from "../../settings"
+import { SettingsDialogProvider, useOpenSettings } from "./settings-dialog"
 
 const saved: Settings = {
   updateChannel: "latest",
@@ -45,28 +37,29 @@ const updateSettings = vi.fn(async (patch: SettingsPatch) => ({
 }))
 const chooseFolder = vi.fn(async (): Promise<string | null> => "D:\\Inbox")
 
-/** Mounts the real settings component under a tiny router. */
-async function open() {
-  // The real root route provides tooltips to every page.
-  const root = createRootRoute({
-    component: () => (
-      <TooltipProvider>
-        <Outlet />
-      </TooltipProvider>
-    ),
-  })
-  const page = createRoute({
-    getParentRoute: () => root,
-    path: "/settings",
-    component: Route.options.component,
-  })
-  const router = createRouter({
-    routeTree: root.addChildren([page]),
-    history: createMemoryHistory({ initialEntries: ["/settings"] }),
-  })
+/** A stand-in for the gear buttons. */
+function Gear() {
+  const openSettings = useOpenSettings()
 
-  render(<RouterProvider router={router} />)
-  await screen.findByRole("heading", { name: "Settings", level: 1 })
+  return (
+    <button aria-label="Settings" onClick={openSettings}>
+      gear
+    </button>
+  )
+}
+
+/** Opens the real dialog from a gear, then the section named (You is first). */
+async function open(section?: string) {
+  render(
+    <TooltipProvider>
+      <SettingsDialogProvider>
+        <Gear />
+      </SettingsDialogProvider>
+    </TooltipProvider>
+  )
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }))
+  await screen.findByRole("dialog", { name: "Settings" })
+  if (section) fireEvent.click(screen.getByRole("button", { name: section }))
 }
 
 beforeEach(() => {
@@ -89,8 +82,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("Settings route", () => {
-  it("shows a loading state, then every section", async () => {
+describe("Settings dialog", () => {
+  it("opens from the gear, shows a loading state, then the You section", async () => {
     let release: (settings: Settings) => void = () => {}
     getSettings.mockReturnValueOnce(
       new Promise((resolve) => (release = resolve))
@@ -99,13 +92,36 @@ describe("Settings route", () => {
     expect(screen.getByRole("status").textContent).toContain("Loading")
     act(() => release(saved))
 
-    for (const name of ["You", "Saving", "Transfers", "App", "Updates"])
+    expect(await screen.findByRole("region", { name: "You" })).toBeTruthy()
+  })
+
+  it("closes with Escape and with the X", async () => {
+    await open()
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }))
+    await screen.findByRole("dialog")
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+
+  it("switches sections from the left menu", async () => {
+    await open()
+    await screen.findByRole("region", { name: "You" })
+
+    for (const name of ["Saving", "Transfers", "App", "Updates", "You"]) {
+      fireEvent.click(screen.getByRole("button", { name }))
       expect(await screen.findByRole("region", { name })).toBeTruthy()
+      expect(
+        screen.getByRole("button", { name }).getAttribute("aria-current")
+      ).toBe("page")
+    }
   })
 
   it("says which settings wait for the next update", async () => {
     await open()
-    expect(screen.getByRole("note").textContent).toContain(
+    expect(screen.getByRole("dialog").textContent).toContain(
       "take effect from the next update"
     )
   })
@@ -115,18 +131,28 @@ describe("Settings route", () => {
     expect(
       ((await screen.findByLabelText("Display name")) as HTMLInputElement).value
     ).toBe("Connor's PC")
+
+    fireEvent.click(screen.getByRole("button", { name: "Saving" }))
+    const folder = await screen.findByRole("radio", { name: "Save to folder" })
+    expect(folder.getAttribute("aria-checked")).toBe("true")
+    expect(folder.getAttribute("data-state")).toBe("checked")
     expect(
-      (screen.getByLabelText("Download limit") as HTMLInputElement).value
+      screen
+        .getByRole("radio", { name: "Ask every time" })
+        .getAttribute("aria-checked")
+    ).toBe("false")
+
+    fireEvent.click(screen.getByRole("button", { name: "Transfers" }))
+    expect(
+      ((await screen.findByLabelText("Download limit")) as HTMLInputElement)
+        .value
     ).toBe("512")
+
+    fireEvent.click(screen.getByRole("button", { name: "App" }))
     expect(
-      screen
-        .getByRole("radio", { name: "Save to folder" })
-        .getAttribute("aria-checked")
-    ).toBe("true")
-    expect(
-      screen
-        .getByRole("switch", { name: /Close to tray/ })
-        .getAttribute("aria-checked")
+      (
+        await screen.findByRole("switch", { name: /Close to tray/ })
+      ).getAttribute("aria-checked")
     ).toBe("true")
     expect(
       screen
@@ -166,7 +192,7 @@ describe("Settings route", () => {
 
   it("shows an inline alert, and no raw error, when a save is refused", async () => {
     updateSettings.mockRejectedValueOnce(new Error("C:\\secret\\settings.json"))
-    await open()
+    await open("App")
     fireEvent.click(
       await screen.findByRole("switch", { name: /Close to tray/ })
     )
@@ -180,18 +206,15 @@ describe("Settings route", () => {
 
   it("clears the alert on the next successful save", async () => {
     updateSettings.mockRejectedValueOnce(new Error("no"))
-    await open()
-    const toggle = await screen.findByRole("switch", {
-      name: /Mica|Background/,
-    })
-    fireEvent.click(toggle)
+    await open("App")
+    fireEvent.click(await screen.findByRole("switch", { name: /Background/ }))
     await screen.findByRole("alert")
     fireEvent.click(screen.getByRole("switch", { name: /Background/ }))
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
   })
 
   it("switches the save mode and hides the folder for Ask every time", async () => {
-    await open()
+    await open("Saving")
     expect(await screen.findByText(saved.saveFolder)).toBeTruthy()
 
     fireEvent.click(screen.getByRole("radio", { name: "Ask every time" }))
@@ -200,10 +223,15 @@ describe("Settings route", () => {
     )
     await waitFor(() => expect(screen.queryByText(saved.saveFolder)).toBeNull())
     expect(screen.queryByRole("button", { name: "Change" })).toBeNull()
+    expect(
+      screen
+        .getByRole("radio", { name: "Ask every time" })
+        .getAttribute("aria-checked")
+    ).toBe("true")
   })
 
   it("changes the save folder with the folder picker", async () => {
-    await open()
+    await open("Saving")
     fireEvent.click(await screen.findByRole("button", { name: "Change" }))
     await waitFor(() =>
       expect(updateSettings).toHaveBeenCalledWith({ saveFolder: "D:\\Inbox" })
@@ -213,14 +241,14 @@ describe("Settings route", () => {
 
   it("leaves the folder alone when the picker is cancelled", async () => {
     chooseFolder.mockResolvedValueOnce(null)
-    await open()
+    await open("Saving")
     fireEvent.click(await screen.findByRole("button", { name: "Change" }))
     await waitFor(() => expect(chooseFolder).toHaveBeenCalledOnce())
     expect(updateSettings).not.toHaveBeenCalled()
   })
 
   it("saves the three transfer values together", async () => {
-    await open()
+    await open("Transfers")
     fireEvent.change(await screen.findByLabelText("Upload limit"), {
       target: { value: "256" },
     })
@@ -237,8 +265,8 @@ describe("Settings route", () => {
     )
   })
 
-  it("refuses bad transfer values on the page, with a reason", async () => {
-    await open()
+  it("refuses bad transfer values in the dialog, with a reason", async () => {
+    await open("Transfers")
     const slots = await screen.findByLabelText("Transfers at once")
     const save = screen.getByRole("button", { name: "Save transfers" })
 
@@ -258,7 +286,7 @@ describe("Settings route", () => {
   })
 
   it("flips each app switch with its own patch", async () => {
-    await open()
+    await open("App")
     fireEvent.click(await screen.findByRole("switch", { name: /Start with/ }))
     await waitFor(() =>
       expect(updateSettings).toHaveBeenLastCalledWith({
@@ -285,15 +313,16 @@ describe("Settings route", () => {
         (screen.getByLabelText("Display name") as HTMLInputElement).value
       ).toBe("Pushed")
     )
+    fireEvent.click(screen.getByRole("button", { name: "App" }))
     expect(
-      screen
-        .getByRole("switch", { name: /Close to tray/ })
-        .getAttribute("aria-checked")
+      (
+        await screen.findByRole("switch", { name: /Close to tray/ })
+      ).getAttribute("aria-checked")
     ).toBe("false")
   })
 
   it("keeps the Updates section here, with its channel choice", async () => {
-    await open()
+    await open("Updates")
     const updates = await screen.findByRole("region", { name: "Updates" })
     expect(updates.textContent).toContain("Release channel")
     expect(updates.textContent).toContain("Stable")

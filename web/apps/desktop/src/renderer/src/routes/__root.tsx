@@ -3,6 +3,7 @@ import { TitleBar } from "@/components/title-bar"
 import { SidecarBanner } from "@/components/sidecar-banner"
 import { StatusRegion } from "@/components/status-region"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { SettingsDialogProvider } from "@/components/settings/settings-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useLive } from "@/lib/live/use-live"
 import { useWindowState } from "@/lib/window-state"
@@ -16,14 +17,16 @@ function Root() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen flex-col">
-        <TitleBar />
-        <SidecarBanner {...sidecar} />
-        <ScrollArea className="min-h-0 flex-1">
-          <Outlet />
-        </ScrollArea>
-        <StatusRegion />
-      </div>
+      <SettingsDialogProvider>
+        <div className="flex h-screen flex-col">
+          <TitleBar />
+          <SidecarBanner {...sidecar} />
+          <ScrollArea className="min-h-0 flex-1">
+            <Outlet />
+          </ScrollArea>
+          <StatusRegion />
+        </div>
+      </SettingsDialogProvider>
     </TooltipProvider>
   )
 }

@@ -93,6 +93,7 @@ describe("update IPC", () => {
     const updater: UpdateController = {
       status: vi.fn(() => ({ state: "ready" as const })),
       setChannel: vi.fn(),
+      checkNow: vi.fn(),
       restart: vi.fn(async () => {}),
       stop: vi.fn(),
     }
@@ -124,6 +125,8 @@ describe("update IPC", () => {
     await expect(handler(CHANNELS.getUpdateStatus)(true, [])).resolves.toEqual({
       state: "ready",
     })
+    await handler(CHANNELS.checkForUpdates)(true, [])
+    expect(updater.checkNow).toHaveBeenCalledOnce()
     await handler(CHANNELS.restartToUpdate)(true, [])
     expect(updater.restart).toHaveBeenCalledOnce()
   })
@@ -131,6 +134,7 @@ describe("update IPC", () => {
   it.each([
     CHANNELS.getSettings,
     CHANNELS.getUpdateStatus,
+    CHANNELS.checkForUpdates,
     CHANNELS.restartToUpdate,
     CHANNELS.updateSettings,
   ])("rejects other windows and malformed arguments on %s", async (channel) => {
@@ -146,6 +150,7 @@ describe("update IPC", () => {
     ).rejects.toThrow("could not read that request")
     expect(settings.update).not.toHaveBeenCalled()
     expect(updater.restart).not.toHaveBeenCalled()
+    expect(updater.checkNow).not.toHaveBeenCalled()
   })
 
   it("saves a valid patch and replies with every setting", async () => {

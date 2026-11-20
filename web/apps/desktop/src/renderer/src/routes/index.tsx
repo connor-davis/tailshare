@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { SettingsIcon } from "lucide-react"
+import { useOpenSettings } from "@/components/settings/settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useFolder } from "@/lib/api/folder"
@@ -87,14 +88,19 @@ function Connect() {
 }
 
 function Page({ children }: { children: React.ReactNode }) {
+  const openSettings = useOpenSettings()
+
   return (
     <main className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center gap-4 p-8">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Tailshare</h1>
-        <Button variant="ghost" size="icon" aria-label="Settings" asChild>
-          <Link to="/settings">
-            <SettingsIcon aria-hidden />
-          </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Settings"
+          onClick={openSettings}
+        >
+          <SettingsIcon aria-hidden />
         </Button>
       </header>
       {children}

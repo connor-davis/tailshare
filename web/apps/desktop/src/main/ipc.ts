@@ -53,6 +53,7 @@ export function registerUpdateIpc(
   const actions: Record<string, () => unknown | Promise<unknown>> = {
     [CHANNELS.getSettings]: () => settings.get(),
     [CHANNELS.getUpdateStatus]: () => updater.status(),
+    [CHANNELS.checkForUpdates]: () => updater.checkNow(),
     [CHANNELS.restartToUpdate]: () => updater.restart(),
   }
 

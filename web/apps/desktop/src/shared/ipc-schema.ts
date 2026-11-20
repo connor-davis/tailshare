@@ -10,6 +10,7 @@ export const CHANNELS = {
   updateSettings: "tailshare:update-settings",
   settingsChanged: "tailshare:settings-changed",
   getUpdateStatus: "tailshare:get-update-status",
+  checkForUpdates: "tailshare:check-for-updates",
   restartToUpdate: "tailshare:restart-to-update",
   updateStatus: "tailshare:update-status",
   getWindowState: "tailshare:get-window-state",
