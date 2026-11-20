@@ -28,7 +28,7 @@ class FakeSocket {
 }
 
 const info = { baseUrl: "http://127.0.0.1:4000", token: "tok" }
-const snapshot = { session: { state: "idle" }, folder: null, transfers: [] }
+const snapshot = { session: { state: "idle" }, transfers: [] }
 
 function make() {
   const client = new QueryClient()

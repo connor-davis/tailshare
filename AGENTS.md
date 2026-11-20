@@ -1,7 +1,7 @@
 # Tailshare
 
 Tailshare is a desktop app for sending files between two computers. One side
-shows a 6-character code like `7K3-Q9P`, the other types it in, and both get
+shows an 8-character code like `7K3Q-9PXM`, the other types it in, and both get
 an FTP-style two-pane view of each other's shared folder, a transfer queue and
 a chat. It replaces `connor-davis/peershare`.
 
@@ -30,9 +30,9 @@ no-account WireGuard library.
 
 - `cmd/tailshare` - the sidecar binary: `version`, `env` and `serve`.
 - `internal/services/<area>` - the logic. `codes` turns a share code into
-  Tailcat keys and an address; `session` hosts or joins by code, admits one
-  joiner and rekeys; `peer` is the conversation over the tunnel; `share` is
-  the guarded shared folder; `transfer` is the queue, resume and checksums.
+  Tailcat keys and an address; `session` hosts or joins by code, gates joins
+  with local approval and owns mesh links; `peer` is the conversation over the
+  tunnel; `share` is the guarded shared folder; `transfer` is the queue, resume and checksums.
 - `internal/api` - the Fiber v3 local API and its WebSocket; `tailshare serve` runs it.
 - `internal/platform` - shared pieces: `config` (every setting, from env), `apperr`
   (errors the screen may see).

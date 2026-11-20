@@ -3,14 +3,17 @@ package api
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/apperr"
-	"github.com/Polyphron-AI/tailshare/internal/services/codes"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/session"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/services/transfer"
+	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/session"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/transfer"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -25,10 +28,8 @@ const (
 	roleHost   = "host"
 	roleJoiner = "joiner"
 
-	// How long hello may take once the stream exists, and how long a join
-	// may take in all.
-	helloTimeout = 30 * time.Second
-	joinTimeout  = 60 * time.Second
+	// Leave room for the local prompt and link preparation.
+	joinTimeout = 90 * time.Second
 )
 
 // SessionState is what the screen knows about the session. The code is shown
@@ -39,8 +40,27 @@ type SessionState struct {
 	// Role is host or joiner. Empty while idle.
 	Role string `json:"role,omitempty"`
 	Code string `json:"code,omitempty"`
+	// RoomName is the host's name for the room: the host's own, or the one
+	// the host sent a joiner. At most 64 characters.
+	RoomName string `json:"roomName,omitempty"`
 	// Peer is nil until the other computer has connected.
 	Peer *PeerInfo `json:"peer,omitempty"`
+	// Join is present only while someone is waiting for local approval.
+	Join *session.PendingJoin `json:"join,omitempty"`
+	// Members is the roster in join order while hosting or connected. The
+	// host comes first.
+	Members []MemberInfo `json:"members,omitempty"`
+}
+
+// MemberInfo is one person in the share, as the screen shows them. Addresses
+// and keys never leave the sidecar.
+type MemberInfo struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	// Host is true for the computer that admitted everyone else.
+	Host bool `json:"host,omitempty"`
+	// You is true for this computer.
+	You bool `json:"you,omitempty"`
 }
 
 // PeerInfo is what the other computer said about itself.
@@ -59,7 +79,7 @@ func (server *Server) sessionState() SessionState {
 }
 
 func (server *Server) stateLocked() SessionState {
-	state := SessionState{State: server.phase, Role: server.role}
+	state := SessionState{State: server.phase, Role: server.role, RoomName: server.roomName}
 	if server.phase == phaseHosting {
 		state.Code = server.code
 	}
@@ -68,6 +88,19 @@ func (server *Server) stateLocked() SessionState {
 		state.Peer = &PeerInfo{DisplayName: remote.DisplayName, SharedFolderName: remote.SharedFolderName}
 	}
 
+	if server.sess != nil {
+		if pending, ok := server.sess.Pending(); ok {
+			state.Join = &pending
+		}
+
+		selfID := server.sess.SelfID()
+		for index, member := range server.sess.Members() {
+			state.Members = append(state.Members, MemberInfo{
+				ID: member.ID, DisplayName: member.DisplayName,
+				Host: index == 0, You: member.ID == selfID,
+			})
+		}
+	}
 	return state
 }
 
@@ -80,18 +113,20 @@ func (server *Server) getSession(c fiber.Ctx) error {
 }
 
 // reserve claims the idle session for a host or join, so a second request
-// gets a conflict while the first is still setting up. It hands back the
-// shared folder, which cannot change until the session ends.
-func (server *Server) reserve(role string) (*share.Root, error) {
+// gets a conflict while the first is still setting up. It opens that code's
+// persistent room folder, which stays reserved until the session ends.
+func (server *Server) reserve(role string, code codes.Code) (*share.Root, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
 	if server.phase != phaseIdle {
 		return nil, apperr.Conflict("conflict", "A session is already open. Leave it first.")
 	}
-	if server.root == nil {
-		return nil, errNoFolder()
+	root, err := server.openRoom(code)
+	if err != nil {
+		return nil, err
 	}
+	server.root = root
 
 	server.phase = phaseConnecting
 	server.role = role
@@ -101,22 +136,48 @@ func (server *Server) reserve(role string) (*share.Root, error) {
 
 // release undoes reserve after a failed setup.
 func (server *Server) release() {
+	server.roomIO.Lock()
+	defer server.roomIO.Unlock()
+
 	server.mu.Lock()
+	if server.root != nil {
+		_ = server.root.Close()
+		server.root = nil
+	}
+	server.manager = nil
 	server.phase = phaseIdle
 	server.role = ""
+	server.roomName = ""
 	server.mu.Unlock()
 
 	server.publishSession()
 }
 
 func (server *Server) hostSession(c fiber.Ctx) error {
-	root, err := server.reserve(roleHost)
+	var in struct {
+		DisplayName string `json:"displayName"`
+		RoomName    string `json:"roomName"`
+	}
+	// An empty body is fine: the computer name stands in.
+	if len(c.Body()) > 0 && json.Unmarshal(c.Body(), &in) != nil {
+		return apperr.BadRequest("The request could not be understood.")
+	}
+
+	selected := codes.New()
+	root, err := server.reserve(roleHost, selected)
 	if err != nil {
 		return err
 	}
 
-	sess, code, err := session.Host(server.ctx, server.cfg)
+	manager := server.roomManager(root)
+	host := displayName(in.DisplayName)
+	// ponytail: the name is fixed when the room is created; renaming later is not built.
+	room := roomName(in.RoomName, host)
+	sess, code, err := session.Host(server.ctx, server.cfg, host, session.Options{
+		Root: root, Handlers: manager.Handlers(), Code: selected, RoomName: room,
+	})
 	if err != nil {
+		_ = manager.Close()
 		server.release()
 		return connectError(err)
 	}
@@ -124,53 +185,76 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	server.mu.Lock()
 	server.sess = sess
 	server.code = code.String()
+	server.roomName = room
 	server.phase = phaseHosting
 	server.mu.Unlock()
 
 	server.publishSession()
-	go server.awaitJoiner(sess, root)
+	go server.awaitJoiner(sess, manager)
 
 	return c.Status(fiber.StatusCreated).JSON(server.sessionState())
 }
 
-// awaitJoiner waits for the one joiner to open its stream, then says hello.
-// If the code expires or the host leaves first, Accept fails and we go idle.
-func (server *Server) awaitJoiner(sess *session.Session, root *share.Root) {
-	conn, err := sess.Accept()
-	if err != nil {
-		server.end(sess)
-		return
+// awaitJoiner publishes prompt changes and connects the first member with a control peer.
+func (server *Server) awaitJoiner(sess *session.Session, manager *transfer.Manager) {
+	connected := false
+	defer func() {
+		if !connected {
+			_ = manager.Close()
+		}
+	}()
+	for {
+		if !connected {
+			for _, member := range sess.Members() {
+				if other, ok := sess.Control(member.ID); ok {
+					server.connect(sess, other, manager, member.ID, true)
+					connected = true
+					break
+				}
+			}
+		}
+		if connected {
+			server.watchSession(sess)
+			return
+		}
+
+		server.publishSession()
+		select {
+		case <-sess.Done():
+			server.end(sess)
+			return
+		case <-sess.Changes():
+		}
 	}
+}
 
-	ctx, cancel := server.contextWithin(helloTimeout)
-	defer cancel()
-
-	manager := transfer.New(root)
-	other, err := peer.Start(ctx, conn, peer.Options{
-		DisplayName: displayName(), Share: root, Handlers: manager.Handlers(),
-	})
-	if err != nil {
-		_ = manager.Close()
-		server.end(sess)
-		return
+func (server *Server) watchSession(sess *session.Session) {
+	for {
+		select {
+		case <-sess.Done():
+			server.end(sess)
+			return
+		case <-sess.Changes():
+			server.publishSession()
+		}
 	}
-
-	server.connect(sess, other, manager, true)
 }
 
 func (server *Server) joinSession(c fiber.Ctx) error {
 	var in struct {
-		Code string `json:"code"`
+		Code        string `json:"code"`
+		DisplayName string `json:"displayName"`
 	}
 	if err := json.Unmarshal(c.Body(), &in); err != nil {
 		return apperr.BadRequest("The request could not be understood.")
 	}
 
-	if _, err := codes.Parse(in.Code); err != nil {
+	parsed, err := codes.Parse(in.Code)
+	if err != nil {
 		return apperr.BadRequest(err.Error())
 	}
 
-	root, err := server.reserve(roleJoiner)
+	root, err := server.reserve(roleJoiner, parsed)
 	if err != nil {
 		return err
 	}
@@ -178,37 +262,38 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	ctx, cancel := server.contextWithin(joinTimeout)
 	defer cancel()
 
-	sess, err := session.Join(ctx, in.Code, server.cfg)
-	if err != nil {
-		server.release()
-		return connectError(err)
-	}
-
-	conn, err := sess.Open(ctx)
-	if err != nil {
-		_ = sess.Close()
-		server.release()
-
-		return connectError(err)
-	}
-
-	manager := transfer.New(root)
-	other, err := peer.Start(ctx, conn, peer.Options{
-		DisplayName: displayName(), Share: root, Handlers: manager.Handlers(),
+	manager := server.roomManager(root)
+	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(in.DisplayName), session.Options{
+		Root: root, Handlers: manager.Handlers(),
 	})
 	if err != nil {
 		_ = manager.Close()
+		server.release()
+		return connectError(err)
+	}
+
+	var other *peer.Peer
+	var memberID string
+	for _, member := range sess.Members() {
+		if control, ok := sess.Control(member.ID); ok {
+			other, memberID = control, member.ID
+			break
+		}
+	}
+	if other == nil {
+		_ = manager.Close()
 		_ = sess.Close()
 		server.release()
-
-		return connectError(err)
+		return errUnreachable()
 	}
 
 	server.mu.Lock()
 	server.sess = sess
+	server.roomName = sess.RoomName()
 	server.mu.Unlock()
 
-	server.connect(sess, other, manager, false)
+	server.connect(sess, other, manager, memberID, false)
+	go server.watchSession(sess)
 
 	return c.JSON(server.sessionState())
 }
@@ -219,6 +304,7 @@ func (server *Server) connect(
 	sess *session.Session,
 	other *peer.Peer,
 	manager *transfer.Manager,
+	memberID string,
 	host bool,
 ) {
 	server.mu.Lock()
@@ -232,7 +318,14 @@ func (server *Server) connect(
 		return
 	}
 
-	if err := manager.Attach(server.ctx, sess, other, host); err != nil {
+	tunnel, ok := sess.Tunnel(memberID)
+	if !ok {
+		server.mu.Unlock()
+		_ = manager.Close()
+		server.end(sess)
+		return
+	}
+	if err := manager.Attach(server.ctx, tunnel, other, host); err != nil {
 		server.mu.Unlock()
 		_ = manager.Close()
 		_ = other.Close()
@@ -292,7 +385,7 @@ func (server *Server) leaveSession(c fiber.Ctx) error {
 	return c.JSON(server.sessionState())
 }
 
-// leave closes the session and peer and goes idle. The shared folder stays.
+// leave closes the session, peer and root handle. Room files remain on disk.
 // Calling it with nothing open does nothing.
 func (server *Server) leave() {
 	server.endCurrent(nil)
@@ -318,27 +411,39 @@ func (server *Server) endCurrent(expected *session.Session) {
 		return
 	}
 	transfers, done := server.transfers, server.transferDone
+	manager := server.manager
 	ending := make(chan struct{})
 	server.ending = ending
 	server.phase = phaseConnecting
 	server.transfers = nil
 	server.mu.Unlock()
 
+	if manager != nil {
+		_ = manager.Close()
+	}
 	if closer, ok := transfers.(interface{ Close() error }); ok {
 		_ = closer.Close()
 	}
 	if done != nil {
 		<-done
 	}
+	_ = sess.Leave()
 	if other != nil {
 		_ = other.Close()
 	}
-	_ = sess.Close()
+
+	server.roomIO.Lock()
+	defer server.roomIO.Unlock()
 
 	server.mu.Lock()
 	server.sess, server.peer = nil, nil
-	server.phase, server.role, server.code = phaseIdle, "", ""
+	server.phase, server.role, server.code, server.roomName = phaseIdle, "", "", ""
 	server.transferDone = nil
+	if server.root != nil {
+		_ = server.root.Close()
+		server.root = nil
+	}
+	server.manager = nil
 	server.ending = nil
 	close(ending)
 	server.mu.Unlock()
@@ -346,12 +451,39 @@ func (server *Server) endCurrent(expected *session.Session) {
 	server.publishSession()
 }
 
-// displayName is how this computer introduces itself to the other one.
-func displayName() string {
+// displayName is how this computer introduces itself to the other one: the
+// name from Settings when it is usable, otherwise the computer name.
+func displayName(chosen string) string {
+	if name, ok := usableName(chosen); ok {
+		return name
+	}
+
 	name, err := os.Hostname()
 	if err != nil || name == "" {
 		return "Tailshare"
 	}
 
 	return name[:min(len(name), 64)]
+}
+
+// roomName is the room's name: the host's pick when it is usable, otherwise
+// "<host>'s room". The default is cut to 64 characters like any name.
+func roomName(chosen, host string) string {
+	if name, ok := usableName(chosen); ok {
+		return name
+	}
+
+	fallback := []rune(host + "'s room")
+
+	return string(fallback[:min(len(fallback), 64)])
+}
+
+// usableName trims a typed name and says whether it can be shown: valid
+// UTF-8, 1 to 64 characters and no control characters.
+func usableName(chosen string) (string, bool) {
+	chosen = strings.TrimSpace(chosen)
+	ok := chosen != "" && utf8.ValidString(chosen) && utf8.RuneCountInString(chosen) <= 64 &&
+		!strings.ContainsFunc(chosen, unicode.IsControl)
+
+	return chosen, ok
 }

@@ -4,9 +4,12 @@ import {
   ChosenFolderSchema,
   ConnectionInfoSchema,
   NoArgs,
-  UpdateChannelArgs,
+  RecentRoomsSchema,
   SettingsSchema,
+  WindowStateSchema,
 } from "../shared/ipc-schema"
+import { isReleaseLink, type WindowState } from "../shared/bridge"
+import type { RecentRoomsStore } from "./recent-rooms"
 import type { SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
 import { Sidecar } from "./sidecar"
@@ -45,11 +48,14 @@ const guard = (senderOk: boolean, args: unknown[]) =>
 export function registerUpdateIpc(
   host: IpcHost,
   settings: SettingsStore,
-  updater: UpdateController
+  updater: UpdateController,
+  openExternal: (url: string) => Promise<void>
 ) {
   const actions: Record<string, () => unknown | Promise<unknown>> = {
     [CHANNELS.getSettings]: () => settings.get(),
     [CHANNELS.getUpdateStatus]: () => updater.status(),
+    [CHANNELS.checkForUpdates]: () => updater.checkNow(),
+    [CHANNELS.downloadUpdate]: () => updater.download(),
     [CHANNELS.restartToUpdate]: () => updater.restart(),
   }
 
@@ -63,17 +69,68 @@ export function registerUpdateIpc(
     })
   }
 
-  host.handle(CHANNELS.setUpdateChannel, async (senderOk, args) => {
+  host.handle(CHANNELS.openReleaseLink, async (senderOk, args) => {
     if (!senderOk) throw refuse("answer this window")
-    const [channel] = await Effect.runPromise(
-      check(UpdateChannelArgs, args).pipe(
-        Effect.mapError(() => refuse("read that request"))
-      )
-    )
+    if (args.length !== 1 || !isReleaseLink(args[0]))
+      throw refuse("read that request")
 
-    const result = settings.setUpdateChannel(channel)
-    updater.setChannel(channel)
+    try {
+      await openExternal(args[0])
+    } catch {
+      throw refuse("open this release link. Try again")
+    }
+  })
+
+  // The store checks the whole patch before it writes or tells anyone.
+  host.handle(CHANNELS.updateSettings, async (senderOk, args) => {
+    if (!senderOk) throw refuse("answer this window")
+    if (args.length !== 1) throw refuse("read that request")
+
+    const result = settings.update(args[0])
     return Effect.runPromise(check(SettingsSchema, result))
+  })
+}
+
+/**
+ * Registers the recent rooms requests behind the same window guard. The store
+ * checks every room and code, and the list is checked again on the way out.
+ */
+export function registerRecentRoomsIpc(
+  host: IpcHost,
+  recent: RecentRoomsStore
+) {
+  const reply = (rooms: unknown) =>
+    Effect.runPromise(check(RecentRoomsSchema, rooms))
+
+  host.handle(CHANNELS.getRecentRooms, async (senderOk, args) => {
+    await Effect.runPromise(guard(senderOk, args))
+    return reply(recent.get())
+  })
+
+  // Touch and remove take exactly one value, which the store validates.
+  for (const [channel, action] of [
+    [CHANNELS.touchRecentRoom, (value: unknown) => recent.touch(value)],
+    [CHANNELS.removeRecentRoom, (value: unknown) => recent.remove(value)],
+  ] as const) {
+    host.handle(channel, async (senderOk, args) => {
+      if (!senderOk) throw refuse("answer this window")
+      if (args.length !== 1) throw refuse("read that request")
+
+      await reply(action(args[0]))
+    })
+  }
+}
+
+/** What the page can ask about its window. Windows draws the caption buttons. */
+export interface WindowControls {
+  state(): WindowState
+}
+
+/** Registers the window state request behind the same window and tuple guards. */
+export function registerWindowIpc(host: IpcHost, controls: WindowControls) {
+  host.handle(CHANNELS.getWindowState, async (senderOk, args) => {
+    await Effect.runPromise(guard(senderOk, args))
+    return Effect.runPromise(check(WindowStateSchema, controls.state()))
   })
 }
 

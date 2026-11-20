@@ -36,15 +36,15 @@ describe("apiFetch", () => {
   it("turns {code, message} into an ApiError", async () => {
     vi.stubGlobal(
       "fetch",
-      answer(409, '{"code":"no_folder","message":"Choose a folder first."}')
+      answer(409, '{"code":"not_connected","message":"Join a room first."}')
     )
 
     const error = await apiFetch("/api/files/local").catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(ApiError)
     expect(error).toMatchObject({
-      code: "no_folder",
-      message: "Choose a folder first.",
+      code: "not_connected",
+      message: "Join a room first.",
       status: 409,
     })
   })

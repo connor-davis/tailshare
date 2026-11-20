@@ -22,19 +22,26 @@ function useSessionCall<Input>(send: (input: Input) => Promise<SessionState>) {
   })
 }
 
-/** Start hosting. The answer carries the code. */
-export function useHost() {
-  return useSessionCall<void>(() =>
-    apiFetch<SessionState>("/api/session/host", { method: "POST" })
+/**
+ * Start hosting. The answer carries the code. `displayName` is the name from
+ * Settings; without it the sidecar uses the computer name. The call takes the
+ * room's name; blank lets the sidecar name it "<name>'s room".
+ */
+export function useHost(displayName?: string) {
+  return useSessionCall<string | undefined>((roomName) =>
+    apiFetch<SessionState>("/api/session/host", {
+      method: "POST",
+      body: { displayName, roomName },
+    })
   )
 }
 
-/** Join the other computer by code. */
-export function useJoin() {
+/** Join the other computer by code, introducing this one as `displayName`. */
+export function useJoin(displayName?: string) {
   return useSessionCall<string>((code) =>
     apiFetch<SessionState>("/api/session/join", {
       method: "POST",
-      body: { code },
+      body: { code, displayName },
     })
   )
 }
@@ -43,5 +50,19 @@ export function useJoin() {
 export function useLeave() {
   return useSessionCall<void>(() =>
     apiFetch<SessionState>("/api/session", { method: "DELETE" })
+  )
+}
+
+/** Approve the current join request. */
+export function useAllowJoin() {
+  return useSessionCall<number>((id) =>
+    apiFetch<SessionState>(`/api/session/joins/${id}/allow`, { method: "POST" })
+  )
+}
+
+/** Refuse the current join request. */
+export function useDenyJoin() {
+  return useSessionCall<number>((id) =>
+    apiFetch<SessionState>(`/api/session/joins/${id}/deny`, { method: "POST" })
   )
 }

@@ -1,4 +1,4 @@
-// Package codes turns a short share code like "7K3-Q9P" into a full Tailcat
+// Package codes turns a short share code like "7K3Q-9PXM" into a full Tailcat
 // address, with no server in between ("seeded keys").
 //
 // A Tailcat address carries a random node key and a pre-shared key, so it is
@@ -7,7 +7,7 @@
 // bytes, which become the host's node private key and pre-shared key. The
 // joiner runs the same derive and rebuilds the host's address on its own.
 //
-// The code holds 30 bits, so it is guessable offline by anyone who sees the
+// The code holds 40 bits, so it is guessable offline by anyone who sees the
 // derived public key (for example a relay operator). Callers must keep codes
 // single-use and short-lived, and must move the session onto fresh random keys
 // once connected. See docs/security.md.
@@ -29,14 +29,14 @@ import (
 const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 // Length is the number of code characters, not counting the dash.
-const Length = 6
+const Length = 8
 
 // salt is fixed so both peers derive the same keys. Changing it breaks
 // compatibility with every older build.
 var salt = []byte("tailshare seeded-keys v1")
 
 // Argon2id cost. Tuned to take a few hundred milliseconds on a laptop so that
-// guessing all 2^30 codes is expensive. Changing these breaks compatibility.
+// guessing all 2^40 codes is expensive. Changing these breaks compatibility.
 const (
 	argonTime    = 3
 	argonMemory  = 64 * 1024 // KiB
@@ -44,9 +44,9 @@ const (
 )
 
 // ErrInvalid is returned by Parse for input that is not a valid code.
-var ErrInvalid = errors.New("Share codes are 6 letters or digits, like 7K3-Q9P.")
+var ErrInvalid = errors.New("Share codes are 8 letters or digits, like 7K3Q-9PXM.")
 
-// Code is a normalised share code: 6 upper-case Crockford base32 characters,
+// Code is a normalised share code: 8 upper-case Crockford base32 characters,
 // without the dash.
 type Code string
 
@@ -77,12 +77,12 @@ func Parse(s string) (Code, error) {
 	return Code(s), nil
 }
 
-// String formats the code for display, like "7K3-Q9P".
+// String formats the code for display, like "7K3Q-9PXM".
 func (c Code) String() string {
 	if len(c) != Length {
 		return string(c)
 	}
-	return string(c[:3]) + "-" + string(c[3:])
+	return string(c[:4]) + "-" + string(c[4:])
 }
 
 // Keys holds the host identity derived from a code.

@@ -16,7 +16,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/share"
 )
 
 const (
@@ -47,6 +47,9 @@ type Options struct {
 	// DisplayName is how this computer introduces itself. It is required.
 	DisplayName string
 
+	// RoomName is the room's name as the host chose it. Empty means none.
+	RoomName string
+
 	// Share is the folder offered to the other computer. Nil means none.
 	// The caller owns it and closes it when the session ends.
 	Share *share.Root
@@ -62,6 +65,8 @@ type Remote struct {
 	DisplayName string `json:"displayName"`
 	// SharedFolderName is at most 255 characters.
 	SharedFolderName string `json:"sharedFolderName"`
+	// RoomName is at most 64 characters. Empty when the other side sent none.
+	RoomName string `json:"roomName,omitempty"`
 	// Version is the protocol version both sides agreed in hello.
 	Version int `json:"version"`
 }
@@ -99,6 +104,14 @@ func Start(ctx context.Context, conn net.Conn, options Options) (*Peer, error) {
 
 	options.DisplayName = name
 
+	room, err := cleanName(options.RoomName, maxDisplayName, true)
+	if err != nil {
+		_ = conn.Close()
+		return nil, errors.New("This room needs a usable name before it can connect.")
+	}
+
+	options.RoomName = room
+
 	lifetime, cancel := context.WithCancel(context.Background())
 	peer := &Peer{
 		conn:        conn,
@@ -119,6 +132,7 @@ func Start(ctx context.Context, conn net.Conn, options Options) (*Peer, error) {
 
 	hello := helloParams{
 		Versions: supportedVersions, DisplayName: name, SharedFolderName: peer.folderName(),
+		RoomName: room,
 	}
 
 	var reply helloResult
@@ -273,6 +287,10 @@ func (peer *Peer) hello(raw json.RawMessage) (any, error) {
 		return nil, &RemoteError{Code: CodeBadRequest, Message: errBadName.Error()}
 	}
 
+	if _, err := cleanName(in.RoomName, maxDisplayName, true); err != nil {
+		return nil, &RemoteError{Code: CodeBadRequest, Message: errBadName.Error()}
+	}
+
 	version := 0
 	for _, offered := range in.Versions {
 		for _, ours := range supportedVersions {
@@ -297,6 +315,7 @@ func (peer *Peer) hello(raw json.RawMessage) (any, error) {
 
 	return helloResult{
 		Version: version, DisplayName: peer.options.DisplayName, SharedFolderName: peer.folderName(),
+		RoomName: peer.options.RoomName,
 	}, nil
 }
 
@@ -307,7 +326,7 @@ func checkHello(reply helloResult) (Remote, error) {
 		known = known || version == reply.Version
 	}
 	if !known {
-		return Remote{}, errVersion
+		return Remote{}, &RemoteError{Code: CodeUnsupportedVersion, Message: errVersion.Error()}
 	}
 
 	name, err := cleanName(reply.DisplayName, maxDisplayName, false)
@@ -320,7 +339,14 @@ func checkHello(reply helloResult) (Remote, error) {
 		return Remote{}, errBadName
 	}
 
-	return Remote{DisplayName: name, SharedFolderName: folder, Version: reply.Version}, nil
+	room, err := cleanName(reply.RoomName, maxDisplayName, true)
+	if err != nil {
+		return Remote{}, errBadName
+	}
+
+	return Remote{
+		DisplayName: name, SharedFolderName: folder, RoomName: room, Version: reply.Version,
+	}, nil
 }
 
 // cleanName checks a name from the other computer. It is for display only and

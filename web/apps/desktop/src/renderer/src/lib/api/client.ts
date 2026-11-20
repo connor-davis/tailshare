@@ -2,7 +2,7 @@ import type { ConnectionInfo } from "../../../../shared/bridge"
 
 /** An error whose message is already a plain sentence for the screen. */
 export class ApiError extends Error {
-  /** Stable code the screen can switch on, such as `no_folder`. */
+  /** Stable code the screen can switch on, such as `not_connected`. */
   readonly code: string
   /** HTTP status, or 0 when the sidecar never answered. */
   readonly status: number

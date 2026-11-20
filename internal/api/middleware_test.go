@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/platform/config"
 )
 
 const unauthorizedBody = `{"code":"unauthorized","message":"This request is not authorized."}`

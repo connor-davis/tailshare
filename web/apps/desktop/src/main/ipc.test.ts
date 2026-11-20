@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { Effect, Layer } from "effect"
 import { describe, expect, it, vi } from "vitest"
 import type { ConnectionInfo } from "../shared/bridge"
@@ -8,9 +11,18 @@ import {
   NoArgs,
   SidecarStatusSchema,
 } from "../shared/ipc-schema"
-import { check, registerIpc, registerUpdateIpc, type IpcHost } from "./ipc"
+import {
+  check,
+  registerIpc,
+  registerRecentRoomsIpc,
+  registerUpdateIpc,
+  registerWindowIpc,
+  type IpcHost,
+  type WindowControls,
+} from "./ipc"
 import { Sidecar } from "./sidecar"
-import type { SettingsStore } from "./settings"
+import { openRecentRooms } from "./recent-rooms"
+import { openSettings, type SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
 
 const GOOD: ConnectionInfo = {
@@ -69,16 +81,24 @@ describe("IPC schemas", () => {
 describe("update IPC", () => {
   function setupUpdates() {
     const handlers = new Map<string, Handler>()
-    const settings: SettingsStore = {
-      get: vi.fn(() => ({ updateChannel: "latest" as const })),
-      setUpdateChannel: vi.fn((updateChannel) => ({ updateChannel })),
-    }
+    const store = openSettings(mkdtempSync(join(tmpdir(), "tailshare-ipc-")), {
+      downloads: "C:\\Downloads",
+      computerName: "BOX",
+    })
+    const settings = {
+      get: vi.fn(() => store.get()),
+      update: vi.fn((patch: unknown) => store.update(patch)),
+      onChange: store.onChange,
+    } satisfies SettingsStore
     const updater: UpdateController = {
       status: vi.fn(() => ({ state: "ready" as const })),
       setChannel: vi.fn(),
+      checkNow: vi.fn(),
+      download: vi.fn(async () => {}),
       restart: vi.fn(async () => {}),
       stop: vi.fn(),
     }
+    const openExternal = vi.fn<(url: string) => Promise<void>>(async () => {})
     registerUpdateIpc(
       {
         handle: (channel, handler) => {
@@ -87,23 +107,32 @@ describe("update IPC", () => {
         pickFolder: async () => null,
       },
       settings,
-      updater
+      updater,
+      openExternal
     )
     return {
       handler: (channel: string) => handlers.get(channel)!,
       settings,
+      openExternal,
       updater,
     }
   }
 
   it("reads preferences and update state and restarts through the controller", async () => {
     const { handler, updater } = setupUpdates()
-    await expect(handler(CHANNELS.getSettings)(true, [])).resolves.toEqual({
+    await expect(
+      handler(CHANNELS.getSettings)(true, [])
+    ).resolves.toMatchObject({
       updateChannel: "latest",
+      transfersAtOnce: 2,
     })
     await expect(handler(CHANNELS.getUpdateStatus)(true, [])).resolves.toEqual({
       state: "ready",
     })
+    await handler(CHANNELS.checkForUpdates)(true, [])
+    expect(updater.checkNow).toHaveBeenCalledOnce()
+    await handler(CHANNELS.downloadUpdate)(true, [])
+    expect(updater.download).toHaveBeenCalledOnce()
     await handler(CHANNELS.restartToUpdate)(true, [])
     expect(updater.restart).toHaveBeenCalledOnce()
   })
@@ -111,41 +140,137 @@ describe("update IPC", () => {
   it.each([
     CHANNELS.getSettings,
     CHANNELS.getUpdateStatus,
+    CHANNELS.checkForUpdates,
+    CHANNELS.downloadUpdate,
+    CHANNELS.openReleaseLink,
     CHANNELS.restartToUpdate,
-    CHANNELS.setUpdateChannel,
+    CHANNELS.updateSettings,
   ])("rejects other windows and malformed arguments on %s", async (channel) => {
     const { handler, settings, updater } = setupUpdates()
     await expect(
       handler(channel)(
         false,
-        channel === CHANNELS.setUpdateChannel ? ["nightly"] : []
+        channel === CHANNELS.updateSettings ? [{ mica: false }] : []
       )
     ).rejects.toThrow("could not answer this window")
-    await expect(handler(channel)(true, ["nightly", "extra"])).rejects.toThrow(
-      "could not read that request"
-    )
-    expect(settings.setUpdateChannel).not.toHaveBeenCalled()
+    await expect(
+      handler(channel)(true, [{ mica: false }, "extra"])
+    ).rejects.toThrow("could not read that request")
+    expect(settings.update).not.toHaveBeenCalled()
     expect(updater.restart).not.toHaveBeenCalled()
+    expect(updater.checkNow).not.toHaveBeenCalled()
+    expect(updater.download).not.toHaveBeenCalled()
   })
 
-  it("saves a valid channel before changing the feed", async () => {
-    const { handler, settings, updater } = setupUpdates()
+  it("opens an HTTPS GitHub URL through the injected system browser", async () => {
+    const { handler, openExternal } = setupUpdates()
+    const url = "https://github.com/connor-davis/tailshare/releases/tag/v1.2.3"
+    await handler(CHANNELS.openReleaseLink)(true, [url])
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(url)
+  })
+
+  it.each([
+    [],
+    [1],
+    [null],
+    ["https://github.com/", "extra"],
+    ["http://github.com/releases"],
+    ["https://example.com/releases"],
+    ["https://github.com.evil.test/"],
+    ["https://sub.github.com/"],
+    ["https://github.com@evil.test/"],
+    ["https://evil.test@github.com/"],
+    ["https://github.com:444/"],
+    ["file:///C:/Windows"],
+    ["javascript:alert(1)"],
+    ["//github.com/"],
+    ["https://github.com\\@evil.test/"],
+    ["https://github.com/\n"],
+    [{}],
+  ])("rejects unsafe release link arguments %j", async (...args) => {
+    const { handler, openExternal } = setupUpdates()
+    await expect(handler(CHANNELS.openReleaseLink)(true, args)).rejects.toThrow(
+      "could not read that request"
+    )
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it("refuses release links from another window and gives a safe opener error", async () => {
+    const { handler, openExternal } = setupUpdates()
+    const url = "https://github.com/releases"
     await expect(
-      handler(CHANNELS.setUpdateChannel)(true, ["nightly"])
-    ).resolves.toEqual({ updateChannel: "nightly" })
-    expect(settings.setUpdateChannel).toHaveBeenCalledWith("nightly")
-    expect(updater.setChannel).toHaveBeenCalledWith("nightly")
+      handler(CHANNELS.openReleaseLink)(false, [url])
+    ).rejects.toThrow("could not answer this window")
+    expect(openExternal).not.toHaveBeenCalled()
+    openExternal.mockRejectedValueOnce(new Error("private process details"))
     await expect(
-      handler(CHANNELS.setUpdateChannel)(true, ["beta"])
-    ).rejects.toThrow("could not read that request")
-    vi.mocked(settings.setUpdateChannel).mockImplementation(() => {
-      throw new Error("could not save")
+      handler(CHANNELS.openReleaseLink)(true, [url])
+    ).rejects.toThrow("could not open this release link. Try again.")
+  })
+
+  it("saves a valid patch and replies with every setting", async () => {
+    const { handler, settings } = setupUpdates()
+    await expect(
+      handler(CHANNELS.updateSettings)(true, [
+        { updateChannel: "nightly", closeToTray: true },
+      ])
+    ).resolves.toMatchObject({ updateChannel: "nightly", closeToTray: true })
+    expect(settings.update).toHaveBeenCalledOnce()
+  })
+
+  it("refuses a bad patch whole, with a plain sentence and no change", async () => {
+    const { handler, settings } = setupUpdates()
+    await expect(
+      handler(CHANNELS.updateSettings)(true, [
+        { closeToTray: true, transfersAtOnce: 9 },
+      ])
+    ).rejects.toThrow("not valid")
+    expect(settings.get().closeToTray).toBe(false)
+  })
+})
+
+describe("window IPC", () => {
+  function setupWindow() {
+    const handlers = new Map<string, Handler>()
+    const controls = {
+      state: vi.fn(() => ({ mica: false })),
+    } satisfies WindowControls
+    registerWindowIpc(
+      {
+        handle: (channel, handler) => void handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      controls
+    )
+    return { handler: (channel: string) => handlers.get(channel)!, controls }
+  }
+
+  it("registers only the window state request", () => {
+    const { handler } = setupWindow()
+
+    expect(handler(CHANNELS.getWindowState)).toBeTypeOf("function")
+    expect(Object.keys(CHANNELS)).not.toContain("windowClose")
+  })
+
+  it("replies with the window state", async () => {
+    const { handler } = setupWindow()
+
+    await expect(handler(CHANNELS.getWindowState)(true, [])).resolves.toEqual({
+      mica: false,
     })
-    vi.mocked(updater.setChannel).mockClear()
-    await expect(
-      handler(CHANNELS.setUpdateChannel)(true, ["latest"])
-    ).rejects.toThrow("could not save")
-    expect(updater.setChannel).not.toHaveBeenCalled()
+  })
+
+  it("refuses other windows and extra arguments", async () => {
+    const { handler, controls } = setupWindow()
+    const state = handler(CHANNELS.getWindowState)
+
+    await expect(state(false, [])).rejects.toThrow(
+      "could not answer this window"
+    )
+    await expect(state(true, ["extra"])).rejects.toThrow(
+      "could not read that request"
+    )
+    expect(controls.state).not.toHaveBeenCalled()
   })
 })
 
@@ -255,5 +380,160 @@ describe("registerIpc", () => {
     await expect(
       handlers.get(CHANNELS.connectionInfo)!(true, [])
     ).rejects.toThrow("The sidecar could not be started. Restart Tailshare.")
+  })
+})
+
+describe("recent rooms IPC", () => {
+  function setupRecent() {
+    const handlers = new Map<string, Handler>()
+    const store = openRecentRooms(
+      mkdtempSync(join(tmpdir(), "tailshare-ipc-recent-")),
+      () => 1_800_000_000_000
+    )
+    registerRecentRoomsIpc(
+      {
+        handle: (channel, handler) => void handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      store
+    )
+    return { handler: (channel: string) => handlers.get(channel)!, store }
+  }
+
+  const room = { name: "Movies", code: "7K3Q9PXM" }
+
+  it("touches, lists and removes a room", async () => {
+    const { handler, store } = setupRecent()
+
+    await handler(CHANNELS.touchRecentRoom)(true, [room])
+    await expect(handler(CHANNELS.getRecentRooms)(true, [])).resolves.toEqual([
+      { ...room, lastSeen: 1_800_000_000_000 },
+    ])
+
+    await handler(CHANNELS.removeRecentRoom)(true, [room.code])
+    expect(store.get()).toEqual([])
+  })
+
+  it.each([
+    CHANNELS.getRecentRooms,
+    CHANNELS.touchRecentRoom,
+    CHANNELS.removeRecentRoom,
+  ])("refuses another window on %s", async (channel) => {
+    const { handler, store } = setupRecent()
+
+    await expect(handler(channel)(false, [room])).rejects.toThrow(
+      "could not answer this window"
+    )
+    expect(store.get()).toEqual([])
+  })
+
+  it("refuses extra or missing arguments", async () => {
+    const { handler, store } = setupRecent()
+
+    await expect(handler(CHANNELS.getRecentRooms)(true, [1])).rejects.toThrow(
+      "could not read that request"
+    )
+    for (const channel of [
+      CHANNELS.touchRecentRoom,
+      CHANNELS.removeRecentRoom,
+    ]) {
+      await expect(handler(channel)(true, [])).rejects.toThrow(
+        "could not read that request"
+      )
+      await expect(handler(channel)(true, [room, room])).rejects.toThrow(
+        "could not read that request"
+      )
+    }
+    expect(store.get()).toEqual([])
+  })
+
+  it("refuses a room or code that is not valid", async () => {
+    const { handler, store } = setupRecent()
+
+    await expect(
+      handler(CHANNELS.touchRecentRoom)(true, [{ name: "x", code: "bad" }])
+    ).rejects.toThrow("not valid")
+    await expect(
+      handler(CHANNELS.removeRecentRoom)(true, ["bad"])
+    ).rejects.toThrow("not valid")
+    expect(store.get()).toEqual([])
+  })
+})
+
+describe("room file IPC", () => {
+  it("checks sender, arguments, cap, cancellation and canonical room paths", async () => {
+    const { registerRoomIpc, roomFolder } = await import("./room-ipc")
+    const handlers = new Map<string, Handler>()
+    const result = { added: [{ name: "report.pdf", size: 3 }], skipped: [] }
+    const pickFiles = vi
+      .fn<() => Promise<string[] | null>>()
+      .mockResolvedValue(null)
+    const addFiles = vi.fn(async () => result)
+    const openPath = vi.fn(async () => "")
+    const roomsDir = "C:/User/Tailshare/rooms"
+    registerRoomIpc(
+      {
+        handle: (channel, handler) => handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      { roomsDir, pickFiles, addFiles, openPath }
+    )
+    const call = (channel: string, sender: boolean, args: unknown[]) =>
+      handlers.get(channel)!(sender, args)
+    expect(await call(CHANNELS.addFiles, true, [])).toBeNull()
+    expect(addFiles).not.toHaveBeenCalled()
+    pickFiles.mockResolvedValue(["C:/report.pdf"])
+    expect(await call(CHANNELS.addFiles, true, [])).toEqual(result)
+    expect(
+      await call(CHANNELS.addDroppedFiles, true, [["C:/report.pdf"]])
+    ).toEqual(result)
+    await call(CHANNELS.openRoomFolder, true, ["7k3q 9pxm"])
+    expect(openPath).toHaveBeenCalledWith(join(roomsDir, "7K3Q-9PXM"))
+    for (const channel of [
+      CHANNELS.addFiles,
+      CHANNELS.addDroppedFiles,
+      CHANNELS.openRoomFolder,
+    ]) {
+      await expect(call(channel, false, [])).rejects.toThrow()
+    }
+    await expect(call(CHANNELS.addFiles, true, [1])).rejects.toThrow()
+    for (const paths of [["relative"], Array(101).fill("C:/x"), [1], null]) {
+      await expect(
+        call(CHANNELS.addDroppedFiles, true, [paths])
+      ).rejects.toThrow()
+    }
+    for (const code of ["../escape", "7K3Q/9PXM", "", "7K3Q9PXU", null]) {
+      expect(() => roomFolder(roomsDir, code)).toThrow()
+    }
+    openPath.mockResolvedValue("raw OS detail")
+    await expect(
+      call(CHANNELS.openRoomFolder, true, ["7K3Q9PXM"])
+    ).rejects.toThrow("Could not open the room folder.")
+  })
+
+  it("sends both tokens only from main", async () => {
+    const { callMainApi } = await import("./room-ipc")
+    const fetcher = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true }),
+    }))
+    vi.stubGlobal("fetch", fetcher)
+    try {
+      await callMainApi(GOOD, "main-only", "/api/downloads", {
+        folder: "C:/Downloads",
+      })
+      expect(fetcher).toHaveBeenCalledWith(
+        GOOD.baseUrl + "/api/downloads",
+        expect.objectContaining({
+          method: "PUT",
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${GOOD.token}`,
+            "X-Tailshare-Main": "main-only",
+          }),
+        })
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

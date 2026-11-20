@@ -34,7 +34,7 @@ const connected: SessionState = {
 }
 
 describe("applyEvent", () => {
-  it("seeds session, folder and transfers from a snapshot", () => {
+  it("seeds session and transfers from a snapshot", () => {
     const client = new QueryClient()
 
     applyEvent(client, {
@@ -42,26 +42,12 @@ describe("applyEvent", () => {
       type: "snapshot",
       data: {
         session: connected,
-        folder: { name: "Docs" },
         transfers: [item()],
       },
     })
 
     expect(client.getQueryData(keys.session)).toEqual(connected)
-    expect(client.getQueryData(keys.folder)).toEqual({ name: "Docs" })
     expect(client.getQueryData<TransferView[]>(keys.transfers)).toHaveLength(1)
-  })
-
-  it("keeps a missing folder as null, not undefined", () => {
-    const client = new QueryClient()
-
-    applyEvent(client, {
-      seq: 0,
-      type: "snapshot",
-      data: { session: { state: "idle" }, folder: null, transfers: [] },
-    })
-
-    expect(client.getQueryData(keys.folder)).toBeNull()
   })
 
   it("replaces the session on session.state", () => {
@@ -84,6 +70,21 @@ describe("applyEvent", () => {
     })
 
     expect(client.getQueryData(keys.chat)).toBeUndefined()
+  })
+
+  it("keeps the attachment on a chat message", () => {
+    const client = new QueryClient()
+    const attachment = { name: "a.pdf", path: "a.pdf", size: 5 }
+
+    applyEvent(client, {
+      seq: 1,
+      type: "chat.message",
+      data: { ...chat("a"), text: "", attachment },
+    })
+
+    expect(
+      client.getQueryData<ChatMessage[]>(keys.chat)?.[0].attachment
+    ).toEqual(attachment)
   })
 
   it("appends chat once and keeps order", () => {

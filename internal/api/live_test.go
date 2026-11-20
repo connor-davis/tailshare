@@ -3,12 +3,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/platform/config"
 	"github.com/fasthttp/websocket"
 )
 
@@ -131,7 +130,7 @@ func TestLiveHandshakeRefusals(t *testing.T) {
 func TestLiveSnapshotThenEvents(t *testing.T) {
 	fake := newFake()
 	f := newFixture(t, config.Config{}, fake)
-	name := filepath.Base(f.chooseFolder("a.txt"))
+	f.chooseFolder("a.txt")
 
 	fake.items = []TransferItem{{ID: "1", Direction: "upload", State: "running"}}
 
@@ -163,7 +162,7 @@ func TestLiveSnapshotThenEvents(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Session.State != phaseIdle || got.Folder == nil || got.Folder.Name != name ||
+	if got.Session.State != phaseIdle ||
 		len(got.Transfers) != 1 || got.Transfers[0].ID != "1" {
 		t.Fatalf("snapshot = %s", data)
 	}

@@ -22,7 +22,7 @@ tasks:
     desc: Build the sidecar into bin/
     vars:
       VERSION: '{{.VERSION | default "dev"}}'
-      VERSION_FLAG: -X github.com/Polyphron-AI/tailshare/internal/platform/config.Version={{.VERSION}}
+      VERSION_FLAG: -X github.com/connor-davis/tailshare/internal/platform/config.Version={{.VERSION}}
     cmds:
       - go build -trimpath -ldflags "{{.VERSION_FLAG}}" -o {{.BIN}} ./cmd/tailshare
 

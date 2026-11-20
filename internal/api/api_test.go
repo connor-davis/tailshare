@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 var testToken = strings.Repeat("ab", 32)
@@ -37,6 +37,10 @@ func newFixture(t *testing.T, cfg config.Config, transfers Transfers) *fixture {
 	t.Helper()
 
 	cfg.Token = testToken
+	cfg.MainToken = strings.Repeat("cd", 32)
+	if cfg.RoomsDir == "" {
+		cfg.RoomsDir = t.TempDir()
+	}
 	cfg.Addr = "127.0.0.1:0"
 
 	server, err := New(cfg)
@@ -139,7 +143,11 @@ func (f *fixture) chooseFolder(files ...string) string {
 		}
 	}
 
-	f.send(http.MethodPut, "/api/folder", map[string]string{"path": dir}).expect(f.t, 200, "")
+	root, err := share.Open(dir)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.server.root = root
 
 	return dir
 }

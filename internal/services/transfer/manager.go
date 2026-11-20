@@ -11,9 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/session"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
 )
 
 const (
@@ -26,6 +25,7 @@ const (
 )
 
 type job struct {
+	root    *share.Root
 	working bool
 	view    Transfer
 	local   string
@@ -42,35 +42,44 @@ type job struct {
 	last    time.Time
 }
 
-// Manager owns one session's transfers and the shared folder used in both directions.
+// Tunnel is one member's data stream link. Only the dialer opens streams.
+type Tunnel interface {
+	Open(context.Context) (net.Conn, error)
+	Accept() (net.Conn, error)
+}
+
+// Manager owns transfers, room sources and a pinned destination root for each download.
 type Manager struct {
-	mu          sync.Mutex
-	root        *share.Root
-	session     *session.Session
-	peer        *peer.Peer
-	host        bool
-	ctx         context.Context
-	cancel      context.CancelFunc
-	jobs        map[string]*job
-	order       []string
-	waiters     map[string]chan net.Conn
-	subscribers map[*Subscription]struct{}
-	attached    bool
-	closed      bool
-	closeDone   chan struct{}
+	mu              sync.Mutex
+	root            *share.Root
+	downloadRoot    *share.Root
+	renameDownloads bool
+	tunnel          Tunnel
+	peer            *peer.Peer
+	host            bool
+	ctx             context.Context
+	cancel          context.CancelFunc
+	jobs            map[string]*job
+	order           []string
+	waiters         map[string]chan net.Conn
+	subscribers     map[*Subscription]struct{}
+	attached        bool
+	closed          bool
+	closeDone       chan struct{}
 }
 
 // New prepares handlers before peer.Start. The caller owns the shared folder.
 func New(root *share.Root) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		root:        root,
-		ctx:         ctx,
-		cancel:      cancel,
-		jobs:        make(map[string]*job),
-		closeDone:   make(chan struct{}),
-		waiters:     make(map[string]chan net.Conn),
-		subscribers: make(map[*Subscription]struct{}),
+		root:         root,
+		downloadRoot: root,
+		ctx:          ctx,
+		cancel:       cancel,
+		jobs:         make(map[string]*job),
+		closeDone:    make(chan struct{}),
+		waiters:      make(map[string]chan net.Conn),
+		subscribers:  make(map[*Subscription]struct{}),
 	}
 }
 
@@ -86,14 +95,14 @@ func (manager *Manager) Handlers() map[string]peer.Handler {
 }
 
 // Attach connects the manager after hello; host is true on the accepting computer.
-func (manager *Manager) Attach(ctx context.Context, tunnel *session.Session, conversation *peer.Peer, host bool) error {
+func (manager *Manager) Attach(ctx context.Context, tunnel Tunnel, conversation *peer.Peer, host bool) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	if manager.attached || manager.closed {
 		return errInvalid
 	}
 
-	manager.session, manager.peer, manager.host = tunnel, conversation, host
+	manager.tunnel, manager.peer, manager.host = tunnel, conversation, host
 	manager.attached = true
 	subscription := conversation.Subscribe()
 	go manager.events(subscription)
@@ -117,7 +126,7 @@ func (manager *Manager) Upload(ctx context.Context, local, remote string) (Trans
 	return manager.enqueue(ctx, local, remote, peer.DirectionUpload)
 }
 
-// Download queues a peer file for delivery to a path in the local shared folder.
+// Download queues a peer file into the currently configured downloads root.
 func (manager *Manager) Download(ctx context.Context, remote, local string) (Transfer, error) {
 	return manager.enqueue(ctx, local, remote, peer.DirectionDownload)
 }
@@ -140,6 +149,21 @@ func (manager *Manager) enqueue(ctx context.Context, local, remote string, direc
 	if manager.closed {
 		return Transfer{}, errDropped
 	}
+	if direction == peer.DirectionDownload {
+		if manager.downloadRoot == nil {
+			return Transfer{}, errors.New("Choose a downloads folder first.")
+		}
+		if manager.renameDownloads {
+			if strings.ContainsAny(local, "/\\") || strings.Contains(local, "..") {
+				return Transfer{}, share.ErrBadPath
+			}
+			var err error
+			local, err = manager.downloadRoot.AvailableName(local, manager.downloadBusyLocked)
+			if err != nil {
+				return Transfer{}, err
+			}
+		}
+	}
 	item := manager.newJobLocked(rand.Text(), local, remote, direction, true)
 	manager.scheduleLocked()
 	return item.view, nil
@@ -154,6 +178,10 @@ func (manager *Manager) newJobLocked(id, local, remote string, direction peer.Di
 		verdict: make(chan error, 1), resume: make(chan int64, 1),
 	}
 	item.sender = (direction == peer.DirectionUpload) == initiator
+	item.root = manager.root
+	if initiator && !item.sender {
+		item.root = manager.downloadRoot
+	}
 	manager.jobs[id] = item
 	manager.order = append(manager.order, id)
 	manager.emitLocked(item)
@@ -237,7 +265,7 @@ func (manager *Manager) stop(id string, state State, notify bool) error {
 	wasActive := item.working
 	if state == Canceled && !wasActive && !item.sender &&
 		!manager.destinationBusyLocked(item.local, item) {
-		_ = manager.root.RemovePartial(item.local)
+		_ = manager.receiverRoot(item).RemovePartial(item.local)
 	}
 	item.view.State = state
 	item.cancel()
@@ -278,6 +306,7 @@ func (manager *Manager) Resume(id string) (Transfer, error) {
 	item := manager.newJobLocked(
 		rand.Text(), previous.local, previous.view.PeerPath, previous.view.Direction, true,
 	)
+	item.root = previous.root
 	manager.scheduleLocked()
 	return item.view, nil
 }

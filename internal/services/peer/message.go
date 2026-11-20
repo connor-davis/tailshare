@@ -10,7 +10,7 @@ import (
 const envelopeVersion = 1
 
 // supportedVersions are the protocol versions this build speaks, highest last.
-var supportedVersions = []int{1}
+var supportedVersions = []int{2}
 
 // Kind says what an envelope is.
 type Kind string
@@ -35,6 +35,14 @@ const (
 	MethodStat = "stat"
 	// MethodChat delivers one chat message.
 	MethodChat = "chat"
+	// MethodShareRoster asks for the approved joiner's roster.
+	MethodShareRoster = "share.roster"
+	// MethodShareLinks submits one fresh key for each existing member.
+	MethodShareLinks = "share.links"
+	// MethodShareAdmit authorizes an incoming link from a new member.
+	MethodShareAdmit = "share.admit"
+	// MethodShareLeave announces the authenticated sender's departure.
+	MethodShareLeave = "share.leave"
 	// MethodTransferOffer offers a file in one direction.
 	MethodTransferOffer = "transfer.offer"
 	// MethodTransferCancel stops a transfer.
@@ -71,6 +79,16 @@ const (
 	CodeDenied = "denied"
 	// CodeInternal means something went wrong that the user did not cause.
 	CodeInternal = "internal"
+	// CodeNotAdmitter means only the earliest member may admit a joiner.
+	CodeNotAdmitter = "not_admitter"
+	// CodeShareFull means eight people are already sharing.
+	CodeShareFull = "share_full"
+	// CodeBusy means another admission is in progress.
+	CodeBusy = "busy"
+	// CodeJoinFailed means not every member could prepare the new link.
+	CodeJoinFailed = "join_failed"
+	// CodeJoinDenied means the host refused the local admission prompt.
+	CodeJoinDenied = "join_denied"
 )
 
 // RemoteError is an error the other computer sent back. Message is safe to
@@ -100,12 +118,15 @@ type helloParams struct {
 	Versions         []int  `json:"versions"`
 	DisplayName      string `json:"displayName"`
 	SharedFolderName string `json:"sharedFolderName"`
+	// RoomName is the name the host gave the room. Older builds omit it.
+	RoomName string `json:"roomName,omitempty"`
 }
 
 type helloResult struct {
 	Version          int    `json:"version"`
 	DisplayName      string `json:"displayName"`
 	SharedFolderName string `json:"sharedFolderName"`
+	RoomName         string `json:"roomName,omitempty"`
 }
 
 type listParams struct {
@@ -129,9 +150,10 @@ type statParams struct {
 // chatParams is the chat wire shape. SentAt is for the sender's records only:
 // the receiver stamps its own clock, so a wrong clock cannot reorder the log.
 type chatParams struct {
-	ID     string    `json:"id"`
-	Text   string    `json:"text"`
-	SentAt time.Time `json:"sentAt"`
+	Attachment *Attachment `json:"attachment,omitempty"`
+	ID         string      `json:"id"`
+	Text       string      `json:"text"`
+	SentAt     time.Time   `json:"sentAt"`
 }
 
 // Direction is which way a file travels, from the offering side's view.

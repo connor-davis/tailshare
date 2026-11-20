@@ -23,6 +23,12 @@ type Config struct {
 	// API call must carry it, so other programs on the machine can't drive us.
 	Token string
 
+	// MainToken permits local path operations and is never given to the renderer.
+	MainToken string
+
+	// RoomsDir holds persistent folders named by canonical room code.
+	RoomsDir string
+
 	// Region is the Tailcat relay region both peers bootstrap through. It is
 	// not secret and not part of the share code (see docs/security.md).
 	Region tailcfg.DERPRegionID
@@ -47,6 +53,8 @@ type EnvVar struct {
 var EnvVars = []EnvVar{
 	{"TAILSHARE_ADDR", "127.0.0.1:0", "Loopback address for the local API. Port 0 picks a free port and prints it."},
 	{"TAILSHARE_TOKEN", "", "Per-launch secret from the Electron app. Required by serve."},
+	{"TAILSHARE_MAIN_TOKEN", "", "Main-process secret for local path operations."},
+	{"TAILSHARE_ROOMS_DIR", "", "Absolute directory for persistent room folders. Required to host or join."},
 	{"TAILSHARE_REGION", "303", "Tailcat relay region id both peers use. Free relays: 301 NYC, 302 SFO, 303 FRA, 304 TOK."},
 	{"TAILSHARE_DERP_MAP_URL", "", "Relay list URL. Empty means Tailcat's free relays."},
 	{"TAILSHARE_DEV", "false", "Dev mode: coloured, chatty logs."},
@@ -67,6 +75,8 @@ func Load() (Config, error) {
 	return Config{
 		Addr:       get("TAILSHARE_ADDR"),
 		Token:      get("TAILSHARE_TOKEN"),
+		MainToken:  get("TAILSHARE_MAIN_TOKEN"),
+		RoomsDir:   get("TAILSHARE_ROOMS_DIR"),
 		Region:     tailcfg.DERPRegionID(region),
 		DERPMapURL: get("TAILSHARE_DERP_MAP_URL"),
 		Dev:        dev,

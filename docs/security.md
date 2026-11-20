@@ -1,12 +1,12 @@
 # Security: short share codes
 
-## How a 6-character code connects two machines ("seeded keys")
+## How an 8-character code connects two machines ("seeded keys")
 
 A Tailcat address holds a random node key and a random pre-shared key. That
 makes it about 100 characters long, and random data cannot be compressed. So
 Tailshare does not shrink the address. Both sides grow it back from the code:
 
-1. The host makes a random code, such as `7K3-Q9P` (Crockford base32, 30 bits).
+1. The host makes a random code, such as `7K3Q-9PXM` (Crockford base32, 40 bits).
 2. Argon2id (time 3, 64 MiB, 4 threads, fixed salt) stretches the code into 64
    bytes: a node private key and a WireGuard pre-shared key.
 3. The host runs a Tailcat server with those keys on the home relay region.
@@ -26,30 +26,45 @@ Run it with: `TAILSHARE_NET=1 go test -run SeededKeys ./internal/services/codes`
 
 ## The risk we accept, and how we limit it
 
-30 bits is guessable offline. Anyone who sees the host's public key can try
+40 bits is guessable offline. Anyone who sees the host's public key can try
 every code until one derives that key. The relay operator sees it, and
 Tailcat's free relays keep metadata logs. That attacker would then hold the
-pre-shared key and could join.
+pre-shared key and could request to join.
 
 Limits, all required:
 
 - **Slow derive.** Argon2id with 64 MiB makes each guess cost real memory and
-  time. All 2^30 codes cost years of CPU on one machine, but a GPU farm can do
-  it much faster.
-- **Single use.** The host admits only the first authenticated connection,
-  pins its node key with Tailcat's `AddAllowedClient`, and moves to a fresh
-  server allowlisted to that key. The bootstrap server closes after the
-  joiner acknowledges its reconnect, rejecting everyone else.
-  The host binds each stream to the key that authenticated it: Tailcat gives
-  every peer a fixed address made from its node key, so the host rebuilds
-  that address for each authenticated peer and matches the stream's source.
-  The joiner's claimed key must equal it. The random-key reconnect must
-  still authenticate as the admitted key.
-- **Short life.** A code expires 10 minutes after it is shown.
-- **Rekey.** Right after the first connect, both sides move to fresh random
-  host Tailcat keys exchanged inside the tunnel. The joiner keeps its random
-  node key so the new host can admit only that computer. The code-derived
-  keys only guard the first seconds. A reconnect must finish within 30 seconds.
+  time. Eight base32 characters give 32^8 = 2^40 possible codes
+  (1,099,511,627,776), 1,024 times the six-character space. The Argon2 cost
+  per guess is unchanged; parallel hardware can still search faster.
+- **Local approval.** The code server stays reachable while the share lives,
+  with no Tailcat allowlist. Knowing the code permits asking to join, not
+  accessing files. The authenticated stream key must match the join line.
+  Hello supplies a display-only name; Allow or Deny is a local action. The
+  prompt expires after 60 seconds. One prompt or preparation is active at a
+  time, and the share holds at most eight members.
+- **Unused-code expiry.** A code expires ten minutes after it is shown unless
+  someone is allowed. Pending and denied requests do not stop expiry. The
+  first Allow stops expiry for the remainder of the share.
+- **Independent links.** Every member has a fresh random mesh server and a
+  fresh random client key for each outgoing link. Mesh starts with only its
+  own key allowlisted; admission adds expected link keys. Every stream is
+  checked against both its authenticated source and current membership.
+  Tailcat cannot remove allowlisted clients, so leave closes their streams
+  and the application roster refuses new streams from removed members.
+- **Takeover limits.** The lowest surviving join order admits. A clean leave
+  permits immediate takeover; loss waits fifteen seconds after the local
+  control stream reports it. This delay does not detect an unreachable host.
+  A network split
+  can leave two live servers using the same code key, and pairwise loss can
+  leave rosters inconsistent at a third member. Version 1 has no roster
+  resync. The session service keeps the code in memory until the share ends,
+  so a survivor can start the same code server. Desktop recent rooms and room
+  directory names persist codes locally; neither service logs them.
+- **Member trust.** Rosters and admission messages distribute each member's
+  Tailcat address, including its pre-shared key, to other admitted members.
+  The address is not a secret from the share. The authenticated link key,
+  expected-key table and current roster are still checked on every stream.
 - **Own relay later.** Moving to a self-hosted DERP relay removes the
   third-party operator from the threat.
 
@@ -87,22 +102,42 @@ What it does not cover:
 - A junction whose last part is the link itself, in the changing calls
   (`Mkdir`, `MkdirAll`), was a Go bug fixed in Go 1.27.2. We use 1.27.4. Keep
   the Go version current, and test any new changing call we add.
-- The folder the user picks is trusted. Anything the user already put inside it
-  is shared, including files other programs can change while we read.
+- Room folders live under `<userData>/rooms/<CODE>`. The code is parsed and
+  canonicalized before a confined child root is created or reopened. Leave closes
+  the handle after workers stop; files persist and are shared again when that code
+  is reused. Local programs can still change these trusted files while we read.
 - Names and sizes are shown to the other computer as they are.
 
 ## Desktop shell
 
 The Electron main process starts the Go sidecar and is the only place that
-knows its address and token.
+owns its address and tokens. The normal API token is given to the renderer;
+the main-only token stays in main.
 
 - The window has context isolation and the sandbox on and Node off. It refuses
   every new window, navigation, redirect and webview. `window.tailshare` is the
-  only thing the page can reach: `getConnectionInfo`, `chooseFolder` and
-  `onSidecarStatus`. No `ipcRenderer`, no generic invoke.
+  only interface the page can reach. It includes `addFiles`, `addDroppedFiles`
+  and `openRoomFolder`; no `ipcRenderer` or generic invoke is exposed.
 - Each IPC handler checks that the call came from our window, refuses extra
   arguments, and checks its reply with an `effect/Schema` schema before it
   leaves main. A folder path is only ever returned from the native dialog.
+- Windows draws the minimise, maximise and close buttons (`titleBarOverlay`),
+  so the page has no way to ask main to minimise, maximise or close.
+- `tailshare://join/<CODE>` links are matched as written by one regex in
+  `src/main/join-link.ts`: lowercase scheme and host, then 8 code characters
+  or 4+4 with one dash. Credentials, a port, a query, a fragment, an extra
+  segment, a trailing slash, a percent escape, a backslash, another host or
+  scheme, and a letter outside the code alphabet are all refused. Only the
+  bare code reaches the page, on one exact channel. A link is a bearer secret
+  (it joins the room): argv, links and codes are never logged. The single-
+  instance lock only stops a second copy; it is not authentication. A link
+  that arrives before the page listens is held (10 at most) and sent when the
+  page says it is ready.
+- Recent rooms are a local file, `recent-rooms.json` in the user data folder,
+  holding name, code and last-seen time only: at most 20 rooms, forgotten after
+  30 days. The file contains the codes, so it is as private as the user
+  folder. No chat, members, paths or transfers are ever saved, and chat
+  still lives in memory only.
 - The token is 32 random bytes (64 hex characters), new for every sidecar
   start, kept in memory, never logged and never in a URL. It goes to the sidecar
   in the environment and to the page only after the health check passes.
@@ -133,8 +168,13 @@ knows its address and token.
 
 ## Transfers
 
-Transfer sources and destinations use the same shared root and slash-path
-checks. A download destination is selected locally. Peer upload destinations
+Transfer sources and upload destinations use the room root. Locally requested
+downloads use a separate confined downloads root; they never become room files.
+The destination must be a base name without separators or `..`, and collisions
+become `name (2).ext`. Each queued download pins its root and relative name,
+including across pause/resume and settings changes. Retired roots remain open
+until shutdown so paused jobs keep their destination. Stored `ask` mode currently
+uses the configured save folder. Peer upload destinations
 and download sources pass through `share.Localize` and `os.Root`. Files only
 are supported, with two active transfers across both directions and a 1 TiB
 size limit. The declared size caps reads and writes on the data stream.
@@ -203,6 +243,25 @@ drive it.
 - **Safe errors.** Callers only see `{code, message}` with a plain sentence.
   Raw Go errors, local paths and text from the other computer are never sent
   on. Unknown errors become a generic 500.
-- **Folder access.** The API opens the folder the picker chose with
-  `share.Open`, and every path from a query goes through `share.Localize` and
-  `os.Root`. The folder cannot change while a session is open.
+- **Room access.** Host and join open a room root under `TAILSHARE_ROOMS_DIR`.
+  Every peer path goes through `share.Localize` and `os.Root`; the removed
+  `/api/folder` route cannot replace that root.
+- **Main-only paths.** `POST /api/room/files` and `PUT /api/downloads` also need
+  one `X-Tailshare-Main` header, compared in constant time against
+  `TAILSHARE_MAIN_TOKEN`. Main generates a fresh second token for each sidecar
+  launch, including dev launches, and never sends it to the renderer.
+- **Add-files consent.** Main obtains paths from its native multi-file dialog or
+  preload resolves real dropped Files with `webUtils.getPathForFile`. Empty
+  paths are dropped. At most 100 files are copied through the room root; folders,
+  links, junctions and unreadable sources are skipped. Publication is atomic and
+  never replaces a file. Replies contain base names and safe sentences only.
+  Open folder accepts a validated code; main constructs the canonical path itself.
+- **Downloads configuration.** Main sends the save folder after health succeeds
+  and whenever it changes. The main-only endpoint creates missing directories
+  and opens a separate root; absolute destinations never enter peer or live DTOs.
+- **Members list.** `session.state` carries each member's id, display name and
+  host/you flags only. Addresses and keys stay in the sidecar.
+
+The current local API still selects one control peer for browsing, chat and
+transfers. Losing that peer ends the local API session, including when other
+mesh members survive. Per-member API ownership is a later change.

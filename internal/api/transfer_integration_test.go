@@ -9,17 +9,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/config"
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/services/transfer"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/transfer"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 func TestAPITransfersOverLocalDERP(t *testing.T) {
 	derp := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
 	cfg := config.Config{Region: tailcattest.RegionID, DERPMapURL: derp}
 	host, join := newFixture(t, cfg, nil), newFixture(t, cfg, nil)
-	hostDir, joinDir := host.chooseFolder(), join.chooseFolder()
+	hosted := host.send("POST", "/api/session/host", nil)
+	hosted.expect(t, 201, "")
+	code := hosted.Body["code"].(string)
+	hostDir := filepath.Join(host.server.cfg.RoomsDir, code)
+	joinDir := filepath.Join(join.server.cfg.RoomsDir, code)
+	hostDownloads, joinDownloads := t.TempDir(), t.TempDir()
+	host.send("PUT", "/api/downloads", map[string]string{"folder": hostDownloads}, mainHeader).expect(t, 200, "")
+	join.send("PUT", "/api/downloads", map[string]string{"folder": joinDownloads}, mainHeader).expect(t, 200, "")
 	// End the sessions before fixture folder cleanup releases their roots.
 	t.Cleanup(func() { host.server.leave(); join.server.leave() })
 
@@ -33,12 +40,7 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 		}
 	}
 
-	hosted := host.send("POST", "/api/session/host", nil)
-	hosted.expect(t, 201, "")
-	join.send("POST", "/api/session/join", map[string]any{"code": hosted.Body["code"]}).expect(t, 200, "")
-	eventually(t, "host connection", func() bool {
-		return host.send("GET", "/api/session", nil).Body["state"] == phaseConnected
-	})
+	joinWithApproval(t, host, join, hosted.Body["code"].(string)).expect(t, 200, "")
 
 	cases := []struct {
 		name           string
@@ -49,8 +51,8 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 	}{
 		{"host upload", host, "upload", "nested/host-upload.bin", joinDir},
 		{"join upload", join, "upload", "nested/join-upload.bin", hostDir},
-		{"host download", host, "download", "nested/host-download.bin", hostDir},
-		{"join download", join, "download", "nested/join-download.bin", joinDir},
+		{"host download", host, "download", "host-download.bin", hostDownloads},
+		{"join download", join, "download", "join-download.bin", joinDownloads},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

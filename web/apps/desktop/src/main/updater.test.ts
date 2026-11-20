@@ -1,6 +1,11 @@
 import { EventEmitter } from "node:events"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { createUpdater, type UpdaterAdapter } from "./updater"
+import {
+  CHECK_EVERY_MS,
+  createUpdater,
+  releaseNotesToMarkdown,
+  type UpdaterAdapter,
+} from "./updater"
 
 function setup(packaged = true) {
   const events = new EventEmitter()
@@ -18,6 +23,7 @@ function setup(packaged = true) {
       this.allowDowngrade = true
     },
     checkForUpdates: vi.fn(async () => null),
+    downloadUpdate: vi.fn(async () => []),
     on: (event, listener) => events.on(event, listener),
     removeListener: (event, listener) => events.removeListener(event, listener),
     quitAndInstall: vi.fn(),
@@ -50,18 +56,142 @@ describe("updater", () => {
     controller.stop()
   })
 
-  it("checks on start and every four hours, and stops cleanly", async () => {
+  it("checks on start and every two minutes, and stops cleanly", async () => {
     vi.useFakeTimers()
     const { adapter, controller, events } = setup()
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(1)
-    expect(adapter.autoDownload).toBe(true)
+    expect(adapter.autoDownload).toBe(false)
     expect(adapter.autoInstallOnAppQuit).toBe(false)
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
     controller.stop()
     expect(events.eventNames()).toEqual([])
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
+  })
+
+  it("checks now once, and ignores the button while a check runs or an update is ready", async () => {
+    vi.useFakeTimers()
+    const { adapter, controller, events } = setup()
+    await settle()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    controller.checkNow()
+    await settle()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
+
+    // A check that is still running swallows the click.
+    let finish: () => void = () => {}
+    vi.mocked(adapter.checkForUpdates).mockReturnValueOnce(
+      new Promise((resolve) => (finish = () => resolve(null)))
+    )
+    controller.checkNow()
+    controller.checkNow()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(3)
+    finish()
+    await settle()
+
+    events.emit("update-downloaded")
+    controller.checkNow()
+    await settle()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(3)
+    controller.stop()
+  })
+
+  it("offers releases without downloading and replaces them on later checks", async () => {
+    vi.useFakeTimers()
+    const { adapter, controller, events } = setup()
+    await settle()
+    events.emit("update-available", {
+      version: "1.0.1",
+      releaseNotes: "<p>First</p>",
+    })
+    expect(controller.status()).toEqual({
+      state: "available",
+      version: "1.0.1",
+      notes: "First",
+    })
+    expect(adapter.downloadUpdate).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
+    expect(controller.status().state).toBe("available")
+    events.emit("update-available", {
+      version: "1.0.2",
+      releaseNotes: "<li>Second</li>",
+    })
+    expect(controller.status()).toEqual({
+      state: "available",
+      version: "1.0.2",
+      notes: "- Second",
+    })
+    controller.stop()
+  })
+
+  it("downloads only once from available and never checks during downloading or ready", async () => {
+    vi.useFakeTimers()
+    const { adapter, controller, events } = setup()
+    await settle()
+    await controller.download()
+    expect(adapter.downloadUpdate).not.toHaveBeenCalled()
+    let finish!: () => void
+    vi.mocked(adapter.downloadUpdate).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    events.emit("update-available", { version: "1.0.1" })
+    const downloading = controller.download()
+    await controller.download()
+    expect(controller.status()).toEqual({ state: "downloading", percent: 0 })
+    expect(adapter.downloadUpdate).toHaveBeenCalledOnce()
+    controller.checkNow()
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(1)
+    finish()
+    await downloading
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(1)
+    events.emit("update-downloaded")
+    controller.checkNow()
+    await controller.download()
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
+    expect(controller.status().state).toBe("ready")
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(adapter.downloadUpdate).toHaveBeenCalledOnce()
+    controller.stop()
+  })
+
+  it("reports download errors and defers channel changes until the download ends", async () => {
+    vi.useFakeTimers()
+    const { adapter, controller, events } = setup()
+    await settle()
+    events.emit("update-available", { version: "1.0.1" })
+    vi.mocked(adapter.downloadUpdate).mockRejectedValueOnce(
+      new Error("private")
+    )
+    await controller.download()
+    expect(controller.status()).toEqual({ state: "error" })
+
+    events.emit("update-available", { version: "1.0.1" })
+    let finish!: () => void
+    vi.mocked(adapter.downloadUpdate).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    const downloading = controller.download()
+    controller.setChannel("nightly")
+    events.emit("update-downloaded")
+    expect(adapter.channel).toBe("latest")
+    finish()
+    await downloading
+    await settle()
+    expect(adapter.channel).toBe("nightly")
+    expect(controller.status().state).toBe("checking")
+    controller.stop()
   })
 
   it("never overlaps checks or downloads and defers a channel switch", async () => {
@@ -75,12 +205,12 @@ describe("updater", () => {
     vi.mocked(adapter.checkForUpdates).mockResolvedValue({
       downloadPromise: download,
     })
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     controller.setChannel("nightly")
     events.emit("update-downloaded")
     expect(controller.status().state).toBe("checking")
     await expect(controller.restart()).rejects.toThrow("No update")
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
     expect(adapter.channel).toBe("latest")
     finish()
@@ -107,7 +237,7 @@ describe("updater", () => {
     expect(adapter.allowPrerelease).toBe(false)
     expect(adapter.allowDowngrade).toBe(false)
     expect(controller.status().state).toBe("error")
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     events.emit("update-not-available")
     expect(controller.status().state).toBe("current")
     controller.stop()
@@ -146,5 +276,81 @@ describe("updater", () => {
     await expect(controller.restart()).rejects.toThrow("could not restart")
     expect(adapter.quitAndInstall).not.toHaveBeenCalled()
     controller.stop()
+  })
+})
+
+describe("release notes as Markdown", () => {
+  it.each([
+    [null, "No release notes."],
+    [undefined, "No release notes."],
+    [[], "No release notes."],
+    [
+      "<p>One</p><ul><li>A &amp; B</li><li>Two</li></ul>",
+      "One\n\n- A & B\n\n- Two",
+    ],
+    [
+      '<script src="x">bad()</script><style>body{}</style><p onclick="bad()">Safe</p>',
+      "Safe",
+    ],
+    [
+      '<a title="x > y" href="javascript:bad()">Link</a><img src=x onerror=bad()>',
+      "Link",
+    ],
+    [
+      "&lt;script&gt;literal&lt;/script&gt; &amp;lt;b&amp;gt; &#x41;&#66; &quot; &apos; &nbsp; &#0;",
+      "<script>literal</script> &lt;b&gt; AB \" '   �",
+    ],
+    [
+      [
+        { version: "2", note: "<p>New</p>" },
+        { version: "1", note: "Old" },
+        null,
+      ],
+      "2\n\nNew\n\n1\nOld",
+    ],
+    ["<p> One </p>\n\n\n<p>Two</p>", "One\n\nTwo"],
+    ["<script>unfinished", "No release notes."],
+    ["<!-- private --><custom data-x='x'>Visible</custom>", "Visible"],
+    [
+      "<h1>One</h1><h2>Two</h2><h3>Three</h3><h4>Four</h4><h5>Five</h5><h6>Six</h6>",
+      "# One\n\n## Two\n\n### Three\n\n#### Four\n\n##### Five\n\n###### Six",
+    ],
+    [
+      "<strong>Bold</strong> <b>also bold</b> <em>Italic</em> <i>also italic</i> <code>run()</code>",
+      "**Bold** **also bold** _Italic_ _also italic_ `run()`",
+    ],
+    [
+      "<ul><li>Parent<ul><li>Child<ol><li>Deep</li></ol></li></ul></li><li>Next</li></ul>",
+      "- Parent\n\n  - Child\n\n    - Deep\n\n- Next",
+    ],
+    ["<ul><li><p>First</p></li><li>Second</li></ul>", "- First\n\n- Second"],
+    [
+      '<pre><code class="language-js">if (a &lt; b) {\n  run()\n}</code></pre>',
+      "```\nif (a < b) {\n  run()\n}\n```",
+    ],
+    ["<pre><code>```</code></pre>", "````\n```\n````"],
+    [
+      '<a href="https://github.com/team/repo/pull/1">Fix</a>',
+      "[Fix](https://github.com/team/repo/pull/1)",
+    ],
+    [
+      "<a href='https://example.com/a(b)?a=1&amp;b=2'><strong>More</strong></a>",
+      "[**More**](https://example.com/a%28b%29?a=1&b=2)",
+    ],
+    [
+      '<a href="http://github.com/">HTTP</a> <a href="javascript:bad()">Bad</a> <a href="/relative">Relative</a> <a>No link</a>',
+      "HTTP Bad Relative No link",
+    ],
+    ["<div>One<br>Two</div><p>Three</p>", "One\nTwo\n\nThree"],
+    [
+      "## Native Markdown\n\n- **Kept**\n  - Child",
+      "## Native Markdown\n\n- **Kept**\n  - Child",
+    ],
+  ])("converts %j safely", (source, expected) => {
+    expect(releaseNotesToMarkdown(source)).toBe(expected)
+  })
+
+  it("caps notes at 20,000 characters", () => {
+    expect(releaseNotesToMarkdown("x".repeat(21_000))).toHaveLength(20_000)
   })
 })

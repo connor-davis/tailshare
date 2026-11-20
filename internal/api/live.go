@@ -34,9 +34,7 @@ type Event struct {
 // to draw itself before any event arrives. Chat is not included; read it from
 // /api/chat.
 type Snapshot struct {
-	Session SessionState `json:"session"`
-	// Folder is nil when no shared folder is chosen.
-	Folder    *FolderInfo    `json:"folder"`
+	Session   SessionState   `json:"session"`
 	Transfers []TransferItem `json:"transfers"`
 }
 
@@ -142,7 +140,6 @@ func encode(event Event) []byte {
 func (server *Server) snapshot() any {
 	return Snapshot{
 		Session:   server.sessionState(),
-		Folder:    server.folderInfo(),
 		Transfers: server.transferList(),
 	}
 }

@@ -142,3 +142,31 @@ func TestSlowSubscriberIsCutOff(t *testing.T) {
 		t.Fatalf("fresh snapshot has %d messages", len(log))
 	}
 }
+
+func TestAttachmentWireValidation(t *testing.T) {
+	alice, bob := startPair(t, Options{DisplayName: "Alice"}, Options{DisplayName: "Bob"})
+	good := &Attachment{Name: "report.pdf", Path: "docs/report.pdf", Size: 123}
+	if _, err := alice.SendChat(testContext(t), "", good); err != nil {
+		t.Fatal(err)
+	}
+	log := bob.Subscribe().Snapshot
+	if len(log) != 1 || log[0].Attachment == nil || *log[0].Attachment != *good {
+		t.Fatal(log)
+	}
+	for _, bad := range []*Attachment{
+		{Name: "escape", Path: "../escape", Size: 1},
+		{Name: "x", Path: "/x", Size: 1},
+		{Name: "../x", Path: "x", Size: 1},
+		{Name: "x", Path: "x", Size: -1},
+		{Name: "", Path: "", Size: 0},
+		{Name: "wrong", Path: "x", Size: 0},
+	} {
+		err := alice.Call(testContext(t), MethodChat, chatParams{ID: "bad", Text: "hello", Attachment: bad}, nil)
+		if remote, ok := errors.AsType[*RemoteError](err); !ok || remote.Code != CodeBadRequest {
+			t.Fatalf("accepted %+v: %v", bad, err)
+		}
+	}
+	if len(bob.Subscribe().Snapshot) != 1 {
+		t.Fatal("recorded invalid attachment")
+	}
+}

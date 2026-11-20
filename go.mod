@@ -1,4 +1,4 @@
-module github.com/Polyphron-AI/tailshare
+module github.com/connor-davis/tailshare
 
 go 1.27.4
 

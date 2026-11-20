@@ -4,16 +4,16 @@ import (
 	"errors"
 	"io"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/share"
 )
 
 func (manager *Manager) prepareReceiver(item *job) error {
-	if _, err := manager.root.Stat(item.local); err == nil {
+	if _, err := manager.receiverRoot(item).Stat(item.local); err == nil {
 		return share.ErrExists
 	} else if !errors.Is(err, share.ErrNotFound) {
 		return err
 	}
-	offset, err := manager.root.PartialSize(item.local)
+	offset, err := manager.receiverRoot(item).PartialSize(item.local)
 	if err != nil {
 		return err
 	}
@@ -21,7 +21,7 @@ func (manager *Manager) prepareReceiver(item *job) error {
 	size := item.view.Size
 	manager.mu.Unlock()
 	if offset > size {
-		if err := manager.root.RemovePartial(item.local); err != nil {
+		if err := manager.receiverRoot(item).RemovePartial(item.local); err != nil {
 			return err
 		}
 		offset = 0

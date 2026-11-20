@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/Polyphron-AI/tailshare/internal/platform/apperr"
-	"github.com/Polyphron-AI/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -24,7 +25,10 @@ func (server *Server) connectedPeer() (*peer.Peer, error) {
 
 func (server *Server) postChat(c fiber.Ctx) error {
 	var in struct {
-		Text string `json:"text"`
+		Text       string `json:"text"`
+		Attachment *struct {
+			Path string `json:"path"`
+		} `json:"attachment"`
 	}
 	if err := json.Unmarshal(c.Body(), &in); err != nil {
 		return apperr.BadRequest("The request could not be understood.")
@@ -38,7 +42,31 @@ func (server *Server) postChat(c fiber.Ctx) error {
 	ctx, cancel := server.contextWithin(callTimeout)
 	defer cancel()
 
-	message, err := other.SendChat(ctx, in.Text)
+	var attachment *peer.Attachment
+	if in.Attachment != nil {
+		if in.Attachment.Path == "" {
+			return share.ErrBadPath
+		}
+		server.mu.Lock()
+		root := server.root
+		if root == nil {
+			server.mu.Unlock()
+			return errNotConnected()
+		}
+		file, err := root.OpenRead(in.Attachment.Path)
+		if err != nil {
+			server.mu.Unlock()
+			return err
+		}
+		info, statError := file.Stat()
+		_ = file.Close()
+		server.mu.Unlock()
+		if statError != nil || !info.Mode().IsRegular() {
+			return apperr.BadRequest("Choose a regular room file.")
+		}
+		attachment = &peer.Attachment{Name: info.Name(), Path: in.Attachment.Path, Size: info.Size()}
+	}
+	message, err := other.SendChat(ctx, in.Text, attachment)
 	if err != nil {
 		return chatError(other, err)
 	}

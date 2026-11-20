@@ -23,7 +23,7 @@ func (manager *Manager) register(item *job) error {
 
 func (manager *Manager) acceptLoop() {
 	for {
-		conn, err := manager.session.Accept()
+		conn, err := manager.tunnel.Accept()
 		if err != nil {
 			return
 		}
@@ -57,7 +57,7 @@ func (manager *Manager) stream(item *job) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(item.ctx, streamTimeout)
 	defer cancel()
 	if !manager.host {
-		conn, err := manager.session.Open(ctx)
+		conn, err := manager.tunnel.Open(ctx)
 		if err != nil {
 			return nil, errDropped
 		}

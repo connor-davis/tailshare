@@ -3,7 +3,6 @@ import { announce } from "../../components/status-region"
 import { keys } from "../api/keys"
 import type {
   ChatMessage,
-  FolderInfo,
   LiveEvent,
   SessionState,
   Snapshot,
@@ -59,7 +58,6 @@ export function appendChat(client: QueryClient, message: ChatMessage): void {
 /** Drop what belongs to a session that is over. Chat must never linger. */
 function clearSession(client: QueryClient): void {
   client.removeQueries({ queryKey: keys.chat })
-  client.removeQueries({ queryKey: keys.files })
   client.setQueryData<TransferView[]>(keys.transfers, [])
 }
 
@@ -76,7 +74,6 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
     case "snapshot": {
       const snapshot = event.data as Snapshot
       client.setQueryData<SessionState>(keys.session, snapshot.session)
-      client.setQueryData<FolderInfo | null>(keys.folder, snapshot.folder)
       const now = Date.now()
       client.setQueryData<TransferView[]>(
         keys.transfers,
@@ -114,9 +111,6 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
         ?.find((entry) => entry.id === item.id)
       upsertTransfer(client, item)
 
-      if (item.state === "done" || item.state === "failed") {
-        void client.invalidateQueries({ queryKey: keys.files })
-      }
       if (known?.state !== item.state) {
         if (item.state === "done") {
           announce(`${fileName(item.source)} finished.`)

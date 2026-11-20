@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Polyphron-AI/tailshare/internal/services/share"
-	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
 func TestMain(m *testing.M) {
@@ -89,11 +89,51 @@ func TestHello(t *testing.T) {
 		Options{DisplayName: "Alice", Share: left},
 		Options{DisplayName: "  Bob  "})
 
-	if got := alice.Remote(); got.DisplayName != "Bob" || got.SharedFolderName != "" || got.Version != 1 {
+	if got := alice.Remote(); got.DisplayName != "Bob" || got.SharedFolderName != "" || got.Version != 2 {
 		t.Fatalf("alice sees %+v", got)
 	}
 	if got := bob.Remote(); got.DisplayName != "Alice" || got.SharedFolderName != left.Name() {
 		t.Fatalf("bob sees %+v", got)
+	}
+}
+
+func TestHelloCarriesRoomName(t *testing.T) {
+	// Only the host names the room; the joiner's side stays empty.
+	alice, bob := startPair(t,
+		Options{DisplayName: "Alice", RoomName: "  Movie night  "},
+		Options{DisplayName: "Bob"})
+
+	if got := bob.Remote().RoomName; got != "Movie night" {
+		t.Fatalf("bob sees room %q", got)
+	}
+	if got := alice.Remote().RoomName; got != "" {
+		t.Fatalf("alice sees room %q", got)
+	}
+}
+
+func TestBadRoomNameIsRefused(t *testing.T) {
+	bad := []string{"line\nbreak", strings.Repeat("r", 65)}
+
+	for _, name := range bad {
+		// Our own side refuses to send it.
+		local, remote := net.Pipe()
+		_, err := Start(t.Context(), local, Options{DisplayName: "Alice", RoomName: name})
+		_ = remote.Close()
+
+		if err == nil {
+			t.Fatalf("Start accepted room %q", name)
+		}
+
+		// A peer that sends it anyway is refused on receipt.
+		raw, _ := json.Marshal(helloParams{Versions: supportedVersions, DisplayName: "Eve", RoomName: name})
+		if _, err := (&Peer{}).hello(raw); err == nil {
+			t.Fatalf("hello accepted room %q", name)
+		}
+		if _, err := checkHello(helloResult{
+			Version: supportedVersions[0], DisplayName: "Eve", RoomName: name,
+		}); err == nil {
+			t.Fatalf("checkHello accepted room %q", name)
+		}
 	}
 }
 
