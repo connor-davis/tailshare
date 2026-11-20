@@ -8,7 +8,7 @@ import {
 } from "@/lib/code-input"
 
 /** What the field says when the code can't be right. */
-export const CODE_HINT = "Codes are 6 letters or numbers, like 7K3-Q9P."
+export const CODE_HINT = "Codes are 8 letters or numbers, like 7K3Q-9PXM."
 
 /** Whether a typed code is wrong enough to say so now. */
 export function codeProblem(code: string, blurred: boolean): boolean {
@@ -18,7 +18,7 @@ export function codeProblem(code: string, blurred: boolean): boolean {
 }
 
 /**
- * One input for the share code. It shows `7K3-Q9P` while the value stays six
+ * One input for the share code. It shows `7K3Q-9PXM` while the value stays eight
  * plain characters, and reads O, I and L as 0, 1 and 1.
  */
 export function CodeInput({
@@ -53,7 +53,7 @@ export function CodeInput({
         autoComplete="off"
         autoCapitalize="characters"
         spellCheck={false}
-        placeholder="7K3-Q9P"
+        placeholder="7K3Q-9PXM"
         className="h-9 font-mono text-lg tracking-widest"
       />
       {invalid ? (

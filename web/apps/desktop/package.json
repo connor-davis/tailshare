@@ -1,7 +1,7 @@
 {
   "name": "@tailshare/desktop",
   "version": "0.1.0",
-  "description": "Send files between two computers with a six-character code.",
+  "description": "Send files between two computers with an eight-character code.",
   "author": "Polyphron",
   "private": true,
   "type": "module",

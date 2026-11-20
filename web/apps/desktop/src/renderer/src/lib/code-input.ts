@@ -2,7 +2,7 @@
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 /** Characters in a code, not counting the dash. */
-export const CODE_LENGTH = 6
+export const CODE_LENGTH = 8
 
 /** Drop spaces and dashes, upper-case, and read O as 0 and I or L as 1. */
 function normalise(raw: string): string {
@@ -14,7 +14,7 @@ function normalise(raw: string): string {
 }
 
 /**
- * Tidy what the user typed and stop at six characters. Letters outside the
+ * Tidy what the user typed and stop at eight characters. Letters outside the
  * alphabet stay, so the screen can point at them.
  */
 export function cleanCode(raw: string): string {
@@ -27,7 +27,7 @@ export function hasBadCharacter(code: string): boolean {
 }
 
 /**
- * Same rules as `codes.Parse`: returns the six-character code, or `null` when
+ * Same rules as `codes.Parse`: returns the eight-character code, or `null` when
  * the length or a character is wrong.
  */
 export function foldCode(raw: string): string | null {
@@ -38,11 +38,11 @@ export function foldCode(raw: string): string | null {
   return folded
 }
 
-/** Show a code the way people read it aloud: `7K3-Q9P`. */
+/** Show a code the way people read it aloud: `7K3Q-9PXM`. */
 export function formatCode(code: string): string {
-  // The sidecar already sends `7K3-Q9P`, so drop any dash before adding ours.
+  // The sidecar already sends `7K3Q-9PXM`, so drop any dash before adding ours.
   const bare = code.replace(/-/g, "")
-  if (bare.length <= 3) return bare
+  if (bare.length <= 4) return bare
 
-  return `${bare.slice(0, 3)}-${bare.slice(3)}`
+  return `${bare.slice(0, 4)}-${bare.slice(4)}`
 }

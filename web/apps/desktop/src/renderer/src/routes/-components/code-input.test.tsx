@@ -27,21 +27,22 @@ const joinDisabled = () =>
   (screen.getByRole("button") as HTMLButtonElement).disabled
 
 describe("CodeInput", () => {
-  it("shows 7K3-Q9P for 7k3q9p", () => {
+  it.each(["7k3q9pxm", "7K3Q-9PXM"])("formats pasted code %s", (raw) => {
     render(<Harness />)
 
-    type("7k3q9p")
+    type(raw)
 
     expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe(
-      "7K3-Q9P"
+      "7K3Q-9PXM"
     )
     expect(joinDisabled()).toBe(false)
+    expect((screen.getByRole("textbox") as HTMLInputElement).maxLength).toBe(9)
   })
 
-  it("keeps Join disabled at five characters", () => {
+  it("keeps Join disabled at seven characters", () => {
     render(<Harness />)
 
-    type("7k3q9")
+    type("7k3q9px")
 
     expect(joinDisabled()).toBe(true)
   })
@@ -51,7 +52,7 @@ describe("CodeInput", () => {
 
     type("U9")
 
-    expect(screen.getByText(/Codes are 6 letters or numbers/)).toBeTruthy()
+    expect(screen.getByText(/Codes are 8 letters or numbers/)).toBeTruthy()
     expect(screen.getByRole("textbox").getAttribute("aria-invalid")).toBe(
       "true"
     )

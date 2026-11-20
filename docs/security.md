@@ -1,12 +1,12 @@
 # Security: short share codes
 
-## How a 6-character code connects two machines ("seeded keys")
+## How an 8-character code connects two machines ("seeded keys")
 
 A Tailcat address holds a random node key and a random pre-shared key. That
 makes it about 100 characters long, and random data cannot be compressed. So
 Tailshare does not shrink the address. Both sides grow it back from the code:
 
-1. The host makes a random code, such as `7K3-Q9P` (Crockford base32, 30 bits).
+1. The host makes a random code, such as `7K3Q-9PXM` (Crockford base32, 40 bits).
 2. Argon2id (time 3, 64 MiB, 4 threads, fixed salt) stretches the code into 64
    bytes: a node private key and a WireGuard pre-shared key.
 3. The host runs a Tailcat server with those keys on the home relay region.
@@ -26,7 +26,7 @@ Run it with: `TAILSHARE_NET=1 go test -run SeededKeys ./internal/services/codes`
 
 ## The risk we accept, and how we limit it
 
-30 bits is guessable offline. Anyone who sees the host's public key can try
+40 bits is guessable offline. Anyone who sees the host's public key can try
 every code until one derives that key. The relay operator sees it, and
 Tailcat's free relays keep metadata logs. That attacker would then hold the
 pre-shared key and could join.
@@ -34,8 +34,9 @@ pre-shared key and could join.
 Limits, all required:
 
 - **Slow derive.** Argon2id with 64 MiB makes each guess cost real memory and
-  time. All 2^30 codes cost years of CPU on one machine, but a GPU farm can do
-  it much faster.
+  time. Eight base32 characters give 32^8 = 2^40 possible codes
+  (1,099,511,627,776), 1,024 times the six-character space. The Argon2 cost
+  per guess is unchanged; parallel hardware can still search faster.
 - **Single use.** The host admits only the first authenticated connection,
   pins its node key with Tailcat's `AddAllowedClient`, and moves to a fresh
   server allowlisted to that key. The bootstrap server closes after the

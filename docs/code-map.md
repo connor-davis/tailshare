@@ -7,7 +7,7 @@ line when you add an owner.
 
 | Job | Owner |
 | --- | --- |
-| Code alphabet, random codes, parsing user input (look-alikes, dashes) | `internal/services/codes/codes.go` (`New`, `Parse`, `Code.String`) |
+| Code alphabet, random eight-character codes, parsing user input (look-alikes, dashes), 4+4 display | `internal/services/codes/codes.go` (`New`, `Parse`, `Code.String`) |
 | Code to node key + pre-shared key (Argon2id), and code to full Tailcat address | `internal/services/codes/codes.go` (`Derive`, `Addr`) |
 | Parse/derive tests and the live relay spike | `internal/services/codes/codes_test.go` |
 

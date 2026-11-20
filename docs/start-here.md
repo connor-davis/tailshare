@@ -22,7 +22,7 @@ version; a push to develop publishes a nightly with patch+1 and a UTC timestamp.
 
 ## What happens when two people share
 
-1. Alice clicks **Host**. Her sidecar makes a code (`7K3-Q9P`), derives
+1. Alice clicks **Host**. Her sidecar makes a code (`7K3Q-9PXM`), derives
    Tailcat keys from it and starts listening on the home relay region.
 2. Bob types the code. His sidecar derives the same keys, rebuilds Alice's
    Tailcat address and connects. Tailcat bootstraps through the relay, then

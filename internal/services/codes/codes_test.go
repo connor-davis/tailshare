@@ -13,20 +13,30 @@ import (
 
 func TestParse(t *testing.T) {
 	for in, want := range map[string]Code{
-		"7K3-Q9P":   "7K3Q9P",
-		" 7k3 q9p ": "7K3Q9P",
-		"OIL-abc":   "011ABC", // look-alikes fold to digits
+		"7K3Q-9PXM":   "7K3Q9PXM",
+		"7K3Q9PXM":    "7K3Q9PXM",
+		" 7k3q 9pxm ": "7K3Q9PXM",
+		"OILABC12":    "011ABC12", // look-alikes fold to digits
 	} {
 		got, err := Parse(in)
 		if err != nil || got != want {
 			t.Errorf("Parse(%q) = %q, %v; want %q", in, got, err, want)
 		}
 	}
-	for _, bad := range []string{"", "7K3Q9", "7K3Q9PX", "7K3-Q9U"} {
+	for _, bad := range []string{"", "7K3Q9", "7K3Q9PX", "7K3-Q9P", "7K3Q9P", "7K3Q9PXMX", "7K3Q-9PUX"} {
 		if _, err := Parse(bad); err == nil {
 			t.Errorf("Parse(%q) accepted a bad code", bad)
 		}
 	}
+}
+
+func TestDisplayFormat(t *testing.T) {
+	if got := Code("7K3Q9PXM").String(); got != "7K3Q-9PXM" {
+		t.Errorf("Code.String() = %q; want 7K3Q-9PXM", got)
+	}
+}
+
+func TestNewLength(t *testing.T) {
 	if c := New(); len(c) != Length {
 		t.Errorf("New() = %q", c)
 	} else if _, err := Parse(c.String()); err != nil {
@@ -35,14 +45,14 @@ func TestParse(t *testing.T) {
 }
 
 func TestDeriveIsStable(t *testing.T) {
-	a, b, other := Derive("7K3Q9P"), Derive("7K3Q9P"), Derive("7K3Q9Q")
+	a, b, other := Derive("7K3Q9PXM"), Derive("7K3Q9PXM"), Derive("7K3Q9PXN")
 	if !a.Node.Equal(b.Node) || a.PSK != b.PSK {
 		t.Fatal("same code gave different keys")
 	}
 	if a.Node.Equal(other.Node) || a.PSK == other.PSK {
 		t.Fatal("different codes gave the same keys")
 	}
-	first, second := Addr("7K3Q9P", 303), Addr("7K3Q9P", 303)
+	first, second := Addr("7K3Q9PXM", 303), Addr("7K3Q9PXM", 303)
 	if first != second {
 		t.Fatal("same code gave different addresses")
 	}

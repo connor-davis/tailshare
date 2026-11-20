@@ -1,7 +1,7 @@
 # Tailshare
 
 Tailshare is a desktop app for sending files between two computers. One side
-shows a 6-character code like `7K3-Q9P`, the other types it in, and both get
+shows an 8-character code like `7K3Q-9PXM`, the other types it in, and both get
 an FTP-style two-pane view of each other's shared folder, a transfer queue and
 a chat. It replaces `connor-davis/peershare`.
 
