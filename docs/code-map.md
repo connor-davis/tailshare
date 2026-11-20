@@ -92,10 +92,17 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | --- | --- |
 | npm workspace, task graph, shared compiler/format/lint rules | `web/package.json`, `web/turbo.json`, `web/tsconfig.json`, `web/prettier.config.js`, `web/eslint.config.js` |
 | Desktop commands and isolated build targets | `package.json`, `electron.vite.config.ts`, `tsconfig*.json` |
-| Windows installer, packaged sidecar and placeholder icon | `electron-builder.yml`, `build/icon.ico` |
-| Ordered release build and sidecar version from desktop package metadata | root `Taskfile.yml` (`dist`, `build`) |
+| Windows installer, packaged sidecar, app identity and GitHub update feed | `electron-builder.yml`, `src/main/index.ts` |
+| Ordered publish-free builds, version/channel overrides and pinned staticcheck | root `Taskfile.yml` (`dist`, `build`, `icons`, `vet`) |
+| SVG to verified multi-size ICO and app/tray PNGs | `scripts/export-icons.mjs`, `build/logo.svg`, `build/icon.ico`, `build/icon.png`, `build/tray-16.png`, `build/tray-32.png` |
+| Packaged update lifecycle, channel checks, download events and sidecar-safe installation | `src/main/updater.ts`, `src/main/updater.test.ts` |
+| Atomic JSON desktop preferences in userData, corruption fallback | `src/main/settings.ts`, `src/main/settings.test.ts` |
+| Settings/update sender and argument guards, typed request/event bridge | `src/main/ipc.ts`, `src/shared/ipc-schema.ts`, `src/shared/bridge.ts`, `src/preload/index.ts` |
+| Connect-screen Updates card, Stable/Nightly choice and restart action | `src/renderer/src/routes/-components/updates-card.tsx`, `updates-card.test.tsx` beside it |
+| Windows CI and source-branch enforcement | root `.github/workflows/ci.yml`, `.github/workflows/branch-flow.yml` |
+| Stable releases from main and versioned nightly prereleases from develop | root `.github/workflows/release.yml`, `.github/workflows/nightly.yml` |
 | Installer build instructions, unsigned builds and firewall guidance | `README.md` |
-| Windows package smoke evidence and two-PC transfer proof runbook | root `project/delivery/tailshare-v1-proof.md` |
+| Windows package smoke evidence and owner-confirmed two-PC proof closure | root `project/delivery/tailshare-v1-proof.md` |
 | Electron lifecycle and wiring (quit waits for the sidecar to stop) | `src/main/index.ts` |
 | Window options, navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
@@ -118,7 +125,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Session screen: two panes, transfer dock, chat sheet | `src/renderer/src/routes/session.tsx`, `src/renderer/src/routes/session/-components/` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |
-| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`breadcrumb.tsx`, `button.tsx`, `context-menu.tsx`, `input.tsx`, `label.tsx`, `resizable.tsx`, `sheet.tsx`, `table.tsx`) |
+| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`breadcrumb.tsx`, `button.tsx`, `card.tsx`, `select.tsx`, `context-menu.tsx`, `input.tsx`, `label.tsx`, `resizable.tsx`, `sheet.tsx`, `table.tsx`) |
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |
 
 ## Transfers

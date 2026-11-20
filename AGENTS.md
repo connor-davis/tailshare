@@ -88,10 +88,14 @@ The rules are in [docs/style-guide.md](docs/style-guide.md). In short:
 
 ## Work rules
 
-- Branches are `<initials>/<type>-<slug>` off `main` (for example
-  `cd/feat-transfers`). Every change lands through a PR into `main` with a
+- Branches are `connor_davis/<name>` off `develop`. Changes land through PRs:
+  `connor_davis/*` into `develop`, then `develop` into `main`, with a
   pr-evidence body (`/pr-evidence:pr-evidence`). The owner merges; agents
-  never merge unless told to.
+  never merge unless told to. Merging into `main` publishes a stable release
+  when the desktop version has no release yet. Pushes to `develop` publish
+  nightly prereleases. Never commit a generated nightly version.
+- Required checks are CI `check` and Branch flow `branch-flow`. Run `task check`
+  before every PR. Local `task dist` never publishes.
 - No git worktrees on this machine. Containers, if ever needed, run through
   Kiri's `docker`.
 - Changing the code alphabet, the Argon2 settings or the salt in

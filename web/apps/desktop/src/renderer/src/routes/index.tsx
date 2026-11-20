@@ -5,6 +5,7 @@ import { useSession } from "@/lib/api/session"
 import { FolderRow } from "./-components/folder-row"
 import { HostCard } from "./-components/host-card"
 import { JoinCard } from "./-components/join-card"
+import { UpdatesCard } from "./-components/updates-card"
 
 /** The connect screen: pick a folder, then host a code or join with one. */
 export const Route = createFileRoute("/")({
@@ -84,6 +85,7 @@ function Page({ children }: { children: React.ReactNode }) {
     <main className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center gap-4 p-8">
       <h1 className="text-xl font-semibold">Tailshare</h1>
       {children}
+      <UpdatesCard />
     </main>
   )
 }

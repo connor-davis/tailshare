@@ -1,0 +1,66 @@
+name: Nightly
+on:
+  push:
+    branches: [develop]
+permissions:
+  contents: write
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+jobs:
+  nightly:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GOFLAGS: -p=1
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.22.2
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Task
+        shell: pwsh
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.54.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$(go env GOPATH)/bin" >> $env:GITHUB_PATH
+      - run: npm ci
+        working-directory: web
+      - name: Compute nightly version
+        id: version
+        shell: pwsh
+        run: |
+          $base = (Get-Content web/apps/desktop/package.json -Raw | ConvertFrom-Json).version
+          if ($base -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw 'Expected a stable base version.' }
+          $patch = [int]$Matches[3] + 1
+          $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmm')
+          "value=$($Matches[1]).$($Matches[2]).$patch-nightly.$stamp" >> $env:GITHUB_OUTPUT
+      - name: Build without publishing
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: task dist VERSION=$env:VERSION CHANNEL=nightly
+      - name: Publish nightly prerelease
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          # Builder's GitHub manifest uses safe names with hyphens.
+          $installer = "Tailshare-Setup-$env:VERSION.exe"
+          Copy-Item -LiteralPath "dist/Tailshare Setup $env:VERSION.exe" -Destination "dist/$installer"
+          Copy-Item -LiteralPath "dist/Tailshare Setup $env:VERSION.exe.blockmap" -Destination "dist/$installer.blockmap"
+          if (!(Select-String -LiteralPath dist/nightly.yml -SimpleMatch "path: $installer")) {
+            throw 'Installer name does not match the update manifest.'
+          }
+          $assets = @("dist/$installer", "dist/$installer.blockmap", 'dist/nightly.yml')
+          foreach ($asset in $assets) {
+            if (!(Test-Path -LiteralPath $asset)) { throw "Missing nightly asset: $asset" }
+          }
+          gh release create "v$env:VERSION" --target $env:RELEASE_SHA --title "Tailshare $env:VERSION" --prerelease --latest=false --generate-notes @assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

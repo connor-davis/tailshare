@@ -1,5 +1,5 @@
 import { Effect, Layer } from "effect"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ConnectionInfo } from "../shared/bridge"
 import {
   CHANNELS,
@@ -8,8 +8,10 @@ import {
   NoArgs,
   SidecarStatusSchema,
 } from "../shared/ipc-schema"
-import { check, registerIpc, type IpcHost } from "./ipc"
+import { check, registerIpc, registerUpdateIpc, type IpcHost } from "./ipc"
 import { Sidecar } from "./sidecar"
+import type { SettingsStore } from "./settings"
+import type { UpdateController } from "./updater"
 
 const GOOD: ConnectionInfo = {
   baseUrl: "http://127.0.0.1:4000",
@@ -61,6 +63,89 @@ describe("IPC schemas", () => {
   it("accepts no arguments and refuses extras", async () => {
     expect(await valid(NoArgs, [])).toBe(true)
     expect(await valid(NoArgs, ["--flag"])).toBe(false)
+  })
+})
+
+describe("update IPC", () => {
+  function setupUpdates() {
+    const handlers = new Map<string, Handler>()
+    const settings: SettingsStore = {
+      get: vi.fn(() => ({ updateChannel: "latest" as const })),
+      setUpdateChannel: vi.fn((updateChannel) => ({ updateChannel })),
+    }
+    const updater: UpdateController = {
+      status: vi.fn(() => ({ state: "ready" as const })),
+      setChannel: vi.fn(),
+      restart: vi.fn(async () => {}),
+      stop: vi.fn(),
+    }
+    registerUpdateIpc(
+      {
+        handle: (channel, handler) => {
+          handlers.set(channel, handler)
+        },
+        pickFolder: async () => null,
+      },
+      settings,
+      updater
+    )
+    return {
+      handler: (channel: string) => handlers.get(channel)!,
+      settings,
+      updater,
+    }
+  }
+
+  it("reads preferences and update state and restarts through the controller", async () => {
+    const { handler, updater } = setupUpdates()
+    await expect(handler(CHANNELS.getSettings)(true, [])).resolves.toEqual({
+      updateChannel: "latest",
+    })
+    await expect(handler(CHANNELS.getUpdateStatus)(true, [])).resolves.toEqual({
+      state: "ready",
+    })
+    await handler(CHANNELS.restartToUpdate)(true, [])
+    expect(updater.restart).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    CHANNELS.getSettings,
+    CHANNELS.getUpdateStatus,
+    CHANNELS.restartToUpdate,
+    CHANNELS.setUpdateChannel,
+  ])("rejects other windows and malformed arguments on %s", async (channel) => {
+    const { handler, settings, updater } = setupUpdates()
+    await expect(
+      handler(channel)(
+        false,
+        channel === CHANNELS.setUpdateChannel ? ["nightly"] : []
+      )
+    ).rejects.toThrow("could not answer this window")
+    await expect(handler(channel)(true, ["nightly", "extra"])).rejects.toThrow(
+      "could not read that request"
+    )
+    expect(settings.setUpdateChannel).not.toHaveBeenCalled()
+    expect(updater.restart).not.toHaveBeenCalled()
+  })
+
+  it("saves a valid channel before changing the feed", async () => {
+    const { handler, settings, updater } = setupUpdates()
+    await expect(
+      handler(CHANNELS.setUpdateChannel)(true, ["nightly"])
+    ).resolves.toEqual({ updateChannel: "nightly" })
+    expect(settings.setUpdateChannel).toHaveBeenCalledWith("nightly")
+    expect(updater.setChannel).toHaveBeenCalledWith("nightly")
+    await expect(
+      handler(CHANNELS.setUpdateChannel)(true, ["beta"])
+    ).rejects.toThrow("could not read that request")
+    vi.mocked(settings.setUpdateChannel).mockImplementation(() => {
+      throw new Error("could not save")
+    })
+    vi.mocked(updater.setChannel).mockClear()
+    await expect(
+      handler(CHANNELS.setUpdateChannel)(true, ["latest"])
+    ).rejects.toThrow("could not save")
+    expect(updater.setChannel).not.toHaveBeenCalled()
   })
 })
 
