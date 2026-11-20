@@ -6,10 +6,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -56,19 +54,41 @@ func pair(t *testing.T, hostDir, joinDir string) *testPair {
 		Region:     tailcattest.RegionID,
 		DERPMapURL: tailcattest.ServeMap(t, tailcattest.LocalDERP(t)),
 	}
-	hostSession, code, err := session.Host(ctx, cfg)
+	host := New(openRoot(t, hostDir))
+	join := New(openRoot(t, joinDir))
+	hostSession, code, err := session.Host(ctx, cfg, "Host", session.Options{
+		Root: host.root, Handlers: host.Handlers(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = hostSession.Close() })
-	joinSession, err := session.Join(ctx, code.String(), cfg)
+	allowed := make(chan error, 1)
+	go func() {
+		for {
+			if pending, ok := hostSession.Pending(); ok {
+				allowed <- hostSession.Allow(pending.ID)
+				return
+			}
+			select {
+			case <-hostSession.Changes():
+			case <-ctx.Done():
+				allowed <- ctx.Err()
+				return
+			}
+		}
+	}()
+	joinSession, err := session.Join(ctx, code.String(), cfg, "Joiner", session.Options{
+		Root: join.root, Handlers: join.Handlers(),
+	})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := <-allowed; err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = joinSession.Close() })
 
-	host := New(openRoot(t, hostDir))
-	join := New(openRoot(t, joinDir))
 	result := &testPair{host, join, hostSession, joinSession, hostDir, joinDir, ctx}
 	startPeers(t, result)
 	t.Cleanup(func() { _ = host.Close(); _ = join.Close() })
@@ -77,34 +97,34 @@ func pair(t *testing.T, hostDir, joinDir string) *testPair {
 
 func startPeers(t *testing.T, pair *testPair) {
 	t.Helper()
-	var hostPeer *peer.Peer
-	var hostError error
-	var started sync.WaitGroup
-	started.Go(func() {
-		var conn net.Conn
-		conn, hostError = pair.hostSession.Accept()
-		if hostError == nil {
-			hostPeer, hostError = peer.Start(pair.ctx, conn, peer.Options{
-				DisplayName: "Host", Share: pair.host.root, Handlers: pair.host.Handlers(),
-			})
+	var hostPeer, joinPeer *peer.Peer
+	var hostTunnel, joinTunnel Tunnel
+	for hostPeer == nil {
+		for _, member := range pair.hostSession.Members() {
+			if control, ok := pair.hostSession.Control(member.ID); ok {
+				hostPeer = control
+				hostTunnel, _ = pair.hostSession.Tunnel(member.ID)
+			}
 		}
-	})
-	conn, err := pair.joinSession.Open(pair.ctx)
-	if err != nil {
+		if hostPeer != nil {
+			break
+		}
+		select {
+		case <-pair.hostSession.Changes():
+		case <-pair.ctx.Done():
+			t.Fatal("host peer missing")
+		}
+	}
+	for _, member := range pair.joinSession.Members() {
+		if control, ok := pair.joinSession.Control(member.ID); ok {
+			joinPeer = control
+			joinTunnel, _ = pair.joinSession.Tunnel(member.ID)
+		}
+	}
+	if err := pair.host.Attach(pair.ctx, hostTunnel, hostPeer, true); err != nil {
 		t.Fatal(err)
 	}
-	joinPeer, err := peer.Start(pair.ctx, conn, peer.Options{
-		DisplayName: "Joiner", Share: pair.join.root, Handlers: pair.join.Handlers(),
-	})
-	started.Wait()
-	if err != nil || hostError != nil {
-		t.Fatalf("peers: %v / %v", err, hostError)
-	}
-	t.Cleanup(func() { _ = hostPeer.Close(); _ = joinPeer.Close() })
-	if err := pair.host.Attach(pair.ctx, pair.hostSession, hostPeer, true); err != nil {
-		t.Fatal(err)
-	}
-	if err := pair.join.Attach(pair.ctx, pair.joinSession, joinPeer, false); err != nil {
+	if err := pair.join.Attach(pair.ctx, joinTunnel, joinPeer, false); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -19,6 +19,8 @@ export interface SessionState {
   code?: string
   /** The other computer. Present only while connected. */
   peer?: PeerInfo
+  /** One person waiting for local approval. */
+  join?: { id: number; displayName: string }
 }
 
 /** The folder this computer shares. */

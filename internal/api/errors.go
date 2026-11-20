@@ -77,6 +77,16 @@ func fromRemote(code string) *apperr.Error {
 		return toAppError(share.ErrExists)
 	case peer.CodeDenied:
 		return toAppError(share.ErrDenied)
+	case peer.CodeJoinDenied:
+		return apperr.New(http.StatusForbidden, "join_denied", "The host did not let you join.")
+	case peer.CodeBusy:
+		return apperr.Conflict("busy", "Someone else is joining. Try again shortly.")
+	case peer.CodeShareFull:
+		return apperr.Conflict("share_full", "This share already has eight people.")
+	case peer.CodeJoinFailed:
+		return apperr.Unavailable("Could not connect everyone in the share.")
+	case peer.CodeNotAdmitter:
+		return apperr.Conflict("not_admitter", "This computer cannot admit someone.")
 	case peer.CodeNotSharing:
 		return apperr.Conflict("not_sharing", "That computer is not sharing a folder.")
 	case peer.CodeTooLarge:
@@ -110,6 +120,10 @@ func errUnreachable() *apperr.Error {
 // services already speak in sentences, but a timeout or cancel arrives as
 // Go's own text ("context deadline exceeded"), which must not reach the page.
 func connectError(err error) *apperr.Error {
+	var remote *peer.RemoteError
+	if errors.As(err, &remote) {
+		return fromRemote(remote.Code)
+	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return errUnreachable()
 	}

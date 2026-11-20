@@ -45,3 +45,17 @@ export function useLeave() {
     apiFetch<SessionState>("/api/session", { method: "DELETE" })
   )
 }
+
+/** Approve the current join request. */
+export function useAllowJoin() {
+  return useSessionCall<number>((id) =>
+    apiFetch<SessionState>(`/api/session/joins/${id}/allow`, { method: "POST" })
+  )
+}
+
+/** Refuse the current join request. */
+export function useDenyJoin() {
+  return useSessionCall<number>((id) =>
+    apiFetch<SessionState>(`/api/session/joins/${id}/deny`, { method: "POST" })
+  )
+}

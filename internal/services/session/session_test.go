@@ -6,28 +6,24 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/Polyphron-AI/tailshare/internal/platform/config"
 	"github.com/Polyphron-AI/tailshare/internal/services/codes"
+	"github.com/Polyphron-AI/tailshare/internal/services/peer"
 	"github.com/Polyphron-AI/tailshare/internal/testsupport/tailcattest"
-	"github.com/tailscale/tailcat"
-	"tailscale.com/types/key"
 )
 
-func TestMain(m *testing.M) {
-	tailcattest.Init()
-
-	os.Exit(m.Run())
-}
+func TestMain(tests *testing.M) { tailcattest.Init(); os.Exit(tests.Run()) }
 
 func localSettings(t *testing.T) settings {
 	t.Helper()
-	derpMap := tailcattest.LocalDERP(t)
+	relay := tailcattest.LocalDERP(t)
 	return settings{
-		regionID: tailcattest.RegionID, region: derpMap.Regions[tailcattest.RegionID],
-		derpMap: derpMap, expiry: 10 * time.Minute,
+		regionID: tailcattest.RegionID, region: relay.Regions[tailcattest.RegionID], derpMap: relay,
+		expiry: 10 * time.Minute, name: "Member", allowWindow: time.Minute, lostGrace: 300 * time.Millisecond,
 	}
 }
 
@@ -41,58 +37,126 @@ func startHost(t *testing.T, options settings) (*Session, codes.Code) {
 	return session, code
 }
 
-func connectJoiner(t *testing.T, code codes.Code, options settings) *Session {
+type joinResult struct {
+	session *Session
+	err     error
+}
+
+func startMember(t *testing.T, ctx context.Context, code codes.Code, options settings) <-chan joinResult {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	results := make(chan joinResult, 1)
+	go func() {
+		session, err := join(ctx, code.String(), options)
+		results <- joinResult{session, err}
+	}()
+	return results
+}
+
+func receiveJoin(t *testing.T, results <-chan joinResult) joinResult {
+	t.Helper()
+	select {
+	case result := <-results:
+		if result.session != nil {
+			t.Cleanup(func() { _ = result.session.Close() })
+		}
+		return result
+	case <-time.After(45 * time.Second):
+		t.Fatal("join did not finish")
+		return joinResult{}
+	}
+}
+
+func waitState(t *testing.T, session *Session, predicate func() bool) {
+	t.Helper()
+	_, caller, line, _ := runtime.Caller(1)
+	deadline := time.NewTimer(40 * time.Second)
+	defer deadline.Stop()
+	for !predicate() {
+		select {
+		case <-session.Changes():
+		case <-session.Done():
+			if !predicate() {
+				t.Fatal("session closed before expected state")
+			}
+		case <-deadline.C:
+			t.Fatalf("state did not arrive at %s:%d; members=%+v", caller, line, session.Members())
+		}
+	}
+}
+
+func waitPending(t *testing.T, session *Session) PendingJoin {
+	t.Helper()
+	var pending PendingJoin
+	waitState(t, session, func() bool { var ok bool; pending, ok = session.Pending(); return ok })
+	return pending
+}
+
+func connectJoiner(t *testing.T, host *Session, code codes.Code, options settings) *Session {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
 	defer cancel()
-	session, err := join(ctx, code.String(), options)
+	results := startMember(t, ctx, code, options)
+	pending := waitPending(t, host)
+	if err := host.Allow(pending.ID); err != nil {
+		t.Fatal(err)
+	}
+	result := receiveJoin(t, results)
+	if result.err != nil {
+		t.Fatal(result.err)
+	}
+	id := result.session.mesh.Self().ID
+	waitState(t, host, func() bool { _, ok := host.Control(id); return ok })
+	waitState(t, host, func() bool {
+		host.mu.Lock()
+		defer host.mu.Unlock()
+		return host.gate == nil
+	})
+	return result.session
+}
+
+func dataPair(t *testing.T, dialer, acceptor *Session) (net.Conn, net.Conn) {
+	t.Helper()
+	outgoingTunnel, ok := dialer.Tunnel(acceptor.mesh.Self().ID)
+	if !ok {
+		t.Fatal("outgoing tunnel missing")
+	}
+	incomingTunnel, ok := acceptor.Tunnel(dialer.mesh.Self().ID)
+	if !ok {
+		t.Fatal("incoming tunnel missing")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	outgoing, err := outgoingTunnel.Open(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = session.Close() })
-	return session
+	t.Cleanup(func() { _ = outgoing.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() { conn, _ := incomingTunnel.Accept(); accepted <- conn }()
+	select {
+	case incoming := <-accepted:
+		if incoming == nil {
+			t.Fatal("incoming tunnel closed")
+		}
+		t.Cleanup(func() { _ = incoming.Close() })
+		return outgoing, incoming
+	case <-ctx.Done():
+		t.Fatal("data stream did not arrive")
+		return nil, nil
+	}
 }
 
-func TestHostJoinRekey(t *testing.T) {
+func TestAllowLinksTwoMembers(t *testing.T) {
 	options := localSettings(t)
 	host, code := startHost(t, options)
-	joiner := connectJoiner(t, code, options)
-
-	for i := 0; i < 2; i++ {
-		outgoing, err := joiner.Open(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
-		incoming, err := host.Accept()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		host.mu.Lock()
-		peer, ok := peerKey(host.server, incoming.RemoteAddr())
-		status, authenticated := host.server.Status().Peer[joiner.client.PublicKey()]
-		host.mu.Unlock()
-		if !authenticated {
-			t.Fatal("Status().Peer did not contain the admitted joiner's key")
-		}
-		if len(status.TailscaleIPs) != 0 && (!ok || peer != joiner.client.PublicKey()) {
-			t.Fatal("Status().Peer did not identify the joiner by its Tailscale IP")
-		}
-
+	joiner := connectJoiner(t, host, code, options)
+	if len(host.Members()) != 2 || len(joiner.Members()) != 2 {
+		t.Fatal("missing members")
+	}
+	for range 2 {
+		outgoing, incoming := dataPair(t, joiner, host)
 		exchange(t, outgoing, incoming, "hello host")
 		exchange(t, incoming, outgoing, "hello joiner")
-		_ = outgoing.Close()
-		_ = incoming.Close()
-	}
-
-	if err := host.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := host.Accept(); !errors.Is(err, net.ErrClosed) {
-		t.Fatalf("Accept after Close: %v", err)
-	}
-	if err := host.Close(); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -118,166 +182,27 @@ func exchange(t *testing.T, sender, receiver net.Conn, message string) {
 	}
 }
 
-func TestOldAddressRefusedAfterRekey(t *testing.T) {
-	options := localSettings(t)
-	host, code := startHost(t, options)
-	joiner := connectJoiner(t, code, options)
-
-	// Drain the first application stream so the new listener can accept more streams.
-	stream, err := host.Accept()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stream.Close()
-
-	// The ack is sent before Join returns; wait for the host to retire its old server.
-	select {
-	case <-host.bootstrapDone:
-	// CI runners are slow, so allow more than a desktop needs.
-	case <-time.After(30 * time.Second):
-		t.Fatal("bootstrap server was not retired")
-	}
-
-	address, err := codes.Addr(code, 1).Resolve(t.Context(), options.derpMap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	client := tailcat.NewClient(address)
-	client.Key = key.NewNode()
-	client.Logf = quietLog
-	defer client.Close()
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	if conn, err := client.DialTCPPort(ctx, sessionPort); err == nil {
-		_ = conn.Close()
-		t.Fatal("old code still accepted a new client")
-	}
-
-	// The new address must also refuse a different identity, even if it knows the address.
-	intruder := tailcat.NewClient(joiner.client.Server)
-	intruder.Key = key.NewNode()
-	intruder.Logf = quietLog
-	defer intruder.Close()
-	ctx, cancel = context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	if conn, err := intruder.DialTCPPort(ctx, sessionPort); err == nil {
-		_ = conn.Close()
-		t.Fatal("rekeyed server accepted a different identity")
-	}
-}
-
-func TestSecondJoinerRejected(t *testing.T) {
-	options := localSettings(t)
-	_, code := startHost(t, options)
-	_ = connectJoiner(t, code, options)
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	if session, err := join(ctx, code.String(), options); err == nil {
-		_ = session.Close()
-		t.Fatal("second joiner was admitted")
+func TestJoinBadCode(t *testing.T) {
+	if _, err := Join(t.Context(), "nope", config.Config{}, "Name", Options{}); !errors.Is(err, codes.ErrInvalid) {
+		t.Fatalf("Join invalid code: %v", err)
 	}
 }
 
 func TestCodeExpires(t *testing.T) {
 	options := localSettings(t)
-	options.expiry = 500 * time.Millisecond
+	options.expiry = 100 * time.Millisecond
 	host, code := startHost(t, options)
-
 	select {
-	case <-host.done:
+	case <-host.Done():
 	case <-time.After(3 * time.Second):
 		t.Fatal("unused code did not expire")
 	}
-	if _, err := host.Accept(); !errors.Is(err, net.ErrClosed) {
-		t.Fatalf("Accept after expiry: %v", err)
-	}
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if session, err := join(ctx, code.String(), options); err == nil {
-		_ = session.Close()
+	result := receiveJoin(t, startMember(t, ctx, code, options))
+	if result.err == nil {
 		t.Fatal("expired code admitted a joiner")
 	}
-}
-
-func TestRekeyAddrDiffers(t *testing.T) {
-	options := localSettings(t)
-	_, code := startHost(t, options)
-	joiner := connectJoiner(t, code, options)
-	oldInfo, err := tailcat.ParseAddr(codes.Addr(code, 1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	newInfo, err := tailcat.ParseAddr(joiner.client.Server)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if oldInfo.ServerPublic == newInfo.ServerPublic || oldInfo.PresharedKey == newInfo.PresharedKey {
-		t.Fatal("rekey did not replace both the node key and pre-shared key")
-	}
-}
-
-func TestJoinBadCode(t *testing.T) {
-	if _, err := Join(t.Context(), "nope", config.Config{}); !errors.Is(err, codes.ErrInvalid) {
-		t.Fatalf("Join invalid code: %v", err)
-	}
-}
-
-func TestCompetingJoiners(t *testing.T) {
-	options := localSettings(t)
-	_, code := startHost(t, options)
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-	results := make(chan *Session, 2)
-	start := make(chan struct{})
-
-	for i := 0; i < 2; i++ {
-		go func() {
-			<-start
-			session, _ := join(ctx, code.String(), options)
-			results <- session
-		}()
-	}
-	close(start)
-
-	admitted := 0
-	for i := 0; i < 2; i++ {
-		if session := <-results; session != nil {
-			admitted++
-			_ = session.Close()
-		}
-	}
-	if admitted != 1 {
-		t.Fatalf("admitted %d competing joiners, want 1", admitted)
-	}
-}
-
-func TestAdmissionStopsExpiry(t *testing.T) {
-	options := localSettings(t)
-	options.expiry = 2 * time.Second
-	host, code := startHost(t, options)
-	joiner := connectJoiner(t, code, options)
-
-	select {
-	case <-host.done:
-		t.Fatal("admitted session closed when its code expired")
-	case <-time.After(options.expiry):
-	}
-
-	outgoing, err := joiner.Open(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer outgoing.Close()
-	incoming, err := host.Accept()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer incoming.Close()
-	exchange(t, outgoing, incoming, "still connected")
 }
 
 func TestHostContextClosesSession(t *testing.T) {
@@ -290,23 +215,17 @@ func TestHostContextClosesSession(t *testing.T) {
 	}
 	defer host.Close()
 	cancel()
-
 	select {
-	case <-host.done:
+	case <-host.Done():
 	case <-time.After(3 * time.Second):
-		t.Fatal("canceling the host context did not close its listener")
+		t.Fatal("host context did not close session")
 	}
 }
 
-func TestRekeyReadCanceled(t *testing.T) {
-	local, remote := net.Pipe()
-	defer local.Close()
-	defer remote.Close()
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	if session, err := rekeyJoin(ctx, local, key.NewNode()); err == nil {
-		_ = session.Close()
-		t.Fatal("canceled bootstrap handshake succeeded")
+func assertRemoteCode(t *testing.T, err error, code string) {
+	t.Helper()
+	var remote *peer.RemoteError
+	if !errors.As(err, &remote) || remote.Code != code {
+		t.Fatalf("error=%v, want %s", err, code)
 	}
 }

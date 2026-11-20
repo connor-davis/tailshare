@@ -36,6 +36,7 @@ type Mesh struct {
 	controls  map[string]*peer.Peer
 	incoming  map[string]map[net.Conn]struct{}
 	outgoing  map[string]*Link
+	tunnels   map[string]*Tunnel
 	expiry    map[string]*time.Timer
 	pending   *Admission
 	closed    bool
@@ -75,6 +76,7 @@ func New(ctx context.Context, options Options) (*Mesh, error) {
 		expected: make(map[key.NodePublic]string), used: make(map[key.NodePublic]bool),
 		expiry: make(map[string]*time.Timer), incoming: make(map[string]map[net.Conn]struct{}),
 		controls: make(map[string]*peer.Peer), outgoing: make(map[string]*Link),
+		tunnels: make(map[string]*Tunnel),
 	}
 	mesh.mu.Lock()
 	mesh.stop = context.AfterFunc(ctx, func() { _ = mesh.Close() })
@@ -181,6 +183,10 @@ func (mesh *Mesh) removeLocked(id string) {
 		_ = conn.Close()
 	}
 	delete(mesh.incoming, id)
+	if tunnel := mesh.tunnels[id]; tunnel != nil {
+		close(tunnel.done)
+		delete(mesh.tunnels, id)
+	}
 	for public, memberID := range mesh.expected {
 		if memberID == id {
 			delete(mesh.expected, public)
@@ -220,6 +226,11 @@ func (mesh *Mesh) Close() error {
 	for id := range mesh.expiry {
 		mesh.confirmLocked(id)
 	}
+	for id := range mesh.members {
+		if id != mesh.self.ID {
+			mesh.removeLocked(id)
+		}
+	}
 	for _, link := range mesh.outgoing {
 		_ = link.Close()
 	}
@@ -231,3 +242,10 @@ func (mesh *Mesh) Close() error {
 const LinkTimeout = 15 * time.Second
 
 func quietLog(string, ...any) {}
+
+// IsAdmitter reports whether this member has the lowest join order, the one that admits.
+func (mesh *Mesh) IsAdmitter() bool {
+	mesh.mu.Lock()
+	defer mesh.mu.Unlock()
+	return !mesh.closed && mesh.admitterLocked() == mesh.self.ID
+}

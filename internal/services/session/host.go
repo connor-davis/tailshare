@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/netip"
 	"time"
@@ -14,76 +13,77 @@ import (
 	"tailscale.com/types/key"
 )
 
-// Host returns a new code and listens for its first joiner. An unused code expires
-// after ten minutes. The context controls the lifetime of the returned session.
-func Host(ctx context.Context, cfg config.Config) (*Session, codes.Code, error) {
-	return host(ctx, settings{regionID: cfg.Region, mapURL: cfg.DERPMapURL, expiry: 10 * time.Minute})
+// Host starts a share with a ten-minute unused code expiry. The context owns its lifetime.
+func Host(ctx context.Context, cfg config.Config, name string, options Options) (*Session, codes.Code, error) {
+	return host(ctx, settings{
+		regionID: cfg.Region, mapURL: cfg.DERPMapURL, expiry: 10 * time.Minute,
+		name: name, options: options, allowWindow: allowWindow, lostGrace: lostGrace,
+	})
 }
 
 func host(ctx context.Context, options settings) (*Session, codes.Code, error) {
 	code := codes.New()
-	keys := codes.Derive(code)
+	session, err := newSession(ctx, options, code)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := session.startCodeServer(); err != nil {
+		_ = session.Close()
+		return nil, "", err
+	}
+
+	session.mu.Lock()
+	if !session.closed && options.expiry > 0 {
+		session.timer = time.AfterFunc(options.expiry, func() { _ = session.Close() })
+	}
+	session.mu.Unlock()
+	return session, code, nil
+}
+
+func (session *Session) startCodeServer() error {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.closed {
+		return net.ErrClosed
+	}
+	if session.server != nil || !session.mesh.IsAdmitter() {
+		return nil
+	}
+
+	keys := codes.Derive(session.code)
+	options := session.settings
 	server := &tailcat.Server{
 		Key: keys.Node, PresharedKey: keys.PSK,
 		Region: options.region, RegionID: options.regionID, DERPMapURL: options.mapURL,
 		Logf: quietLog,
 	}
-
-	listener, err := server.Listen(ctx, "tcp", fmt.Sprintf(":%d", sessionPort))
+	// The code server stays open to strangers; only local Allow grants mesh access.
+	listener, err := server.Listen(session.ctx, "tcp", ":80")
 	if err != nil {
 		_ = server.Close()
-		return nil, "", errors.New("Could not start sharing on this computer.")
+		return errors.New("Could not start sharing on this computer.")
 	}
-
-	session, lifetime := newSession(ctx)
-	session.mu.Lock()
-	session.server = server
-	session.listener = listener
-	session.bootstrapDone = make(chan struct{})
-	session.timer = time.AfterFunc(options.expiry, func() { _ = session.Close() })
-	session.mu.Unlock()
-
-	go func() {
-		<-lifetime.Done()
-		_ = session.Close()
-	}()
-
-	go session.admit(lifetime, server, listener)
-	return session, code, nil
+	session.server, session.listener = server, listener
+	go session.acceptJoins(server, listener)
+	session.changedLocked()
+	return nil
 }
 
-func (session *Session) admit(ctx context.Context, server *tailcat.Server, listener net.Listener) {
-	defer close(session.bootstrapDone)
-
+func (session *Session) acceptJoins(server *tailcat.Server, listener net.Listener) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-
-		peer, ok := readJoiner(ctx, server, conn)
-		if !ok {
-			_ = conn.Close()
-			continue
-		}
-
 		session.mu.Lock()
 		if session.closed {
 			session.mu.Unlock()
 			_ = conn.Close()
 			return
 		}
-
-		// A single accept loop chooses the winner before any other stream is admitted.
-		server.AddAllowedClient(peer)
-		session.timer.Stop()
-		session.bootstrap = conn
+		session.bootstraps[conn] = struct{}{}
 		session.mu.Unlock()
-
-		if err := session.rekeyHost(ctx, server, conn, peer); err != nil {
-			_ = session.Close()
-		}
-		return
+		go session.admitStream(server, conn)
 	}
 }
 

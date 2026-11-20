@@ -2,9 +2,11 @@ package mesh
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 
 	"github.com/tailscale/tailcat"
 	"tailscale.com/types/key"
@@ -39,10 +41,28 @@ func (link *Link) PublicKey() string {
 
 // Open opens a stream with a deadline even when Tailcat silently ignores the key.
 func (link *Link) Open(ctx context.Context) (net.Conn, error) {
+	return link.open(ctx, 'D')
+}
+
+func (link *Link) open(ctx context.Context, kind byte) (net.Conn, error) {
 	bounded, cancel := context.WithTimeout(ctx, LinkTimeout)
 	defer cancel()
 
-	return link.client.DialTCPPort(bounded, 80)
+	conn, err := link.client.DialTCPPort(bounded, 80)
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	if limit, ok := bounded.Deadline(); ok && limit.Before(deadline) {
+		deadline = limit
+	}
+	_ = conn.SetWriteDeadline(deadline)
+	if _, err := conn.Write([]byte{kind}); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	_ = conn.SetWriteDeadline(time.Time{})
+	return conn, nil
 }
 
 // Close stops only this link's client and streams.
@@ -65,7 +85,7 @@ func (mesh *Mesh) Dial(ctx context.Context, id string, link *Link) (net.Conn, er
 	mesh.outgoing[id] = link
 	mesh.mu.Unlock()
 
-	conn, err := link.Open(ctx)
+	conn, err := link.open(ctx, 'C')
 	if err != nil {
 		mesh.mu.Lock()
 		if mesh.outgoing[id] == link {
@@ -97,19 +117,50 @@ func (mesh *Mesh) Accept() (string, net.Conn, error) {
 		}
 		mesh.mu.Lock()
 		id := mesh.identityLocked(conn.RemoteAddr())
-		if id != "" {
-			mesh.confirmLocked(id)
-			if mesh.incoming[id] == nil {
-				mesh.incoming[id] = make(map[net.Conn]struct{})
-			}
-			mesh.incoming[id][conn] = struct{}{}
-		}
 		mesh.mu.Unlock()
 		if id == "" {
 			_ = conn.Close()
 			continue
 		}
-		return id, &acceptedStream{Conn: conn, mesh: mesh, id: id}, nil
+
+		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		var prefix [1]byte
+		_, err = io.ReadFull(conn, prefix[:])
+		_ = conn.SetReadDeadline(time.Time{})
+		if err != nil || (prefix[0] != 'C' && prefix[0] != 'D') {
+			_ = conn.Close()
+			continue
+		}
+
+		mesh.mu.Lock()
+		if mesh.identityLocked(conn.RemoteAddr()) != id {
+			mesh.mu.Unlock()
+			_ = conn.Close()
+			continue
+		}
+		if mesh.incoming[id] == nil {
+			mesh.incoming[id] = make(map[net.Conn]struct{})
+		}
+		mesh.incoming[id][conn] = struct{}{}
+		stream := &acceptedStream{Conn: conn, mesh: mesh, id: id}
+		if prefix[0] == 'C' {
+			// Only one control stream may bind a member's identity.
+			if mesh.controls[id] != nil {
+				mesh.mu.Unlock()
+				_ = stream.Close()
+				continue
+			}
+			mesh.mu.Unlock()
+			return id, stream, nil
+		}
+		tunnel := mesh.tunnelLocked(id)
+		select {
+		case tunnel.incoming <- stream:
+			mesh.mu.Unlock()
+		default:
+			mesh.mu.Unlock()
+			_ = stream.Close()
+		}
 	}
 }
 

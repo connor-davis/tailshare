@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Polyphron-AI/tailshare/internal/services/peer"
-	"github.com/Polyphron-AI/tailshare/internal/services/session"
 	"github.com/Polyphron-AI/tailshare/internal/services/share"
 )
 
@@ -42,11 +41,17 @@ type job struct {
 	last    time.Time
 }
 
+// Tunnel is one member's data stream link. Only the dialer opens streams.
+type Tunnel interface {
+	Open(context.Context) (net.Conn, error)
+	Accept() (net.Conn, error)
+}
+
 // Manager owns one session's transfers and the shared folder used in both directions.
 type Manager struct {
 	mu          sync.Mutex
 	root        *share.Root
-	session     *session.Session
+	tunnel      Tunnel
 	peer        *peer.Peer
 	host        bool
 	ctx         context.Context
@@ -86,14 +91,14 @@ func (manager *Manager) Handlers() map[string]peer.Handler {
 }
 
 // Attach connects the manager after hello; host is true on the accepting computer.
-func (manager *Manager) Attach(ctx context.Context, tunnel *session.Session, conversation *peer.Peer, host bool) error {
+func (manager *Manager) Attach(ctx context.Context, tunnel Tunnel, conversation *peer.Peer, host bool) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	if manager.attached || manager.closed {
 		return errInvalid
 	}
 
-	manager.session, manager.peer, manager.host = tunnel, conversation, host
+	manager.tunnel, manager.peer, manager.host = tunnel, conversation, host
 	manager.attached = true
 	subscription := conversation.Subscribe()
 	go manager.events(subscription)

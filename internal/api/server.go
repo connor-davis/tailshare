@@ -136,6 +136,8 @@ func (server *Server) routes() {
 	api.Post("/session/host", server.hostSession)
 	api.Post("/session/join", server.joinSession)
 	api.Delete("/session", server.leaveSession)
+	api.Post("/session/joins/:id/allow", server.allowJoin)
+	api.Post("/session/joins/:id/deny", server.denyJoin)
 
 	api.Put("/folder", server.putFolder)
 	api.Get("/files/local", server.localFiles)

@@ -135,9 +135,11 @@ func TestThreeMembersUseDistinctLinks(t *testing.T) {
 	}
 	defer outgoing.Close()
 
-	id, incoming, err := host.Accept()
-	if err != nil || id != third.Self().ID {
-		t.Fatalf("data accept = %s, %v", id, err)
+	go func() { _, _, _ = host.Accept() }()
+	tunnel, _ := host.Tunnel(third.Self().ID)
+	incoming, err := tunnel.Accept()
+	if err != nil {
+		t.Fatalf("data accept = %v", err)
 	}
 	defer incoming.Close()
 
@@ -236,6 +238,9 @@ func TestMeshLinkNeedsExpectedKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
+	if _, err := conn.Write([]byte{'C'}); err != nil {
+		t.Fatal(err)
+	}
 
 	select {
 	case id := <-accepted:
@@ -267,6 +272,9 @@ func TestRemovedKeyCannotOpenNewStreams(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer outgoing.Close()
+	if _, err := outgoing.Write([]byte{'C'}); err != nil {
+		t.Fatal(err)
+	}
 
 	_, incoming, err := host.Accept()
 	if err != nil {
@@ -310,5 +318,113 @@ func TestNewMeshDoesNotAllowUnlistedClients(t *testing.T) {
 	_, err := client.Ping(ctx)
 	if err == nil || time.Since(started) < 900*time.Millisecond {
 		t.Fatalf("new mesh answered an unlisted key before first admission: %v", err)
+	}
+}
+
+func TestDataStreamsReachCorrectMember(t *testing.T) {
+	relay := tailcattest.LocalDERP(t)
+	host := localMesh(t, relay, "Host")
+	second := localMesh(t, relay, "Second")
+	third := localMesh(t, relay, "Third")
+	secondLinks := prepareJoin(t, host, second)
+	connectControl(t, second, host, secondLinks[host.Self().ID])
+	thirdLinks := prepareJoin(t, host, third)
+	connectControl(t, third, host, thirdLinks[host.Self().ID])
+	go func() { _, _, _ = host.Accept() }()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	for _, entry := range []struct {
+		member *Mesh
+		link   *Link
+	}{
+		{second, secondLinks[host.Self().ID]}, {third, thirdLinks[host.Self().ID]},
+	} {
+		outgoing, err := entry.link.Open(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer outgoing.Close()
+		tunnel, _ := host.Tunnel(entry.member.Self().ID)
+		accepted := make(chan net.Conn, 1)
+		go func() { conn, _ := tunnel.Accept(); accepted <- conn }()
+		select {
+		case incoming := <-accepted:
+			if incoming == nil {
+				t.Fatal("member queue closed")
+			}
+			exchange(t, outgoing, incoming)
+			_ = incoming.Close()
+		case <-ctx.Done():
+			t.Fatal("data sent to wrong member")
+		}
+	}
+}
+
+func TestMalformedPrefixAndFullQueueClosed(t *testing.T) {
+	host := localMesh(t, nil, "Host")
+	joiner := member("Joiner", 2)
+	private := key.NewNode()
+	if _, err := host.Handlers(host.Self().ID)[peer.MethodShareAdmit](
+		t.Context(), raw(admissionPayload(joiner, private.Public().String())),
+	); err != nil {
+		t.Fatal(err)
+	}
+	client := echoClient(t, host.server, private)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		for {
+			_, conn, err := host.Accept()
+			if err != nil {
+				return
+			}
+			select {
+			case accepted <- conn:
+			case <-ctx.Done():
+				_ = conn.Close()
+				return
+			}
+		}
+	}()
+	open := func(prefix byte) net.Conn {
+		t.Helper()
+		conn, err := client.DialTCPPort(ctx, 80)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = conn.Close() })
+		_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+		if _, err := conn.Write([]byte{prefix}); err != nil {
+			t.Fatal(err)
+		}
+		return conn
+	}
+	malformed := open('X')
+	if _, err := malformed.Read(make([]byte, 1)); err != io.EOF {
+		t.Fatalf("bad prefix survived: %v", err)
+	}
+	for range 8 {
+		_ = open('D')
+		// A following control stream is a barrier for the accept dispatch loop.
+		_ = open('C')
+		select {
+		case conn := <-accepted:
+			_ = conn.Close()
+		case <-ctx.Done():
+			t.Fatal("dispatch barrier did not arrive")
+		}
+	}
+	excess := open('D')
+	if _, err := excess.Read(make([]byte, 1)); err != io.EOF {
+		t.Fatalf("full queue accepted excess: %v", err)
+	}
+	tunnel, _ := host.Tunnel(joiner.ID)
+	if len(tunnel.incoming) != 8 {
+		t.Fatalf("queued %d streams", len(tunnel.incoming))
+	}
+	_ = host.Remove(joiner.ID)
+	if _, err := tunnel.Accept(); err != net.ErrClosed {
+		t.Fatalf("removed tunnel Accept: %v", err)
 	}
 }

@@ -35,10 +35,7 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 
 	hosted := host.send("POST", "/api/session/host", nil)
 	hosted.expect(t, 201, "")
-	join.send("POST", "/api/session/join", map[string]any{"code": hosted.Body["code"]}).expect(t, 200, "")
-	eventually(t, "host connection", func() bool {
-		return host.send("GET", "/api/session", nil).Body["state"] == phaseConnected
-	})
+	joinWithApproval(t, host, join, hosted.Body["code"].(string)).expect(t, 200, "")
 
 	cases := []struct {
 		name           string
