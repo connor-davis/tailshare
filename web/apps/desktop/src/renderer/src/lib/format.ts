@@ -62,3 +62,13 @@ export function formatTime(iso: string): string {
     minute: "2-digit",
   })
 }
+
+/** How long ago a time was, in the shortest form: `now`, `5m`, `2h`, `3d`. */
+export function formatAgo(then: number, now = Date.now()): string {
+  const minutes = Math.floor(Math.max(0, now - then) / 60000)
+  if (minutes < 1) return "now"
+  if (minutes < 60) return `${minutes}m`
+  if (minutes < 60 * 24) return `${Math.floor(minutes / 60)}h`
+
+  return `${Math.floor(minutes / (60 * 24))}d`
+}

@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { TitleBar } from "./title-bar"
+import { UpdateButton } from "./update-button"
 
 import type { UpdateStatus } from "../../../shared/bridge"
 
@@ -32,16 +32,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("TitleBar", () => {
-  it("shows the app name and no buttons of its own", () => {
-    render(<TitleBar />)
-
-    expect(screen.getByText("Tailshare")).toBeTruthy()
-    expect(screen.queryAllByRole("button")).toEqual([])
-  })
-
+describe("UpdateButton", () => {
   it("renders Markdown release notes and starts a download on request", async () => {
-    render(<TitleBar />)
+    render(<UpdateButton />)
     act(() =>
       listener({
         state: "available",
@@ -84,7 +77,7 @@ describe("TitleBar", () => {
   })
 
   it("dismisses only the current version, leaving newer releases visible", () => {
-    render(<TitleBar />)
+    render(<UpdateButton />)
     const release: UpdateStatus = {
       state: "available",
       version: "1.2.3",
@@ -105,13 +98,5 @@ describe("TitleBar", () => {
       screen.getByRole("button", { name: "Update available" })
     ).toBeTruthy()
     expect(downloadUpdate).not.toHaveBeenCalled()
-  })
-
-  it("is a drag region that leaves room for the Windows buttons", () => {
-    render(<TitleBar />)
-
-    const bar = screen.getByRole("banner")
-    expect(bar.className).toContain("[-webkit-app-region:drag]")
-    expect(bar.className).toContain("pr-[138px]")
   })
 })

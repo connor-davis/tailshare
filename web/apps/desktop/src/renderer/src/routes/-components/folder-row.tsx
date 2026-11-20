@@ -22,7 +22,7 @@ export function FolderRow({
 
   return (
     <section aria-labelledby="folder-title" className="flex flex-col gap-2">
-      <h2 id="folder-title" className="text-sm font-semibold">
+      <h2 id="folder-title" className="sr-only">
         Folder to share
       </h2>
       <div className="flex items-center gap-3">
@@ -36,6 +36,7 @@ export function FolderRow({
           {name ? <TooltipContent>{name}</TooltipContent> : null}
         </Tooltip>
         <Button
+          size="sm"
           variant={name ? "outline" : "default"}
           disabled={!canChange || choose.isPending}
           onClick={() => choose.mutate()}

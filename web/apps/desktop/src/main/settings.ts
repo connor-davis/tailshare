@@ -43,6 +43,7 @@ export function defaultSettings(from: SettingsDefaults = {}): Settings {
     startWithWindows: false,
     closeToTray: false,
     mica: true,
+    theme: "system",
   }
 }
 

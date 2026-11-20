@@ -9,6 +9,18 @@ export interface PeerInfo {
   sharedFolderName: string
 }
 
+/** One person in the room. Names and an id only, never an address. */
+export interface SessionMember {
+  /** Stable id inside this room. */
+  id: string
+  /** Name of the computer. */
+  displayName: string
+  /** True for the computer that let everyone else in. */
+  host?: boolean
+  /** True for this computer. */
+  you?: boolean
+}
+
 /** The session as the sidecar reports it (`GET /api/session`). */
 export interface SessionState {
   /** Current phase. */
@@ -21,6 +33,8 @@ export interface SessionState {
   peer?: PeerInfo
   /** One person waiting for local approval. */
   join?: { id: number; displayName: string }
+  /** Everyone in the room, host first. Present while hosting or connected. */
+  members?: SessionMember[]
 }
 
 /** The folder this computer shares. */

@@ -72,6 +72,20 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("join = %s", joined.Raw)
 	}
 
+	// Both sides list the host first, and each marks itself.
+	for name, f := range map[string]*fixture{"host": host, "joiner": join} {
+		var state SessionState
+		if err := json.Unmarshal(f.send("GET", "/api/session", nil).Raw, &state); err != nil {
+			t.Fatal(err)
+		}
+		if len(state.Members) != 2 || !state.Members[0].Host || state.Members[1].Host {
+			t.Fatalf("%s members = %+v", name, state.Members)
+		}
+		if state.Members[0].You != (name == "host") || state.Members[1].You != (name == "joiner") {
+			t.Fatalf("%s you flags = %+v", name, state.Members)
+		}
+	}
+
 	join.send("POST", "/api/session/join", map[string]string{"code": code}).expect(t, 409, "conflict")
 
 	until(t, hostLive, "session.state", func(e Event) bool {

@@ -50,6 +50,7 @@ export const SETTINGS_FIELDS = {
   startWithWindows: Schema.Boolean,
   closeToTray: Schema.Boolean,
   mica: Schema.Boolean,
+  theme: Schema.Literals(["system", "light", "dark"]),
 }
 
 /** Validated preferences returned to the renderer. */

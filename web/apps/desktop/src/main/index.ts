@@ -114,6 +114,8 @@ async function main() {
     downloads: app.getPath("downloads"),
   })
   closeToTray = settings.get().closeToTray
+  // Forcing light or dark here flips prefers-color-scheme in the page too.
+  nativeTheme.themeSource = settings.get().theme
   const loginItem = (enabled: boolean) =>
     applyLoginItem(enabled, {
       packaged: app.isPackaged,
@@ -193,6 +195,7 @@ async function main() {
     if (next.startWithWindows !== previous.startWithWindows)
       loginItem(next.startWithWindows)
     if (next.mica !== previous.mica) refreshLook(next.mica)
+    if (next.theme !== previous.theme) nativeTheme.themeSource = next.theme
     for (const open of BrowserWindow.getAllWindows())
       open.webContents.send(CHANNELS.settingsChanged, next)
   })

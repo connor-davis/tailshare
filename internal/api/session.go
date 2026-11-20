@@ -41,6 +41,20 @@ type SessionState struct {
 	Peer *PeerInfo `json:"peer,omitempty"`
 	// Join is present only while someone is waiting for local approval.
 	Join *session.PendingJoin `json:"join,omitempty"`
+	// Members is the roster in join order while hosting or connected. The
+	// host comes first.
+	Members []MemberInfo `json:"members,omitempty"`
+}
+
+// MemberInfo is one person in the share, as the screen shows them. Addresses
+// and keys never leave the sidecar.
+type MemberInfo struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+	// Host is true for the computer that admitted everyone else.
+	Host bool `json:"host,omitempty"`
+	// You is true for this computer.
+	You bool `json:"you,omitempty"`
 }
 
 // PeerInfo is what the other computer said about itself.
@@ -71,6 +85,14 @@ func (server *Server) stateLocked() SessionState {
 	if server.sess != nil {
 		if pending, ok := server.sess.Pending(); ok {
 			state.Join = &pending
+		}
+
+		selfID := server.sess.SelfID()
+		for index, member := range server.sess.Members() {
+			state.Members = append(state.Members, MemberInfo{
+				ID: member.ID, DisplayName: member.DisplayName,
+				Host: index == 0, You: member.ID == selfID,
+			})
 		}
 	}
 	return state

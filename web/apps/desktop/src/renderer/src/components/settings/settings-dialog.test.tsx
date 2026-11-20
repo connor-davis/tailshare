@@ -27,6 +27,7 @@ const saved: Settings = {
   startWithWindows: false,
   closeToTray: true,
   mica: true,
+  theme: "system",
 }
 
 let pushed: (settings: Settings) => void
@@ -300,6 +301,14 @@ describe("Settings dialog", () => {
     fireEvent.click(screen.getByRole("switch", { name: /Background effect/ }))
     await waitFor(() =>
       expect(updateSettings).toHaveBeenLastCalledWith({ mica: false })
+    )
+  })
+
+  it("saves the chosen appearance", async () => {
+    await open("App")
+    fireEvent.click(await screen.findByRole("radio", { name: "Dark" }))
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenLastCalledWith({ theme: "dark" })
     )
   })
 
