@@ -239,7 +239,8 @@ func TestLinksInsideAreAllowed(t *testing.T) {
 	shared, inside, _ := openShared(t)
 	writeFile(t, filepath.Join(inside, "real", "a.txt"), "a")
 
-	if reason := linkMakers["symlink"](filepath.Join(inside, "real"), filepath.Join(inside, "alias")); reason != "" {
+	// A relative target: os.Root refuses absolute link targets, which is safe.
+	if reason := linkMakers["symlink"]("real", filepath.Join(inside, "alias")); reason != "" {
 		t.Skip(reason)
 	}
 
