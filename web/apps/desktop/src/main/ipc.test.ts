@@ -11,7 +11,14 @@ import {
   NoArgs,
   SidecarStatusSchema,
 } from "../shared/ipc-schema"
-import { check, registerIpc, registerUpdateIpc, type IpcHost } from "./ipc"
+import {
+  check,
+  registerIpc,
+  registerUpdateIpc,
+  registerWindowIpc,
+  type IpcHost,
+  type WindowControls,
+} from "./ipc"
 import { Sidecar } from "./sidecar"
 import { openSettings, type SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
@@ -158,6 +165,73 @@ describe("update IPC", () => {
     ).rejects.toThrow("not valid")
     expect(settings.get().closeToTray).toBe(false)
   })
+})
+
+describe("window IPC", () => {
+  function setupWindow() {
+    const handlers = new Map<string, Handler>()
+    const controls = {
+      minimize: vi.fn(),
+      toggleMaximize: vi.fn(),
+      close: vi.fn(),
+      state: vi.fn(() => ({ maximized: true, mica: false })),
+    } satisfies WindowControls
+    registerWindowIpc(
+      {
+        handle: (channel, handler) => void handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      controls
+    )
+    return { handler: (channel: string) => handlers.get(channel)!, controls }
+  }
+
+  const channels = [
+    CHANNELS.windowMinimize,
+    CHANNELS.windowToggleMaximize,
+    CHANNELS.windowClose,
+    CHANNELS.getWindowState,
+  ]
+
+  it("registers the four window requests", () => {
+    const { handler } = setupWindow()
+
+    for (const channel of channels)
+      expect(handler(channel)).toBeTypeOf("function")
+  })
+
+  it("runs each control once and replies with the window state", async () => {
+    const { handler, controls } = setupWindow()
+
+    await handler(CHANNELS.windowMinimize)(true, [])
+    await handler(CHANNELS.windowToggleMaximize)(true, [])
+    await handler(CHANNELS.windowClose)(true, [])
+
+    expect(controls.minimize).toHaveBeenCalledOnce()
+    expect(controls.toggleMaximize).toHaveBeenCalledOnce()
+    expect(controls.close).toHaveBeenCalledOnce()
+    await expect(handler(CHANNELS.getWindowState)(true, [])).resolves.toEqual({
+      maximized: true,
+      mica: false,
+    })
+  })
+
+  it.each(channels)(
+    "refuses other windows and extra arguments on %s",
+    async (channel) => {
+      const { handler, controls } = setupWindow()
+
+      await expect(handler(channel)(false, [])).rejects.toThrow(
+        "could not answer this window"
+      )
+      await expect(handler(channel)(true, ["extra"])).rejects.toThrow(
+        "could not read that request"
+      )
+      expect(controls.minimize).not.toHaveBeenCalled()
+      expect(controls.toggleMaximize).not.toHaveBeenCalled()
+      expect(controls.close).not.toHaveBeenCalled()
+    }
+  )
 })
 
 type Handler = (senderOk: boolean, args: unknown[]) => Promise<unknown>

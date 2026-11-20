@@ -5,7 +5,9 @@ import {
   ConnectionInfoSchema,
   NoArgs,
   SettingsSchema,
+  WindowStateSchema,
 } from "../shared/ipc-schema"
+import type { WindowState } from "../shared/bridge"
 import type { SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
 import { Sidecar } from "./sidecar"
@@ -70,6 +72,35 @@ export function registerUpdateIpc(
     const result = settings.update(args[0])
     return Effect.runPromise(check(SettingsSchema, result))
   })
+}
+
+/** What the title bar can ask the window to do. */
+export interface WindowControls {
+  minimize(): void
+  toggleMaximize(): void
+  /** Goes through the window's close event, so close to tray still applies. */
+  close(): void
+  state(): WindowState
+}
+
+/** Registers the title bar requests behind the same window and tuple guards. */
+export function registerWindowIpc(host: IpcHost, controls: WindowControls) {
+  const actions: Record<string, () => unknown> = {
+    [CHANNELS.windowMinimize]: () => controls.minimize(),
+    [CHANNELS.windowToggleMaximize]: () => controls.toggleMaximize(),
+    [CHANNELS.windowClose]: () => controls.close(),
+    [CHANNELS.getWindowState]: () => controls.state(),
+  }
+
+  for (const [channel, action] of Object.entries(actions)) {
+    host.handle(channel, async (senderOk, args) => {
+      await Effect.runPromise(guard(senderOk, args))
+      const result = action()
+      return channel === CHANNELS.getWindowState
+        ? Effect.runPromise(check(WindowStateSchema, result))
+        : undefined
+    })
+  }
 }
 
 /**

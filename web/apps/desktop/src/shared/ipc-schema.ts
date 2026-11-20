@@ -12,6 +12,11 @@ export const CHANNELS = {
   getUpdateStatus: "tailshare:get-update-status",
   restartToUpdate: "tailshare:restart-to-update",
   updateStatus: "tailshare:update-status",
+  windowMinimize: "tailshare:window-minimize",
+  windowToggleMaximize: "tailshare:window-toggle-maximize",
+  windowClose: "tailshare:window-close",
+  getWindowState: "tailshare:get-window-state",
+  windowState: "tailshare:window-state",
 } as const
 
 /** Our own bridge methods take no arguments, so any extra one is refused. */
@@ -43,6 +48,12 @@ export const SETTINGS_FIELDS = {
 
 /** Validated preferences returned to the renderer. */
 export const SettingsSchema = Schema.Struct(SETTINGS_FIELDS)
+
+/** What the title bar needs to know about its window. */
+export const WindowStateSchema = Schema.Struct({
+  maximized: Schema.Boolean,
+  mica: Schema.Boolean,
+})
 
 /** A loopback origin with a port, the only kind the sidecar may report. */
 export const LoopbackOrigin = Schema.String.check(

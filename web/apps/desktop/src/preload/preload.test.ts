@@ -27,6 +27,11 @@ describe("preload bridge", () => {
       "getUpdateStatus",
       "onUpdateStatus",
       "restartToUpdate",
+      "minimizeWindow",
+      "toggleMaximizeWindow",
+      "closeWindow",
+      "getWindowState",
+      "onWindowState",
     ]) {
       expect(source).toContain(`${name}:`)
     }

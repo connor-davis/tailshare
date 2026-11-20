@@ -1,11 +1,57 @@
 import type { BrowserWindowConstructorOptions } from "electron"
+import type { WindowState } from "../shared/bridge"
+
+/** The first Windows 11 build (22H2) where Electron's backgroundMaterial works. */
+const WINDOWS_11_BUILD = 22621
+
+/** The material behind the window: Mica, or none (a solid colour). */
+export type WindowMaterial = "mica" | "none"
+
+/**
+ * Mica needs the setting on and Windows 11. `release` is `os.release()`, such
+ * as `10.0.26300`; the build number is its third part. Anything else, such as
+ * Windows 10 or a release we cannot read, gets no material.
+ */
+export function windowMaterial(
+  mica: boolean,
+  release: string,
+  platform: string = process.platform
+): WindowMaterial {
+  const build = Number(release.split(".")[2])
+
+  return mica && platform === "win32" && build >= WINDOWS_11_BUILD
+    ? "mica"
+    : "none"
+}
+
+/** The background tokens in globals.css, for the window behind the page. */
+const SOLID = { light: "#faf9f6", dark: "#0f0f10" } as const
+
+/** How the window looks behind the page. */
+export interface WindowLook {
+  readonly material: WindowMaterial
+  /** The system is in dark mode. Only the solid fallback uses it. */
+  readonly dark: boolean
+}
+
+/**
+ * Mica needs a see-through window. Without it, `none` paints white, so the
+ * fallback gets a real colour from the theme.
+ */
+export function windowBackground(look: WindowLook): string {
+  if (look.material === "mica") return "#00000000"
+
+  return look.dark ? SOLID.dark : SOLID.light
+}
 
 /**
  * Window settings. Isolation and the sandbox are on and Node is off, so the
- * page only reaches what the preload bridge exposes.
+ * page only reaches what the preload bridge exposes. The frame is ours: the
+ * page draws the title bar.
  */
 export function windowOptions(
-  preload: string
+  preload: string,
+  look: WindowLook = { material: "none", dark: false }
 ): BrowserWindowConstructorOptions {
   return {
     title: "Tailshare",
@@ -13,6 +59,9 @@ export function windowOptions(
     height: 760,
     minWidth: 480,
     minHeight: 360,
+    frame: false,
+    backgroundMaterial: look.material,
+    backgroundColor: windowBackground(look),
     webPreferences: {
       preload,
       contextIsolation: true,
@@ -20,6 +69,35 @@ export function windowOptions(
       nodeIntegration: false,
     },
   }
+}
+
+/** The parts of a window that the title bar controls touch. */
+export interface ControlledWindow {
+  isMaximized(): boolean
+  maximize(): void
+  unmaximize(): void
+  setBackgroundMaterial(material: WindowMaterial): void
+  setBackgroundColor(color: string): void
+}
+
+/** Maximises, or restores a window that already fills the screen. */
+export function toggleMaximize(window: ControlledWindow): void {
+  if (window.isMaximized()) window.unmaximize()
+  else window.maximize()
+}
+
+/** Switches a live window between Mica and the solid colour. */
+export function applyLook(window: ControlledWindow, look: WindowLook): void {
+  window.setBackgroundMaterial(look.material)
+  window.setBackgroundColor(windowBackground(look))
+}
+
+/** What the page is told about its window. */
+export function windowState(
+  window: ControlledWindow,
+  look: WindowLook
+): WindowState {
+  return { maximized: window.isMaximized(), mica: look.material === "mica" }
 }
 
 /** The parts of `webContents` that {@link lockNavigation} touches. */

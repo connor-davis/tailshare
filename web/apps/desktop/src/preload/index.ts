@@ -2,9 +2,11 @@ import { contextBridge, ipcRenderer } from "electron"
 import {
   SIDECAR_STATUSES,
   isUpdateStatus,
+  isWindowState,
   type Settings,
   type SettingsPatch,
   type UpdateStatus,
+  type WindowState,
   type SidecarStatus,
   type TailshareBridge,
 } from "../shared/bridge"
@@ -32,6 +34,18 @@ const bridge: TailshareBridge = Object.freeze({
     }
     ipcRenderer.on("tailshare:update-status", handler)
     return () => void ipcRenderer.off("tailshare:update-status", handler)
+  },
+  minimizeWindow: () => ipcRenderer.invoke("tailshare:window-minimize"),
+  toggleMaximizeWindow: () =>
+    ipcRenderer.invoke("tailshare:window-toggle-maximize"),
+  closeWindow: () => ipcRenderer.invoke("tailshare:window-close"),
+  getWindowState: () => ipcRenderer.invoke("tailshare:get-window-state"),
+  onWindowState: (listener: (state: WindowState) => void) => {
+    const handler = (_event: unknown, state: unknown) => {
+      if (isWindowState(state)) listener(state)
+    }
+    ipcRenderer.on("tailshare:window-state", handler)
+    return () => void ipcRenderer.off("tailshare:window-state", handler)
   },
   getConnectionInfo: () => ipcRenderer.invoke("tailshare:connection-info"),
   chooseFolder: () => ipcRenderer.invoke("tailshare:choose-folder"),

@@ -68,6 +68,26 @@ export function isUpdateStatus(value: unknown): value is UpdateStatus {
   )
 }
 
+/** What the window reports to the title bar. */
+export interface WindowState {
+  /** The window fills the screen, so the page leaves room for the overhang. */
+  readonly maximized: boolean
+  /** Windows 11 Mica is really on. False on Windows 10 or when it is off. */
+  readonly mica: boolean
+}
+
+/** Checks window events without loading Effect in the sandboxed preload. */
+export function isWindowState(value: unknown): value is WindowState {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "maximized" in value &&
+    "mica" in value &&
+    typeof value.maximized === "boolean" &&
+    typeof value.mica === "boolean"
+  )
+}
+
 /** Where the local API listens and the secret that opens it. */
 export interface ConnectionInfo {
   /** Loopback origin such as `http://127.0.0.1:51234`, with no path. */
@@ -97,6 +117,16 @@ export interface TailshareBridge {
   readonly onUpdateStatus: (
     listener: (status: UpdateStatus) => void
   ) => () => void
+  /** Minimises the window. */
+  readonly minimizeWindow: () => Promise<void>
+  /** Maximises the window, or restores it if it already fills the screen. */
+  readonly toggleMaximizeWindow: () => Promise<void>
+  /** Closes the window. Close to tray may hide it instead of quitting. */
+  readonly closeWindow: () => Promise<void>
+  /** Reads the window state, including changes sent before the page loaded. */
+  readonly getWindowState: () => Promise<WindowState>
+  /** Calls `listener` on each maximise, restore and Mica change. */
+  readonly onWindowState: (listener: (state: WindowState) => void) => () => void
   /**
    * Resolves once the sidecar passed its health check. Rejects with a plain
    * sentence if it is down for good.

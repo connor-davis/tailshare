@@ -83,6 +83,12 @@
   --radius-xl: calc(var(--radius) + 2px);
 }
 
+/* Mica shows through only when main says it is really on (Windows 11). */
+html.mica,
+html.mica body {
+  background: transparent;
+}
+
 @layer base {
   * {
     @apply border-border;
