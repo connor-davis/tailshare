@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react"
-import type {
-  Settings,
-  UpdateChannel,
-  UpdateStatus,
-} from "../../../../shared/bridge"
+import type { Settings, UpdateStatus } from "../../../../shared/bridge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -72,7 +68,7 @@ export function UpdatesCard() {
 
     try {
       setSettings(
-        await window.tailshare.setUpdateChannel(value as UpdateChannel)
+        await window.tailshare.updateSettings({ updateChannel: value })
       )
     } catch {
       setError("Could not save your update channel. Try again.")

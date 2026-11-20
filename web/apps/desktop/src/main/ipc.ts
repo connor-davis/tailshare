@@ -4,7 +4,6 @@ import {
   ChosenFolderSchema,
   ConnectionInfoSchema,
   NoArgs,
-  UpdateChannelArgs,
   SettingsSchema,
 } from "../shared/ipc-schema"
 import type { SettingsStore } from "./settings"
@@ -63,16 +62,12 @@ export function registerUpdateIpc(
     })
   }
 
-  host.handle(CHANNELS.setUpdateChannel, async (senderOk, args) => {
+  // The store checks the whole patch before it writes or tells anyone.
+  host.handle(CHANNELS.updateSettings, async (senderOk, args) => {
     if (!senderOk) throw refuse("answer this window")
-    const [channel] = await Effect.runPromise(
-      check(UpdateChannelArgs, args).pipe(
-        Effect.mapError(() => refuse("read that request"))
-      )
-    )
+    if (args.length !== 1) throw refuse("read that request")
 
-    const result = settings.setUpdateChannel(channel)
-    updater.setChannel(channel)
+    const result = settings.update(args[0])
     return Effect.runPromise(check(SettingsSchema, result))
   })
 }

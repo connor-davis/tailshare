@@ -13,6 +13,10 @@ files:
 extraResources:
   - from: ../../../bin/tailshare.exe
     to: tailshare.exe
+  - from: build/tray-16.png
+    to: tray-16.png
+  - from: build/tray-32.png
+    to: tray-32.png
 win:
   target:
     - target: nsis

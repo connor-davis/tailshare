@@ -104,6 +104,11 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Installer build instructions, unsigned builds and firewall guidance | `README.md` |
 | Windows package smoke evidence and owner-confirmed two-PC proof closure | root `project/delivery/tailshare-v1-proof.md` |
 | Electron lifecycle and wiring (quit waits for the sidecar to stop) | `src/main/index.ts` |
+| Settings store: schema defaults, tolerant read, `.bak` on a corrupt file, atomic write, change listeners | `src/main/settings.ts` |
+| Settings field rules (one place, shared by main and the bridge types) | `src/shared/ipc-schema.ts` (`SETTINGS_FIELDS`) |
+| Tray: Open / Quit menu, tooltip, icon paths (dev `build/`, packaged resources) | `src/main/tray.ts` |
+| Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
+| Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
 | Window options, navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
 | Real sidecar process (spawn, token, stdin pipe) | `src/main/sidecar-process.ts` |

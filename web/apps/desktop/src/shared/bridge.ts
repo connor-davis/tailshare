@@ -15,7 +15,28 @@ export type UpdateChannel = "latest" | "nightly"
 /** Persistent desktop preferences. Chat never belongs here. */
 export interface Settings {
   readonly updateChannel: UpdateChannel
+  /** Shown to the other side. 1 to 64 characters. */
+  readonly displayName: string
+  /** `folder` saves into {@link Settings.saveFolder}; `ask` asks each time. */
+  readonly saveMode: "folder" | "ask"
+  /** Absolute path where downloads land. */
+  readonly saveFolder: string
+  /** KiB per second. 0 means unlimited. */
+  readonly uploadLimitKiB: number
+  /** KiB per second. 0 means unlimited. */
+  readonly downloadLimitKiB: number
+  /** How many transfers run together, 1 to 8. */
+  readonly transfersAtOnce: number
+  /** Launch hidden in the tray when Windows signs in. */
+  readonly startWithWindows: boolean
+  /** Closing the window hides it instead of quitting. */
+  readonly closeToTray: boolean
+  /** Windows 11 Mica background. */
+  readonly mica: boolean
 }
+
+/** Any subset of {@link Settings}. A patch is applied whole or not at all. */
+export type SettingsPatch = Partial<Settings>
 
 /** Safe update state sent to the renderer without upstream error details. */
 export interface UpdateStatus {
@@ -60,10 +81,14 @@ export interface ConnectionInfo {
  * exposes `ipcRenderer`, `process` or a way to call other channels.
  */
 export interface TailshareBridge {
-  /** Reads the saved update channel. */
+  /** Reads the saved settings. */
   readonly getSettings: () => Promise<Settings>
-  /** Persists the channel and schedules a check on that feed. */
-  readonly setUpdateChannel: (channel: UpdateChannel) => Promise<Settings>
+  /** Checks and saves a patch, then resolves to the new settings. */
+  readonly updateSettings: (patch: SettingsPatch) => Promise<Settings>
+  /** Calls `listener` after every saved change. Returns an unsubscribe. */
+  readonly onSettingsChanged: (
+    listener: (settings: Settings) => void
+  ) => () => void
   /** Reads the current state, including events sent before the page loaded. */
   readonly getUpdateStatus: () => Promise<UpdateStatus>
   /** Stops the sidecar before installing a downloaded update. */

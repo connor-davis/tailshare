@@ -15,7 +15,7 @@ let listener: (status: UpdateStatus) => void
 const unsubscribe = vi.fn()
 const getSettings = vi.fn(async () => ({ updateChannel: "latest" as const }))
 const restartToUpdate = vi.fn(async () => {})
-const setUpdateChannel = vi.fn(async (updateChannel) => ({ updateChannel }))
+const updateSettings = vi.fn(async (patch) => patch)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.stubGlobal("tailshare", {
     getSettings,
     getUpdateStatus: async () => ({ state: "current" }),
-    setUpdateChannel,
+    updateSettings,
     restartToUpdate,
     onUpdateStatus: (next: (status: UpdateStatus) => void) => {
       listener = next
@@ -47,7 +47,7 @@ describe("Updates card", () => {
     fireEvent.keyDown(select, { key: "ArrowDown" })
     fireEvent.click(await screen.findByRole("option", { name: "Nightly" }))
     await waitFor(() =>
-      expect(setUpdateChannel).toHaveBeenCalledWith("nightly")
+      expect(updateSettings).toHaveBeenCalledWith({ updateChannel: "nightly" })
     )
     await screen.findByText(
       "Nightly follows development builds only. Changes may be unfinished."
