@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { SIDECAR_STATUSES } from "./bridge"
+import { JOIN_CODE, SIDECAR_STATUSES } from "./bridge"
 
 /** IPC channel names. Main and preload both read them from here. */
 export const CHANNELS = {
@@ -12,11 +12,14 @@ export const CHANNELS = {
   getUpdateStatus: "tailshare:get-update-status",
   restartToUpdate: "tailshare:restart-to-update",
   updateStatus: "tailshare:update-status",
-  windowMinimize: "tailshare:window-minimize",
-  windowToggleMaximize: "tailshare:window-toggle-maximize",
-  windowClose: "tailshare:window-close",
   getWindowState: "tailshare:get-window-state",
   windowState: "tailshare:window-state",
+  joinLink: "tailshare:join-link",
+  rendererReady: "tailshare:renderer-ready",
+  getRecentRooms: "tailshare:get-recent-rooms",
+  touchRecentRoom: "tailshare:touch-recent-room",
+  removeRecentRoom: "tailshare:remove-recent-room",
+  recentRoomsChanged: "tailshare:recent-rooms-changed",
 } as const
 
 /** Our own bridge methods take no arguments, so any extra one is refused. */
@@ -51,9 +54,21 @@ export const SettingsSchema = Schema.Struct(SETTINGS_FIELDS)
 
 /** What the title bar needs to know about its window. */
 export const WindowStateSchema = Schema.Struct({
-  maximized: Schema.Boolean,
   mica: Schema.Boolean,
 })
+
+/** A room code: 8 uppercase Crockford characters, no dash. */
+export const JoinCodeSchema = Schema.String.check(Schema.isPattern(JOIN_CODE))
+
+/** One saved room. The name is 1 to 64 characters, the time is in ms. */
+export const RecentRoomSchema = Schema.Struct({
+  name: Schema.String.check(Schema.isBetweenLength(1, 64)),
+  code: JoinCodeSchema,
+  lastSeen: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+})
+
+/** The reply to `getRecentRooms`, newest first. */
+export const RecentRoomsSchema = Schema.Array(RecentRoomSchema)
 
 /** A loopback origin with a port, the only kind the sidecar may report. */
 export const LoopbackOrigin = Schema.String.check(

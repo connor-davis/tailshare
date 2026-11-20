@@ -71,6 +71,14 @@ unrecognized app. Only if the installer came from the expected Tailshare
 source and the displayed app is the one you expect, choose **More info** →
 **Run anyway**. Your organization's policy may prevent this override.
 
+## Room links and recent rooms
+
+Clicking a `tailshare://join/<CODE>` link opens or focuses Tailshare and
+starts the normal join. The first time, Windows may ask which app opens
+`tailshare:` links; Tailshare does not force itself as the default if you
+choose another. Recent rooms (name, code and last-seen time) stay on this
+computer for at most 30 days, 20 rooms at most. Chat is never saved.
+
 ## Firewall
 
 Windows may prompt when the sidecar opens its UDP socket. Allowing it on

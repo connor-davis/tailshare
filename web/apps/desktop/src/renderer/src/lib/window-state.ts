@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react"
 import type { WindowState } from "../../../shared/bridge"
 
-const INITIAL: WindowState = { maximized: false, mica: false }
+const INITIAL: WindowState = { mica: false }
 
 /**
- * Follows the window: whether it is maximised and whether Mica is really on.
+ * Follows the window: whether Mica is really on.
  * It sets `html.mica` so the page goes see-through only when main says Mica is
  * on (never on Windows 10, where the page keeps its solid background).
  * Call it once, from the root route.

@@ -104,6 +104,23 @@ knows its address and token.
 - Each IPC handler checks that the call came from our window, refuses extra
   arguments, and checks its reply with an `effect/Schema` schema before it
   leaves main. A folder path is only ever returned from the native dialog.
+- Windows draws the minimise, maximise and close buttons (`titleBarOverlay`),
+  so the page has no way to ask main to minimise, maximise or close.
+- `tailshare://join/<CODE>` links are matched as written by one regex in
+  `src/main/join-link.ts`: lowercase scheme and host, then 8 code characters
+  or 4+4 with one dash. Credentials, a port, a query, a fragment, an extra
+  segment, a trailing slash, a percent escape, a backslash, another host or
+  scheme, and a letter outside the code alphabet are all refused. Only the
+  bare code reaches the page, on one exact channel. A link is a bearer secret
+  (it joins the room): argv, links and codes are never logged. The single-
+  instance lock only stops a second copy; it is not authentication. A link
+  that arrives before the page listens is held (10 at most) and sent when the
+  page says it is ready.
+- Recent rooms are a local file, `recent-rooms.json` in the user data folder,
+  holding name, code and last-seen time only: at most 20 rooms, forgotten after
+  30 days. The file contains the codes, so it is as private as the user
+  folder. No chat, members, paths or transfers are ever saved, and chat
+  still lives in memory only.
 - The token is 32 random bytes (64 hex characters), new for every sidecar
   start, kept in memory, never logged and never in a URL. It goes to the sidecar
   in the environment and to the page only after the health check passes.

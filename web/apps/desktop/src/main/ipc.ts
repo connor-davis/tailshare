@@ -4,10 +4,12 @@ import {
   ChosenFolderSchema,
   ConnectionInfoSchema,
   NoArgs,
+  RecentRoomsSchema,
   SettingsSchema,
   WindowStateSchema,
 } from "../shared/ipc-schema"
 import type { WindowState } from "../shared/bridge"
+import type { RecentRoomsStore } from "./recent-rooms"
 import type { SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
 import { Sidecar } from "./sidecar"
@@ -74,33 +76,47 @@ export function registerUpdateIpc(
   })
 }
 
-/** What the title bar can ask the window to do. */
+/**
+ * Registers the recent rooms requests behind the same window guard. The store
+ * checks every room and code, and the list is checked again on the way out.
+ */
+export function registerRecentRoomsIpc(
+  host: IpcHost,
+  recent: RecentRoomsStore
+) {
+  const reply = (rooms: unknown) =>
+    Effect.runPromise(check(RecentRoomsSchema, rooms))
+
+  host.handle(CHANNELS.getRecentRooms, async (senderOk, args) => {
+    await Effect.runPromise(guard(senderOk, args))
+    return reply(recent.get())
+  })
+
+  // Touch and remove take exactly one value, which the store validates.
+  for (const [channel, action] of [
+    [CHANNELS.touchRecentRoom, (value: unknown) => recent.touch(value)],
+    [CHANNELS.removeRecentRoom, (value: unknown) => recent.remove(value)],
+  ] as const) {
+    host.handle(channel, async (senderOk, args) => {
+      if (!senderOk) throw refuse("answer this window")
+      if (args.length !== 1) throw refuse("read that request")
+
+      await reply(action(args[0]))
+    })
+  }
+}
+
+/** What the page can ask about its window. Windows draws the caption buttons. */
 export interface WindowControls {
-  minimize(): void
-  toggleMaximize(): void
-  /** Goes through the window's close event, so close to tray still applies. */
-  close(): void
   state(): WindowState
 }
 
-/** Registers the title bar requests behind the same window and tuple guards. */
+/** Registers the window state request behind the same window and tuple guards. */
 export function registerWindowIpc(host: IpcHost, controls: WindowControls) {
-  const actions: Record<string, () => unknown> = {
-    [CHANNELS.windowMinimize]: () => controls.minimize(),
-    [CHANNELS.windowToggleMaximize]: () => controls.toggleMaximize(),
-    [CHANNELS.windowClose]: () => controls.close(),
-    [CHANNELS.getWindowState]: () => controls.state(),
-  }
-
-  for (const [channel, action] of Object.entries(actions)) {
-    host.handle(channel, async (senderOk, args) => {
-      await Effect.runPromise(guard(senderOk, args))
-      const result = action()
-      return channel === CHANNELS.getWindowState
-        ? Effect.runPromise(check(WindowStateSchema, result))
-        : undefined
-    })
-  }
+  host.handle(CHANNELS.getWindowState, async (senderOk, args) => {
+    await Effect.runPromise(guard(senderOk, args))
+    return Effect.runPromise(check(WindowStateSchema, controls.state()))
+  })
 }
 
 /**

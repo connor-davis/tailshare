@@ -123,21 +123,24 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Stable releases from main and versioned nightly prereleases from develop | root `.github/workflows/release.yml`, `.github/workflows/nightly.yml` |
 | Installer build instructions, unsigned builds and firewall guidance | `README.md` |
 | Windows package smoke evidence and owner-confirmed two-PC proof closure | root `project/delivery/tailshare-v1-proof.md` |
-| Electron lifecycle and wiring (quit waits for the sidecar to stop) | `src/main/index.ts` |
+| Electron lifecycle and wiring (quit waits for the sidecar to stop; registers the `tailshare:` protocol, reads join links from first-launch and second-instance argv, holds them until the page sends ready) | `src/main/index.ts` |
 | Settings store: schema defaults, tolerant read, `.bak` on a corrupt file, atomic write, change listeners | `src/main/settings.ts` |
 | Settings field rules (one place, shared by main and the bridge types) | `src/shared/ipc-schema.ts` (`SETTINGS_FIELDS`) |
 | Tray: Open / Quit menu, tooltip, icon paths (dev `build/`, packaged resources) | `src/main/tray.ts` |
 | Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
 | Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
-| Window options, navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
+| Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
+| Custom title bar: logo, name, drag area, 138 px kept free for the native buttons | `src/renderer/src/components/title-bar.tsx` |
+| `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |
+| Recent rooms store: `recent-rooms.json` in userData, max 20, 30-day prune, atomic write, change listeners | `src/main/recent-rooms.ts`, `src/main/recent-rooms.test.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
 | Real sidecar process (spawn, token, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
 | Health check call | `src/main/health.ts` |
 | Sidecar binary path (dev `bin/`, packaged resources) | `src/main/config.ts` |
-| IPC handlers: sender check, schema checks, folder dialog | `src/main/ipc.ts` |
+| IPC handlers: sender check, schema checks, folder dialog, recent rooms get/touch/remove | `src/main/ipc.ts` |
 | IPC channel names and payload schemas | `src/shared/ipc-schema.ts` |
-| Typed bridge (`window.tailshare`) and its browser declaration | `src/preload/index.ts`, `src/shared/bridge.ts`, `src/renderer/src/types/desktop.d.ts` |
+| Typed bridge (`window.tailshare`, incl. `onJoinLink`, recent rooms calls and events) and its browser declaration | `src/preload/index.ts`, `src/shared/bridge.ts`, `src/renderer/src/types/desktop.d.ts` |
 | Desktop tests (`task test:web`; `@` alias for tests) | `src/**/*.test.ts(x)` (vitest), `vitest.config.ts` |
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
 | Query client and hash router | `src/renderer/src/main.tsx` |
