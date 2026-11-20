@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, webUtils } from "electron"
 import {
   SIDECAR_STATUSES,
   isJoinCode,
@@ -73,6 +73,20 @@ const bridge: TailshareBridge = Object.freeze({
   },
   getConnectionInfo: () => ipcRenderer.invoke("tailshare:connection-info"),
   chooseFolder: () => ipcRenderer.invoke("tailshare:choose-folder"),
+  addFiles: () => ipcRenderer.invoke("tailshare:add-files"),
+  addDroppedFiles: (files: File[]) => {
+    const paths = files.flatMap((file) => {
+      try {
+        const path = webUtils.getPathForFile(file)
+        return path ? [path] : []
+      } catch {
+        return []
+      }
+    })
+    return ipcRenderer.invoke("tailshare:add-dropped-files", paths)
+  },
+  openRoomFolder: (code: string) =>
+    ipcRenderer.invoke("tailshare:open-room-folder", code),
   onSidecarStatus: (listener: (status: SidecarStatus) => void) => {
     const handler = (_event: unknown, status: unknown) => {
       // Only known words reach the page, whatever main sends.

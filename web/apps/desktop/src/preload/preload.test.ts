@@ -21,6 +21,9 @@ describe("preload bridge", () => {
     for (const name of [
       "getConnectionInfo",
       "chooseFolder",
+      "addFiles",
+      "addDroppedFiles",
+      "openRoomFolder",
       "onSidecarStatus",
       "getSettings",
       "updateSettings",
@@ -95,5 +98,39 @@ describe("preload update validation", () => {
       { state: "available", version: "1.0.1", notes: "x".repeat(20_001) },
     ])
       expect(isUpdateStatus(value)).toBe(false)
+  })
+})
+
+describe("dropped files", () => {
+  it("uses Electron webUtils and drops files without a native path", async () => {
+    const { vi } = await import("vitest")
+    const invoke = vi.fn(async () => ({ added: [], skipped: [] }))
+    const getPathForFile = vi.fn((file: unknown) =>
+      file === real ? "C:/report.pdf" : ""
+    )
+    const real = {} as File
+    let exposed: import("../shared/bridge").TailshareBridge | undefined
+    vi.doMock("electron", () => ({
+      contextBridge: {
+        exposeInMainWorld: (
+          _name: string,
+          bridge: import("../shared/bridge").TailshareBridge
+        ) => {
+          exposed = bridge
+        },
+      },
+      ipcRenderer: { invoke },
+      webUtils: { getPathForFile },
+    }))
+    try {
+      await import("./index")
+      await exposed!.addDroppedFiles([real, {} as File])
+      expect(getPathForFile).toHaveBeenCalledTimes(2)
+      expect(invoke).toHaveBeenCalledWith("tailshare:add-dropped-files", [
+        "C:/report.pdf",
+      ])
+    } finally {
+      vi.doUnmock("electron")
+    }
   })
 })

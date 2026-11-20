@@ -8,7 +8,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import { useChooseFolder, useFolder } from "@/lib/api/folder"
 import { useHost, useJoin, useLeave, useSession } from "@/lib/api/session"
 import { EmptyState } from "./-components/empty-state"
 import { MembersPanel } from "./-components/members-panel"
@@ -26,12 +25,12 @@ export const Route = createFileRoute("/")({ component: Shell })
 
 function Shell() {
   const { data: session } = useSession()
-  const { data: folder } = useFolder()
   const { settings } = useSettings()
   const host = useHost()
   const join = useJoin()
   const leave = useLeave()
-  const choose = useChooseFolder()
+  // The open room, saved to the recent list once this computer is out of it.
+  const openRoom = useRef<{ owner?: string; code: string } | null>(null)
   const [roomsOpen, toggleRooms] = usePanelOpen("rooms")
   const [membersOpen, toggleMembers] = usePanelOpen("members")
   // Each mix of shown columns keeps its own saved sizes.
@@ -51,6 +50,10 @@ function Shell() {
   const [hostCode, setHostCode] = useState<string | null>(null)
   if (session?.code && session.code !== hostCode) setHostCode(session.code)
   else if (state === "idle" && hostCode) setHostCode(null)
+  // A joiner has no code in the session, so keep the one they typed. Open
+  // folder needs it to find the room's folder.
+  const [joinedCode, setJoinedCode] = useState<string | null>(null)
+  if (state === "idle" && joinedCode) setJoinedCode(null)
 
   // Adjusted while rendering, so no effect has to set state afterwards.
   // Ending without our own click means the code ran out or the other side left.
@@ -67,21 +70,14 @@ function Shell() {
     }
   }
 
-  // No folder yet: ask for one first, then carry on. Cancelling does nothing.
-  const withFolder = (go: () => void) => {
-    if (folder) go()
-    else choose.mutate(undefined, { onSuccess: (picked) => picked && go() })
-  }
-
-  const joinNow = (code: string) =>
+  const joinCode = (code: string) =>
     join.mutate(code, {
       onSuccess: (next) => {
         announce("Connected.")
-        rememberRoom(next.peer?.displayName, code)
+        setJoinedCode(code)
+        openRoom.current = { owner: next.peer?.displayName, code }
       },
     })
-
-  const joinCode = (code: string) => withFolder(() => joinNow(code))
 
   // A tailshare:// link joins as if its code were typed. Kept in a ref so the
   // subscription is made once but always calls the newest handler.
@@ -97,13 +93,19 @@ function Shell() {
     []
   )
 
-  // A new room goes in the recent list the moment it has a code.
+  // The open room joins the recent list only once this computer is out of
+  // it, however it ended: Leave, the code running out or the other side going.
   const code = session?.state === "hosting" ? session.code : undefined
   useEffect(() => {
-    if (code) rememberRoom(settings?.displayName, code)
+    if (code) openRoom.current = { owner: settings?.displayName, code }
   }, [code, settings?.displayName])
+  useEffect(() => {
+    if (state !== "idle" || !openRoom.current) return
+    rememberRoom(openRoom.current.owner, openRoom.current.code)
+    openRoom.current = null
+  }, [state])
 
-  if (!session || folder === undefined) {
+  if (!session) {
     return (
       <p aria-busy="true" role="status" className="p-8">
         Checking Tailshare…
@@ -117,9 +119,7 @@ function Shell() {
     host.isPending || join.isPending || session.state === "connecting"
   const error = host.error ?? join.error ?? leave.error
   const createRoom = () =>
-    withFolder(() =>
-      host.mutate(undefined, { onSuccess: () => setStartedAt(Date.now()) })
-    )
+    host.mutate(undefined, { onSuccess: () => setStartedAt(Date.now()) })
   const leaveRoom = () => {
     setOwnEnd(true)
     leave.mutate(undefined, { onError: () => setOwnEnd(false) })
@@ -129,7 +129,6 @@ function Shell() {
     <EmptyState
       enabled={ready}
       busy={busy}
-      folderName={folder?.name ?? null}
       onCreate={createRoom}
       onJoin={joinCode}
     />
@@ -147,6 +146,11 @@ function Shell() {
           session.role === "host"
             ? (session.code ?? hostCode ?? undefined)
             : undefined
+        }
+        roomCode={
+          session.role === "host"
+            ? (session.code ?? hostCode ?? undefined)
+            : (joinedCode ?? undefined)
         }
         startedAt={startedAt}
         onLeave={leaveRoom}
@@ -172,7 +176,6 @@ function Shell() {
             >
               <RoomSidebar
                 session={session}
-                folderName={folder?.name ?? null}
                 busy={busy}
                 onNewRoom={createRoom}
                 onJoin={joinCode}

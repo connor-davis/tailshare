@@ -1,8 +1,23 @@
-import { useState } from "react"
-import { LogInIcon, PlusIcon, SettingsIcon, XIcon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import {
+  HistoryIcon,
+  LogInIcon,
+  PlusIcon,
+  SearchIcon,
+  SettingsIcon,
+  XIcon,
+} from "lucide-react"
 import { useOpenSettings } from "@/components/settings/settings-dialog"
 import { DragBar } from "@/components/drag-bar"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Tooltip,
@@ -11,7 +26,6 @@ import {
 } from "@/components/ui/tooltip"
 import type { SessionState } from "@/lib/api/types"
 import { formatAgo } from "@/lib/format"
-import { FolderRow } from "./folder-row"
 import { JoinDialog } from "./join-dialog"
 import { NameEditor } from "./name-editor"
 import { useRecentRooms } from "./recent-rooms"
@@ -51,12 +65,10 @@ function Dot({ live }: { live: boolean }) {
 
 /**
  * The left column, full height from the top of the window: logo bar, a quiet
- * New room row, the open room and recent rooms as compact rows, the shared
- * folder, and your name with the settings gear pinned at the bottom.
+ * New room row, the open room and recent rooms as compact rows, and your name with the settings gear pinned at the bottom.
  */
 export function RoomSidebar({
   session,
-  folderName,
   busy,
   onNewRoom,
   onJoin,
@@ -64,8 +76,6 @@ export function RoomSidebar({
 }: {
   /** The current session. */
   session: SessionState
-  /** Base name of the shared folder, or null before one is chosen. */
-  folderName: string | null
   /** True while a host or join is running, so no second one starts. */
   busy: boolean
   /** Starts a room on this computer. */
@@ -79,7 +89,29 @@ export function RoomSidebar({
   const openSettings = useOpenSettings()
   const [joining, setJoining] = useState(false)
   const idle = session.state === "idle"
-  const live = liveName(session)
+  const [query, setQuery] = useState("")
+  const searchRef = useRef<HTMLInputElement>(null)
+  const needle = query.trim().toLowerCase()
+  const matches = (name: string, code?: string) =>
+    needle === "" ||
+    name.toLowerCase().includes(needle) ||
+    (code?.toLowerCase().includes(needle) ?? false)
+  const liveLabel = liveName(session)
+  const live = liveLabel && matches(liveLabel, session.code) ? liveLabel : null
+  const shown = rooms.filter((room) => matches(room.name, room.code))
+
+  // Ctrl+K jumps to the search box from anywhere in the window.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
   const canStart = idle && !busy
   // ponytail: a rejoin only joins. Reopening a room as its host when nobody
   // answers is later work; it needs a host-by-code call in the sidecar.
@@ -87,40 +119,69 @@ export function RoomSidebar({
   return (
     <aside
       aria-label="Rooms"
-      className="flex h-full min-h-0 flex-col border-r bg-card/85"
+      className="flex h-full min-h-0 flex-col bg-card/85"
     >
       <DragBar className="gap-2 pl-3 text-xs font-medium">
         <img src={logo} alt="" className="size-4" />
         Tailshare
       </DragBar>
-      <div className="px-2 pt-1">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 px-2"
-          disabled={!canStart}
-          onClick={onNewRoom}
-        >
-          <PlusIcon aria-hidden data-icon="inline-start" />
-          New room
-        </Button>
-        {/* A disabled button gets no hover, so the span carries the tooltip. */}
+      {/* T3 shape: search fills the row, the two actions sit beside it. */}
+      <div className="flex items-center gap-1.5 px-2 pt-1">
+        <div className="relative min-w-0 flex-1">
+          <SearchIcon
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            ref={searchRef}
+            type="search"
+            value={query}
+            aria-label="Search rooms"
+            placeholder="Search rooms"
+            autoComplete="off"
+            className="pl-8"
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setQuery("")
+            }}
+          />
+        </div>
+        {/* A disabled button gets no hover, so each span carries its tooltip. */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="block" tabIndex={idle ? undefined : 0}>
+            <span tabIndex={canStart ? undefined : 0}>
               <Button
-                variant="ghost"
-                className="w-full justify-start gap-2 px-2"
-                disabled={!idle || busy}
-                onClick={() => setJoining(true)}
+                variant="outline"
+                size="icon"
+                aria-label="New room"
+                disabled={!canStart}
+                onClick={onNewRoom}
               >
-                <LogInIcon aria-hidden data-icon="inline-start" />
-                Join room
+                <PlusIcon aria-hidden />
               </Button>
             </span>
           </TooltipTrigger>
-          {idle ? null : (
-            <TooltipContent>Leave this room to join another.</TooltipContent>
-          )}
+          <TooltipContent>
+            {idle ? "New room" : "Leave this room to start another."}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span tabIndex={idle ? undefined : 0}>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Join room"
+                disabled={!idle || busy}
+                onClick={() => setJoining(true)}
+              >
+                <LogInIcon aria-hidden />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {idle ? "Join room" : "Leave this room to join another."}
+          </TooltipContent>
         </Tooltip>
       </div>
       <JoinDialog
@@ -128,7 +189,6 @@ export function RoomSidebar({
         onOpenChange={setJoining}
         enabled={canStart}
         busy={busy}
-        folderName={folderName}
         onJoin={onJoin}
       />
       <ScrollArea className="min-h-0 flex-1">
@@ -155,13 +215,29 @@ export function RoomSidebar({
             className="flex flex-col gap-1"
           >
             <Label id="recent-rooms">Recent</Label>
-            {rooms.length === 0 ? (
-              <p className="px-2 text-xs text-muted-foreground">
-                No recent rooms yet.
-              </p>
+            {shown.length === 0 ? (
+              <Empty className="flex-none gap-2 p-4">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    {needle !== "" ? (
+                      <SearchIcon aria-hidden />
+                    ) : (
+                      <HistoryIcon aria-hidden />
+                    )}
+                  </EmptyMedia>
+                  <EmptyTitle>
+                    {needle !== "" ? "No rooms match" : "No recent rooms"}
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    {needle !== ""
+                      ? "Try another name or code."
+                      : "Rooms you leave show up here."}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : (
               <ul className="flex flex-col">
-                {rooms.map((room) => (
+                {shown.map((room) => (
                   <li
                     key={room.code}
                     className="group relative flex h-8 items-center rounded-md focus-within:bg-accent/60 hover:bg-accent/60"
@@ -204,9 +280,6 @@ export function RoomSidebar({
           </section>
         </div>
       </ScrollArea>
-      <div className="px-2 pb-2 text-muted-foreground">
-        <FolderRow name={folderName} canChange={idle} />
-      </div>
       <footer className="flex items-center gap-1 border-t px-2 py-2">
         <NameEditor />
         <Button

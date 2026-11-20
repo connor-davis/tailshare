@@ -134,14 +134,7 @@ describe("Settings dialog", () => {
     ).toBe("Connor's PC")
 
     fireEvent.click(screen.getByRole("button", { name: "Saving" }))
-    const folder = await screen.findByRole("radio", { name: "Save to folder" })
-    expect(folder.getAttribute("aria-checked")).toBe("true")
-    expect(folder.getAttribute("data-state")).toBe("checked")
-    expect(
-      screen
-        .getByRole("radio", { name: "Ask every time" })
-        .getAttribute("aria-checked")
-    ).toBe("false")
+    expect(await screen.findByText(saved.saveFolder)).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "Transfers" }))
     expect(
@@ -214,21 +207,12 @@ describe("Settings dialog", () => {
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
   })
 
-  it("switches the save mode and hides the folder for Ask every time", async () => {
+  it("always shows the save folder and has no Ask every time option", async () => {
     await open("Saving")
-    expect(await screen.findByText(saved.saveFolder)).toBeTruthy()
 
-    fireEvent.click(screen.getByRole("radio", { name: "Ask every time" }))
-    await waitFor(() =>
-      expect(updateSettings).toHaveBeenCalledWith({ saveMode: "ask" })
-    )
-    await waitFor(() => expect(screen.queryByText(saved.saveFolder)).toBeNull())
-    expect(screen.queryByRole("button", { name: "Change" })).toBeNull()
-    expect(
-      screen
-        .getByRole("radio", { name: "Ask every time" })
-        .getAttribute("aria-checked")
-    ).toBe("true")
+    expect(await screen.findByText(saved.saveFolder)).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Change" })).toBeTruthy()
+    expect(screen.queryByRole("radio", { name: "Ask every time" })).toBeNull()
   })
 
   it("changes the save folder with the folder picker", async () => {

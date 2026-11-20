@@ -57,6 +57,8 @@ Session owns the code server and local approval; mesh owns independently keyed m
 
 | Job | Owner |
 | --- | --- |
+| Confined child room creation and reuse | `internal/services/share/room.go` (`OpenRoom`) |
+| Regular-file import, atomic no-replace copy and collision names | `internal/services/share/import.go` (`Import`, `AvailableName`, `NumberedName`); `import_windows.go`, `import_other.go` (link and junction checks) |
 | Open the shared folder once (`os.Root`), list, stat, close | `internal/services/share/share.go` (`Open`, `Root`) |
 | Peer path rules (slash paths, no `..`, drives, streams, device names) | `internal/services/share/path.go` (`Localize`) |
 | Partial-file access, regular-file checks and no-replace hard-link publication | `internal/services/share/partial.go` (`PartialSize`, `OpenPartial`, `ReadPartial`, `Commit`, `RemovePartial`) |
@@ -74,7 +76,9 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Service and peer errors to safe API errors, the JSON error handler | `internal/api/errors.go` (`errorHandler`, `toAppError`) |
 | Host, join, leave, session state and peer-loss cleanup | `internal/api/session.go` |
 | Local admission Allow/Deny routes and pending-ID validation | `internal/api/session_joins.go` |
-| Shared folder choice, local and peer folder listing | `internal/api/files.go` |
+| Local room and peer folder listing | `internal/api/files.go` |
+| Canonical room root and per-session manager creation | `internal/api/rooms.go` |
+| Main-only header guard, consented file import and downloads root configuration | `internal/api/room_files.go` |
 | Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
 | Transfer routes, the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
 | Manager adapter, direction/path mapping, state/progress events and subscription recovery | `internal/api/transfer_manager.go` (`managedTransfers`), `internal/api/session.go` (manager lifetime) |
@@ -135,13 +139,14 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
 | Window drag strip on top of each column (no window-wide title bar; 138 px kept free for the native buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
 | Update available button and dialog with per-version dismissal, shown in the main top bar | `src/renderer/src/components/update-button.tsx`, `update-button.test.tsx` beside it |
-| Shell pieces: main top bar, empty state, join form and dialog, folder hint, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `folder-hint`, `share-code`, `code-countdown`, `name-editor`) |
+| Shell pieces: main top bar, empty state, join form and dialog, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `share-code`, `code-countdown`, `name-editor`) |
 | Update event subscription and initial-read race guard, shared by Settings and the update button | `src/renderer/src/components/use-update-status.ts` |
 | Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and the update dialog | `src/renderer/src/components/update-release.tsx` |
 | `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |
 | Recent rooms store: `recent-rooms.json` in userData, max 20, 30-day prune, atomic write, change listeners | `src/main/recent-rooms.ts`, `src/main/recent-rooms.test.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
-| Real sidecar process (spawn, token, stdin pipe) | `src/main/sidecar-process.ts` |
+| Room file IPC, canonical folder opening and main-only HTTP calls | `src/main/room-ipc.ts` (`registerRoomIpc`, `roomFolder`, `callMainApi`) |
+| Real sidecar process (spawn, both tokens, room storage env, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
 | Health check call | `src/main/health.ts` |
 | Sidecar binary path (dev `bin/`, packaged resources) | `src/main/config.ts` |
@@ -152,16 +157,18 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
 | Query client and hash router | `src/renderer/src/main.tsx` |
 | Root outlet, live socket start, sidecar banner, announcements | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/components/sidecar-banner.tsx`, `src/renderer/src/components/status-region.tsx` |
-| App shell: rooms sidebar, room (header, Files and Chat tabs, transfers panel), members column; panel sizes saved per computer | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` (`room-sidebar`, `room-view`, `room-header`, `room-files`, `room-chat`, `members-panel`, `transfers-panel`, `panel-layout.ts`, `recent-rooms.ts`) |
+| App shell: rooms sidebar (New room, Join, search), room (header with Open folder, chat column, transfers panel at the bottom), members column; panel sizes saved per computer | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` (`room-sidebar`, `room-view`, `room-header`, `room-chat`, `members-panel`, `transfers-panel`, `panel-layout.ts`, `recent-rooms.ts`) |
 | Local join prompt, pending/error state and Allow/Deny actions | `src/renderer/src/routes/-components/join-request.tsx`, `join-request.test.tsx` beside it |
 | Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
 | Byte, speed, time and date text | `src/renderer/src/lib/format.ts` |
 | Local API client, query keys, hooks and types (match `internal/api`) | `src/renderer/src/lib/api/` |
 | One live socket, seq ordering, reconnect, cache updates | `src/renderer/src/lib/live/` |
-| File panes, rows, path crumbs, drag | `src/renderer/src/routes/session/-components/` |
+| Chat composer (Enter sends, grows to 8 lines, Add files button) and file card (Download, progress, Saved) | `src/renderer/src/routes/-components/` (`chat-composer.tsx`, `file-card.tsx`) |
+| Adding files from the button or a drop, one chat message per file | `src/renderer/src/routes/-components/use-share-files.ts` (calls `window.tailshare.addFiles` and `addDroppedFiles`) |
+| Transfer row (the only piece left in `session/`) | `src/renderer/src/routes/session/-components/transfer-row.tsx` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |
-| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`alert.tsx`, `breadcrumb.tsx`, `button.tsx`, `card.tsx`, `context-menu.tsx`, `field.tsx`, `input.tsx`, `label.tsx`, `progress.tsx`, `radio-group.tsx`, `resizable.tsx`, `scroll-area.tsx`, `select.tsx`, `separator.tsx`, `sheet.tsx`, `skeleton.tsx`, `switch.tsx`, `table.tsx`, `tabs.tsx`, `badge.tsx`, `tooltip.tsx`; added with shadcn CLI 4.23.0) |
+| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`alert.tsx`, `breadcrumb.tsx`, `button.tsx`, `card.tsx`, `empty.tsx`, `context-menu.tsx`, `field.tsx`, `input.tsx`, `label.tsx`, `progress.tsx`, `radio-group.tsx`, `resizable.tsx`, `scroll-area.tsx`, `select.tsx`, `separator.tsx`, `sheet.tsx`, `skeleton.tsx`, `switch.tsx`, `table.tsx`, `tabs.tsx`, `textarea.tsx`, `badge.tsx`, `tooltip.tsx`; added with shadcn CLI 4.23.0) |
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |
 
 ## Transfers
@@ -174,6 +181,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Data streams, bounded ID header, duplicate waiter refusal | `internal/services/transfer/stream.go` |
 | Negotiation, transfer execution and receiver verdicts | `internal/services/transfer/run.go` |
 | Source hashing and exact-size sending | `internal/services/transfer/send.go` |
+| Download destination configuration, root pinning and reserved names | `internal/services/transfer/downloads.go`, `manager.go` |
 | Partial receive, full checksum and commit | `internal/services/transfer/receive.go` |
 | Throttled progress, average speed and subscriptions | `internal/services/transfer/progress.go` (`Subscribe`) |
 | Real-session upload/download, pause, disconnect, cancel and queue tests | `internal/services/transfer/transfer_test.go` |

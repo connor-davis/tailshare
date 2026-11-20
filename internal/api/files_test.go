@@ -4,69 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
 )
-
-func TestFolderChoice(t *testing.T) {
-	f := newFixture(t, config.Config{}, nil)
-
-	// Nothing chosen yet.
-	f.send("GET", "/api/files/local", nil).expect(t, 409, "no_folder")
-	f.send("POST", "/api/session/host", nil).expect(t, 409, "no_folder")
-
-	for _, body := range []any{
-		map[string]string{"path": "relative/folder"},
-		map[string]string{"path": ""},
-		map[string]string{},
-		"not an object",
-	} {
-		f.send("PUT", "/api/folder", body).expect(t, 400, "bad_request")
-	}
-
-	missing := filepath.Join(t.TempDir(), "nope")
-	got := f.send("PUT", "/api/folder", map[string]string{"path": missing})
-	got.expect(t, 400, "bad_request")
-
-	if strings.Contains(string(got.Raw), filepath.Base(filepath.Dir(missing))) {
-		t.Fatalf("error leaks the local path: %s", got.Raw)
-	}
-
-	// A file is not a folder.
-	file := filepath.Join(t.TempDir(), "plain.txt")
-	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	f.send("PUT", "/api/folder", map[string]string{"path": file}).expect(t, 400, "bad_request")
-
-	first := f.chooseFolder("one.txt")
-	second := f.chooseFolder("two.txt")
-
-	// The second folder replaced the first, and the first is no longer held open.
-	list := f.send("GET", "/api/files/local", nil)
-	list.expect(t, 200, "")
-
-	if !strings.Contains(string(list.Raw), "two.txt") || strings.Contains(string(list.Raw), "one.txt") {
-		t.Fatalf("listing = %s", list.Raw)
-	}
-	if err := os.RemoveAll(first); err != nil {
-		t.Fatalf("the replaced folder is still held open: %v", err)
-	}
-
-	// The name shown is the base name, never the path.
-	put := f.send("PUT", "/api/folder", map[string]string{"path": second})
-	if put.Body["name"] != filepath.Base(second) || strings.Contains(string(put.Raw), `\`) {
-		t.Fatalf("put = %s", put.Raw)
-	}
-
-	// While a session is open the folder is fixed.
-	f.connectPipe()
-	f.send("PUT", "/api/folder", map[string]string{"path": second}).expect(t, 409, "conflict")
-}
 
 func TestLocalListing(t *testing.T) {
 	f := newFixture(t, config.Config{}, nil)

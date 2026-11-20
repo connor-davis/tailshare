@@ -5,6 +5,9 @@ import { JOIN_CODE, SIDECAR_STATUSES } from "./bridge"
 export const CHANNELS = {
   connectionInfo: "tailshare:connection-info",
   chooseFolder: "tailshare:choose-folder",
+  addFiles: "tailshare:add-files",
+  addDroppedFiles: "tailshare:add-dropped-files",
+  openRoomFolder: "tailshare:open-room-folder",
   sidecarStatus: "tailshare:sidecar-status",
   getSettings: "tailshare:get-settings",
   updateSettings: "tailshare:update-settings",
@@ -92,3 +95,18 @@ export const SidecarStatusSchema = Schema.Literals(SIDECAR_STATUSES)
 export const ChosenFolderSchema = Schema.NullOr(
   Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096))
 )
+
+/** Paths resolved by preload or the native picker, capped to one batch. */
+export const AddedPathsSchema = Schema.Array(AbsolutePath).check(
+  Schema.isMaxLength(100)
+)
+
+/** Main checks the sidecar reply before returning it to the page. */
+export const AddFilesResultSchema = Schema.Struct({
+  added: Schema.Array(
+    Schema.Struct({ name: Schema.String, size: Schema.Number })
+  ),
+  skipped: Schema.Array(
+    Schema.Struct({ name: Schema.String, reason: Schema.String })
+  ),
+})

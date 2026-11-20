@@ -4,7 +4,7 @@ import { UpdateButton } from "@/components/update-button"
 import { Button } from "@/components/ui/button"
 
 /**
- * The 32 px bar over the middle column: the rooms toggle on the left, the
+ * The 40 px bar over the middle column: the rooms toggle on the left, the
  * update button and members toggle on the right. When the members column is
  * hidden this bar is the rightmost, so it leaves the caption corner empty.
  */
@@ -24,11 +24,11 @@ export function MainBar({
   onToggleMembers: () => void
 }) {
   return (
-    <DragBar reserveCaption={!membersOpen}>
+    <DragBar reserveCaption={!membersOpen} className="border-b bg-card">
       <NoDrag>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label="Show or hide rooms"
           aria-expanded={roomsOpen}
           onClick={onToggleRooms}
@@ -41,7 +41,7 @@ export function MainBar({
       <NoDrag>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label="Show or hide members"
           aria-expanded={membersOpen}
           onClick={onToggleMembers}

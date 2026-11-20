@@ -135,8 +135,3 @@ func connectError(err error) *apperr.Error {
 func errNotConnected() *apperr.Error {
 	return apperr.Conflict("not_connected", "Connect to another computer first.")
 }
-
-// errNoFolder is the answer to a request that needs a shared folder.
-func errNoFolder() *apperr.Error {
-	return apperr.Conflict("no_folder", "Choose a folder to share first.")
-}

@@ -2,7 +2,6 @@
 import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { RoomChat } from "../../-components/room-chat"
-import { RowMenu } from "./row-menu"
 
 const messages = Array.from({ length: 30 }, (_, index) => ({
   id: `m${index}`,
@@ -22,27 +21,6 @@ afterEach(() => {
 })
 
 describe("scroll areas", () => {
-  it("scrolls a long file list inside a ScrollArea, not a native container", () => {
-    const { container } = render(
-      <RowMenu
-        onContext={() => {}}
-        onOpen={() => {}}
-        onSend={() => {}}
-        onSelectAll={() => {}}
-        onRefresh={() => {}}
-      >
-        {Array.from({ length: 50 }, (_, index) => (
-          <p key={index}>row {index}</p>
-        ))}
-      </RowMenu>
-    )
-
-    expect(
-      container.querySelector('[data-slot="scroll-area-viewport"]')
-    ).toBeTruthy()
-    expect(container.querySelector(".overflow-auto")).toBeNull()
-  })
-
   it("keeps the newest chat message in view by scrolling the viewport", () => {
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo")
     render(<RoomChat />)

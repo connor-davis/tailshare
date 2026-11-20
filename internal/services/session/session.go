@@ -23,8 +23,10 @@ const (
 	leaveWait = 2 * time.Second
 )
 
-// Options supplies the shared folder and handlers before any control peer starts.
+// Options supplies the room space and handlers before any control peer starts.
 type Options struct {
+	// Code optionally preselects the host code so its room root can open first.
+	Code     codes.Code
 	Root     *share.Root
 	Handlers map[string]peer.Handler
 }

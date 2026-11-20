@@ -17,7 +17,7 @@ export interface Settings {
   readonly updateChannel: UpdateChannel
   /** Shown to the other side. 1 to 64 characters. */
   readonly displayName: string
-  /** `folder` saves into {@link Settings.saveFolder}; `ask` asks each time. */
+  /** `folder` saves into {@link Settings.saveFolder}; `ask` currently also uses that folder. */
   readonly saveMode: "folder" | "ask"
   /** Absolute path where downloads land. */
   readonly saveFolder: string
@@ -145,6 +145,12 @@ export interface ConnectionInfo {
   readonly token: string
 }
 
+/** The result of copying consented files into a room. */
+export interface AddFilesResult {
+  readonly added: { name: string; size: number }[]
+  readonly skipped: { name: string; reason: string }[]
+}
+
 /**
  * The only thing browser code can reach in the desktop shell. Nothing here
  * exposes `ipcRenderer`, `process` or a way to call other channels.
@@ -202,6 +208,12 @@ export interface TailshareBridge {
   readonly getConnectionInfo: () => Promise<ConnectionInfo>
   /** Opens the native folder picker. Resolves to `null` if cancelled. */
   readonly chooseFolder: () => Promise<string | null>
+  /** Opens a native multi-file picker and copies selected files into the room. */
+  readonly addFiles: () => Promise<AddFilesResult | null>
+  /** Resolves real dropped Files in preload; paths never enter renderer code. */
+  readonly addDroppedFiles: (files: File[]) => Promise<AddFilesResult>
+  /** Opens the persistent folder for a validated room code. */
+  readonly openRoomFolder: (code: string) => Promise<void>
   /** Calls `listener` on each status change. Returns an unsubscribe. */
   readonly onSidecarStatus: (
     listener: (status: SidecarStatus) => void

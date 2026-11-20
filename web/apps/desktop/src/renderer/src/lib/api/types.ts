@@ -6,7 +6,7 @@ export interface PeerInfo {
   /** Name of the other computer. */
   displayName: string
   /** Base name of the folder the other computer shares. */
-  sharedFolderName: string
+  sharedFolderName?: string
 }
 
 /** One person in the room. Names and an id only, never an address. */
@@ -36,35 +36,6 @@ export interface SessionState {
   /** Everyone in the room, host first. Present while hosting or connected. */
   members?: SessionMember[]
 }
-
-/** The folder this computer shares. */
-export interface FolderInfo {
-  /** Base name only. The full path never reaches the screen. */
-  name: string
-}
-
-/** One row of a folder listing. */
-export interface FileEntry {
-  /** Name inside its folder. Display only. */
-  name: string
-  /** Size in bytes. */
-  size: number
-  /** Last change, as an ISO date string. */
-  modTime: string
-  /** True for a folder. */
-  isDir: boolean
-}
-
-/** One page of a folder listing. */
-export interface FilePage {
-  /** Rows of this page. */
-  entries: FileEntry[]
-  /** Rows in the whole folder. */
-  total: number
-}
-
-/** The two sides of the session. */
-export type Side = "local" | "peer"
 
 /** Every state a transfer can be in. */
 export type TransferState =
@@ -108,6 +79,16 @@ export interface TransferRequest {
   destination: string
 }
 
+/** A file sent in chat. The path is inside the sender's room folder. */
+export interface ChatAttachment {
+  /** Base name, for display and for saving. */
+  name: string
+  /** Path to ask the sender for. */
+  path: string
+  /** Size in bytes. */
+  size: number
+}
+
 /** One chat message. */
 export interface ChatMessage {
   /** Order the peer saw it. */
@@ -116,8 +97,10 @@ export interface ChatMessage {
   id: string
   /** True when the other computer wrote it. */
   fromPeer: boolean
-  /** The words. */
+  /** The words. Empty when the message is only a file. */
   text: string
+  /** The file this message shares, if any. */
+  attachment?: ChatAttachment
   /** When it was sent, as an ISO date string. */
   time: string
 }
@@ -126,8 +109,6 @@ export interface ChatMessage {
 export interface Snapshot {
   /** Session state. */
   session: SessionState
-  /** The shared folder, or null when none was chosen. */
-  folder: FolderInfo | null
   /** Every transfer, oldest first. */
   transfers: TransferItem[]
 }

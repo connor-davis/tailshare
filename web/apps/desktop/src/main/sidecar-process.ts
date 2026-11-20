@@ -12,12 +12,19 @@ export function newToken(): string {
  * it closes, so even a crashed Electron cannot leave it running. Stderr is
  * drained and dropped so a full pipe can never stall it.
  */
-export function spawnSidecar(binary: string, token: string): SidecarChild {
+export function spawnSidecar(
+  binary: string,
+  token: string,
+  roomsDir: string,
+  mainToken: string
+): SidecarChild {
   const child = spawn(binary, ["serve"], {
     env: {
       ...process.env,
       TAILSHARE_ADDR: "127.0.0.1:0",
       TAILSHARE_TOKEN: token,
+      TAILSHARE_MAIN_TOKEN: mainToken,
+      TAILSHARE_ROOMS_DIR: roomsDir,
     },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,

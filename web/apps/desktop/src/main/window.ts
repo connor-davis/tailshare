@@ -47,8 +47,8 @@ export function windowBackground(look: WindowLook): string {
 /** Caption symbol colours: the foreground tokens in globals.css. */
 const SYMBOL = { light: "#000000", dark: "#ededee" } as const
 
-/** The title bar's height in px (`h-8`). The caption buttons match it. */
-const TITLE_BAR_HEIGHT = 32
+/** The title bar's height in px (`h-10`). The caption buttons match it. */
+const TITLE_BAR_HEIGHT = 40
 
 /**
  * The Windows caption buttons drawn over our title bar. The page paints behind

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -15,12 +16,10 @@ import { Route } from "../index"
 const mocks = vi.hoisted(() => ({
   hostMutate: vi.fn(),
   joinMutate: vi.fn(),
-  chooseMutate: vi.fn(),
   panels: {} as Record<string, Record<string, unknown>>,
 }))
-const { hostMutate, joinMutate, chooseMutate, panels } = mocks
+const { hostMutate, joinMutate, panels } = mocks
 let session: SessionState = { state: "idle" }
-let folder: { name: string } | null = { name: "Share" }
 let joinLink: (code: string) => void = () => {}
 
 vi.mock("@/lib/api/session", () => {
@@ -37,15 +36,10 @@ vi.mock("@/lib/api/session", () => {
     useLeave: action(vi.fn()),
   }
 })
-vi.mock("@/lib/api/folder", () => ({
-  useFolder: () => ({ data: folder }),
-  useChooseFolder: () => ({
-    mutate: mocks.chooseMutate,
-    isPending: false,
-    error: null,
-  }),
+vi.mock("@/lib/api/transfers", () => ({
+  useTransfers: () => ({ data: [] }),
+  useStartTransfer: () => ({ mutate: vi.fn(), isPending: false, error: null }),
 }))
-vi.mock("@/lib/api/transfers", () => ({ useTransfers: () => ({ data: [] }) }))
 vi.mock("@/lib/api/chat", () => ({
   useChat: () => ({ data: [] }),
   useSendChat: () => ({ mutate: vi.fn(), isPending: false, error: null }),
@@ -60,15 +54,9 @@ vi.mock("@/components/settings/settings-dialog", () => ({
 vi.mock("@/components/update-button", () => ({
   UpdateButton: () => <p>update slot</p>,
 }))
-vi.mock("./room-files", () => ({
-  RoomFiles: ({ peer }: { peer?: object }) => (
-    <p>{peer ? "files with peer" : "files alone"}</p>
-  ),
-}))
 vi.mock("./room-sidebar", () => ({
   RoomSidebar: () => <aside aria-label="Rooms" />,
 }))
-vi.mock("./folder-hint", () => ({ FolderHint: () => null }))
 // Plain boxes that remember their props, so the test can read min and max.
 vi.mock("@/components/ui/resizable", () => ({
   ResizablePanelGroup: ({ children }: { children: ReactNode }) => (
@@ -86,11 +74,12 @@ vi.mock("@/components/ui/resizable", () => ({
   },
 }))
 
+const openRoomFolder = vi.fn(async () => {})
+
 beforeEach(() => {
   vi.clearAllMocks()
   window.localStorage.clear()
   session = { state: "idle" }
-  folder = { name: "Share" }
   vi.stubGlobal("tailshare", {
     onJoinLink: (listener: (code: string) => void) => {
       joinLink = listener
@@ -98,6 +87,7 @@ beforeEach(() => {
       return () => {}
     },
     touchRecentRoom: async () => {},
+    openRoomFolder,
   })
 })
 afterEach(() => {
@@ -105,14 +95,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function shell() {
+function shellNode() {
   const Component = Route.options.component as () => ReactNode
 
-  return render(
-    <TooltipProvider>
-      <Component />
-    </TooltipProvider>
-  )
+  return <Component />
+}
+
+function shell() {
+  return render(<TooltipProvider>{shellNode()}</TooltipProvider>)
 }
 
 describe("shell", () => {
@@ -136,30 +126,16 @@ describe("shell", () => {
     expect(hostMutate).toHaveBeenCalledOnce()
   })
 
-  it("asks for a folder first, then creates the room", () => {
-    folder = null
-    chooseMutate.mockImplementation((_arg, options) =>
-      options.onSuccess({ name: "Picked" })
-    )
-    shell()
+  it("never asks for a folder, idle or in a room", () => {
+    const view = shell()
+    expect(screen.queryByText(/folder/i)).toBeNull()
 
-    fireEvent.click(screen.getByRole("button", { name: "Create room" }))
-
-    expect(chooseMutate).toHaveBeenCalledOnce()
-    expect(hostMutate).toHaveBeenCalledOnce()
+    session = { state: "hosting", role: "host", code: "7K3Q9PXM" }
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+    expect(screen.queryByText(/choose a folder/i)).toBeNull()
   })
 
-  it("does nothing when the folder picker is cancelled", () => {
-    folder = null
-    chooseMutate.mockImplementation((_arg, options) => options.onSuccess(null))
-    shell()
-
-    fireEvent.click(screen.getByRole("button", { name: "Create room" }))
-
-    expect(hostMutate).not.toHaveBeenCalled()
-  })
-
-  it("shows the room with tabs, the code and a disabled chat while hosting", () => {
+  it("shows the chat with a disabled composer while hosting", () => {
     session = {
       state: "hosting",
       role: "host",
@@ -171,23 +147,47 @@ describe("shell", () => {
     expect(screen.getByText("Waiting for someone to join…")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Copy code" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Copy link" })).toBeTruthy()
-    expect(screen.getByRole("tab", { name: "Files" })).toBeTruthy()
-    expect(screen.getByText("files alone")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Open folder" })).toBeTruthy()
+    expect(screen.queryByRole("tab")).toBeNull()
     expect(screen.getByText("You (host)")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
-
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Chat" }))
-    fireEvent.click(screen.getByRole("tab", { name: "Chat" }))
     expect(
-      (screen.getByLabelText("Message") as HTMLInputElement).disabled
+      (screen.getByLabelText("Message") as HTMLTextAreaElement).disabled
     ).toBe(true)
   })
 
-  it("shows files, chat, members and transfers when connected", () => {
+  it("opens the host's room folder by its code", () => {
+    session = { state: "hosting", role: "host", code: "7K3Q9PXM" }
+    shell()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }))
+
+    expect(openRoomFolder).toHaveBeenCalledWith("7K3Q9PXM")
+  })
+
+  it("opens a joiner's room folder by the code they joined with", () => {
+    const view = shell()
+    joinLink("ABCD2345")
     session = {
       state: "connected",
       role: "joiner",
-      peer: { displayName: "Pat", sharedFolderName: "Photos" },
+      peer: { displayName: "Pat" },
+    }
+    act(() =>
+      joinMutate.mock.calls[0][1].onSuccess({ peer: { displayName: "Pat" } })
+    )
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }))
+
+    expect(openRoomFolder).toHaveBeenCalledWith("ABCD2345")
+  })
+
+  it("shows chat, transfers at the bottom and members when connected", () => {
+    session = {
+      state: "connected",
+      role: "joiner",
+      peer: { displayName: "Pat" },
       members: [
         { id: "a", displayName: "Pat", host: true },
         { id: "b", displayName: "Studio", you: true },
@@ -195,10 +195,31 @@ describe("shell", () => {
     }
     shell()
 
-    expect(screen.getByText("files with peer")).toBeTruthy()
+    expect(screen.getByRole("log", { name: "Chat messages" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Add files" })).toBeTruthy()
     expect(screen.getByRole("region", { name: "Transfers" })).toBeTruthy()
     expect(screen.getByText("Host")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Leave" })).toBeTruthy()
+    // Chat on top, transfers below it, both in the room column.
+    expect(panels.chat).toBeTruthy()
+    expect(panels.transfers.maxSize).toBe("70%")
+    expect(panels.transfers.collapsible).toBeFalsy()
+  })
+
+  it("collapses the transfers panel to its header and remembers it", () => {
+    session = {
+      state: "connected",
+      role: "joiner",
+      peer: { displayName: "Pat" },
+    }
+    shell()
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse" }))
+
+    expect(window.localStorage.getItem("tailshare.layout.transfers.open")).toBe(
+      "false"
+    )
+    expect(screen.getByRole("button", { name: "Expand" })).toBeTruthy()
   })
 
   it("joins when a tailshare link arrives", async () => {

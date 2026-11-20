@@ -15,8 +15,6 @@ const openSettings = vi.fn()
 vi.mock("@/components/settings/settings-dialog", () => ({
   useOpenSettings: () => openSettings,
 }))
-vi.mock("./folder-row", () => ({ FolderRow: () => <p>folder row</p> }))
-vi.mock("./folder-hint", () => ({ FolderHint: () => null }))
 
 const updateSettings = vi.fn(async (patch: object) => ({
   displayName: "Studio PC",
@@ -53,7 +51,7 @@ const connected: SessionState = {
   ],
 }
 
-function show(session: SessionState, folderName: string | null = "Share") {
+function show(session: SessionState) {
   const onNewRoom = vi.fn()
   const onJoin = vi.fn()
   const onRejoin = vi.fn()
@@ -61,7 +59,6 @@ function show(session: SessionState, folderName: string | null = "Share") {
     <TooltipProvider>
       <RoomSidebar
         session={session}
-        folderName={folderName}
         busy={false}
         onNewRoom={onNewRoom}
         onJoin={onJoin}
@@ -74,8 +71,8 @@ function show(session: SessionState, folderName: string | null = "Share") {
 }
 
 describe("RoomSidebar", () => {
-  it("starts a room, even before a folder is chosen", () => {
-    const { onNewRoom } = show(idle, null)
+  it("starts a room", () => {
+    const { onNewRoom } = show(idle)
 
     fireEvent.click(screen.getByRole("button", { name: "New room" }))
 
@@ -117,6 +114,57 @@ describe("RoomSidebar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Forget Pat's room" }))
     expect(removeRecentRoom).toHaveBeenCalledWith("7K3Q9PXM")
+  })
+
+  it("has a full-width New room button and a search box", () => {
+    show(idle)
+
+    expect(screen.getByRole("button", { name: "New room" })).toBeTruthy()
+    expect(
+      (screen.getByLabelText("Search rooms") as HTMLInputElement).placeholder
+    ).toBe("Search rooms")
+  })
+
+  it("filters recent rooms by name or code as you type", async () => {
+    show(idle)
+    await screen.findByRole("button", { name: "Rejoin Pat's room" })
+
+    fireEvent.change(screen.getByLabelText("Search rooms"), {
+      target: { value: "7k3q" },
+    })
+    expect(
+      screen.getByRole("button", { name: "Rejoin Pat's room" })
+    ).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText("Search rooms"), {
+      target: { value: "zzz" },
+    })
+    expect(
+      screen.queryByRole("button", { name: "Rejoin Pat's room" })
+    ).toBeNull()
+    expect(screen.getByText("No rooms match")).toBeTruthy()
+  })
+
+  it("filters the open room too", () => {
+    show(connected)
+
+    fireEvent.change(screen.getByLabelText("Search rooms"), {
+      target: { value: "nothing" },
+    })
+
+    expect(screen.queryByText("Pat's room")).toBeNull()
+  })
+
+  it("clears the search on Escape and focuses it with Ctrl+K", () => {
+    show(idle)
+    const box = screen.getByLabelText("Search rooms") as HTMLInputElement
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true })
+    expect(document.activeElement).toBe(box)
+
+    fireEvent.change(box, { target: { value: "abc" } })
+    fireEvent.keyDown(box, { key: "Escape" })
+    expect(box.value).toBe("")
   })
 
   it("opens settings from the gear", () => {

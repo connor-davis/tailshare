@@ -149,3 +149,47 @@ func TestStaleResumePrefixRemoved(t *testing.T) {
 	assertMissing(t, dir, "file")
 	assertMissing(t, dir, "file"+share.PartialSuffix)
 }
+
+func TestDownloadPinsRootThroughResume(t *testing.T) {
+	roomDir, firstDir, secondDir := t.TempDir(), t.TempDir(), t.TempDir()
+	manager := New(openRoot(t, roomDir))
+	defer manager.Close()
+	first, second := openRoot(t, firstDir), openRoot(t, secondDir)
+	manager.SetDownloadRoot(first)
+	queued, err := manager.Download(t.Context(), "nested/report.pdf", "report.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := manager.jobs[queued.ID]
+	if err := receiveTo(manager.receiverRoot(item), item.local, 0, 3, bytes.NewBufferString("abc")); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Pause(queued.ID); err != nil {
+		t.Fatal(err)
+	}
+	manager.SetDownloadRoot(second)
+	resumed, err := manager.Resume(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry := manager.jobs[resumed.ID]
+	if retry.root != first || retry.local != "report.pdf" {
+		t.Fatal("resume redirected destination")
+	}
+	retry.view.Size = 6
+	if err := manager.prepareReceiver(retry); err != nil {
+		t.Fatal(err)
+	}
+	if retry.view.Offset != 3 {
+		t.Fatal("lost resume prefix")
+	}
+	if err := receiveTo(retry.root, retry.local, 3, 6, bytes.NewBufferString("def")); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyAndCommit(retry.root, retry.local, checksum([]byte("abcdef"))); err != nil {
+		t.Fatal(err)
+	}
+	assertFile(t, firstDir, "report.pdf", []byte("abcdef"))
+	assertMissing(t, roomDir, "report.pdf")
+	assertMissing(t, secondDir, "report.pdf")
+}

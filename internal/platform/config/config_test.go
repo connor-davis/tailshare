@@ -20,3 +20,12 @@ func TestLoadRejectsBadRegion(t *testing.T) {
 		t.Fatal("a non-numeric region was accepted")
 	}
 }
+
+func TestRoomAndMainSettings(t *testing.T) {
+	t.Setenv("TAILSHARE_ROOMS_DIR", "C:/App/rooms")
+	t.Setenv("TAILSHARE_MAIN_TOKEN", "secret")
+	cfg, err := Load()
+	if err != nil || cfg.RoomsDir != "C:/App/rooms" || cfg.MainToken != "secret" {
+		t.Fatalf("settings not loaded: %v", err)
+	}
+}

@@ -265,3 +265,36 @@ func assertOutsideUntouched(t *testing.T, outside string) {
 		t.Fatalf("outside file was changed: %q", text)
 	}
 }
+
+func TestImportSkipsLinksAndJunctions(t *testing.T) {
+	for kind, makeLink := range linkMakers {
+		t.Run(kind, func(t *testing.T) {
+			shared, inside, outside := openShared(t)
+			linked := filepath.Join(inside, "alias")
+			if reason := makeLink(outside, linked); reason != "" {
+				t.Skip(reason)
+			}
+			for _, source := range []string{linked, filepath.Join(linked, "secret.txt")} {
+				if _, err := shared.Import(source); err == nil {
+					t.Fatalf("imported %s", source)
+				}
+			}
+			assertOutsideUntouched(t, outside)
+		})
+	}
+}
+
+func TestRoomRootCannotFollowEscapingLink(t *testing.T) {
+	for kind, makeLink := range linkMakers {
+		t.Run(kind, func(t *testing.T) {
+			rooms, outside := t.TempDir(), t.TempDir()
+			if reason := makeLink(outside, filepath.Join(rooms, "7K3Q-9PXM")); reason != "" {
+				t.Skip(reason)
+			}
+			if root, err := OpenRoom(rooms, "7K3Q-9PXM"); err == nil {
+				root.Close()
+				t.Fatal("opened outside rooms")
+			}
+		})
+	}
+}

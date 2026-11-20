@@ -19,6 +19,7 @@ import (
 	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/transfer"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -43,18 +44,24 @@ type Server struct {
 	// Serve starts, so no lock is needed.
 	hosts []string
 
+	// roomIO keeps roots open during imports. Acquire it before mu when both are needed.
+	roomIO sync.RWMutex
+
 	// mu guards everything below. Never hold it across a network call, and
 	// never publish an event while holding it: snapshots read it under the hub.
-	mu           sync.Mutex
-	phase        string
-	role         string
-	code         string
-	sess         *session.Session
-	peer         *peer.Peer
-	root         *share.Root
-	transfers    Transfers
-	transferDone chan struct{}
-	ending       chan struct{}
+	mu            sync.Mutex
+	phase         string
+	role          string
+	code          string
+	sess          *session.Session
+	peer          *peer.Peer
+	root          *share.Root
+	manager       *transfer.Manager
+	downloadRoot  *share.Root
+	downloadRoots []*share.Root
+	transfers     Transfers
+	transferDone  chan struct{}
+	ending        chan struct{}
 }
 
 // New builds the API and owns a transfer manager for each connected session.
@@ -109,12 +116,23 @@ func (server *Server) Shutdown(timeout time.Duration) error {
 	server.hub.closeAll()
 	server.leave()
 	server.closeFolder()
+	server.mu.Lock()
+	roots := server.downloadRoots
+	server.downloadRoots, server.downloadRoot = nil, nil
+	server.mu.Unlock()
+
+	for _, root := range roots {
+		_ = root.Close()
+	}
 
 	return server.app.ShutdownWithTimeout(timeout)
 }
 
 // closeFolder releases the shared folder, which Windows holds open until then.
 func (server *Server) closeFolder() {
+	server.roomIO.Lock()
+	defer server.roomIO.Unlock()
+
 	server.mu.Lock()
 	root := server.root
 	server.root = nil
@@ -139,7 +157,8 @@ func (server *Server) routes() {
 	api.Post("/session/joins/:id/allow", server.allowJoin)
 	api.Post("/session/joins/:id/deny", server.denyJoin)
 
-	api.Put("/folder", server.putFolder)
+	api.Post("/room/files", server.mainOnly, server.addRoomFiles)
+	api.Put("/downloads", server.mainOnly, server.putDownloads)
 	api.Get("/files/local", server.localFiles)
 	api.Get("/files/peer", server.peerFiles)
 

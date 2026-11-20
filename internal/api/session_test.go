@@ -3,10 +3,13 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
@@ -23,8 +26,9 @@ func TestSessionBadRequests(t *testing.T) {
 	}
 	f.send("POST", "/api/session/join", "not an object").expect(t, 400, "bad_request")
 
-	// A good code still needs a folder first.
-	f.send("POST", "/api/session/join", map[string]string{"code": "7K3Q-9PXM"}).expect(t, 409, "no_folder")
+	// An unconfigured rooms directory fails before networking.
+	f.server.cfg.RoomsDir = ""
+	f.send("POST", "/api/session/join", map[string]string{"code": "7K3Q-9PXM"}).expect(t, 400, "bad_request")
 
 	// A failed start leaves the session idle, so it can be tried again.
 	if got := f.send("GET", "/api/session", nil); got.Body["state"] != phaseIdle {
@@ -41,9 +45,6 @@ func TestSessionLifecycle(t *testing.T) {
 	host := newFixture(t, cfg, nil)
 	join := newFixture(t, cfg, nil)
 
-	host.chooseFolder("from-host.txt")
-	join.chooseFolder("docs/from-joiner.txt")
-
 	hostLive := host.dialLive()
 	next(t, hostLive)
 
@@ -51,6 +52,16 @@ func TestSessionLifecycle(t *testing.T) {
 	hosting.expect(t, 201, "")
 
 	code, _ := hosting.Body["code"].(string)
+	if err := os.WriteFile(filepath.Join(host.server.cfg.RoomsDir, code, "from-host.txt"), []byte("host"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	joinDir := filepath.Join(join.server.cfg.RoomsDir, code)
+	if err := os.MkdirAll(filepath.Join(joinDir, "docs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(joinDir, "docs", "from-joiner.txt"), []byte("joiner"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if hosting.Body["state"] != phaseHosting || hosting.Body["role"] != roleHost || len(code) != 9 {
 		t.Fatalf("host = %s", hosting.Raw)
 	}
@@ -58,7 +69,7 @@ func TestSessionLifecycle(t *testing.T) {
 	// One session at a time, and the folder is fixed while it is open.
 	host.send("POST", "/api/session/host", nil).expect(t, 409, "conflict")
 	host.send("POST", "/api/session/join", map[string]string{"code": code}).expect(t, 409, "conflict")
-	host.send("PUT", "/api/folder", map[string]string{"path": t.TempDir()}).expect(t, 409, "conflict")
+	host.send("PUT", "/api/folder", map[string]string{"path": t.TempDir()}).expect(t, 404, "not_found")
 
 	until(t, hostLive, "session.state", func(e Event) bool {
 		return strings.Contains(string(mustJSON(e.Data)), `"state":"hosting"`)
@@ -117,6 +128,8 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("host chat log = %s", got.Raw)
 	}
 
+	hostRoot, joinRoot := host.server.root, join.server.root
+
 	// Leaving ends both sides: the joiner at once, the host when it notices.
 	join.send("DELETE", "/api/session", nil).expect(t, 200, "")
 
@@ -128,8 +141,18 @@ func TestSessionLifecycle(t *testing.T) {
 		return strings.Contains(string(mustJSON(e.Data)), `"state":"idle"`)
 	})
 
-	// The folder stays chosen, and chat needs a connection again.
-	host.send("GET", "/api/files/local", nil).expect(t, 200, "")
+	// Handles close after leave, but persisted room files remain available for reuse.
+	for _, root := range []*share.Root{hostRoot, joinRoot} {
+		if _, err := root.Stat(""); err == nil {
+			t.Fatal("leave retained an open root")
+		}
+	}
+	if _, err := os.Stat(filepath.Join(host.server.cfg.RoomsDir, code, "from-host.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Chat needs a connection again.
+	host.send("GET", "/api/files/local", nil).expect(t, 409, "not_connected")
 	host.send("GET", "/api/chat", nil).expect(t, 409, "not_connected")
 	host.send("DELETE", "/api/session", nil).expect(t, 200, "")
 }
@@ -166,8 +189,6 @@ func TestAllowDenyRoutes(t *testing.T) {
 	derp := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
 	cfg := config.Config{Region: tailcattest.RegionID, DERPMapURL: derp}
 	host, join := newFixture(t, cfg, nil), newFixture(t, cfg, nil)
-	host.chooseFolder()
-	join.chooseFolder()
 	for _, id := range []string{"0", "-1", "nope", "01", "18446744073709551616"} {
 		host.send("POST", "/api/session/joins/"+id+"/allow", nil).expect(t, 400, "bad_request")
 	}
@@ -208,5 +229,8 @@ func TestAllowDenyRoutes(t *testing.T) {
 		t.Fatal("deny retained prompt")
 	}
 	(<-results).expect(t, 403, "join_denied")
+	if join.server.root != nil || join.server.manager != nil {
+		t.Fatal("failed join retained its room resources")
+	}
 	host.send("POST", fmt.Sprintf("/api/session/joins/%d/allow", state.Join.ID), nil).expect(t, 409, "conflict")
 }

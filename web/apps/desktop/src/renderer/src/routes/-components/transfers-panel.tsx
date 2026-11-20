@@ -1,6 +1,14 @@
 import { useState } from "react"
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { cn } from "cn"
+import { ArrowDownUpIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useTransfers } from "@/lib/api/transfers"
 import type { TransferView } from "@/lib/api/types"
@@ -52,7 +60,11 @@ export function TransfersPanel({
   return (
     <section
       aria-label="Transfers"
-      className="flex h-full min-h-0 flex-col border-t bg-card"
+      // Open, the resize handle draws the top line; collapsed, there is none.
+      className={cn(
+        "flex h-full min-h-0 flex-col bg-card",
+        collapsed && "border-t"
+      )}
     >
       <header className="flex h-10 shrink-0 items-center gap-3 px-3">
         <h2 className="text-sm font-semibold">Transfers</h2>
@@ -83,9 +95,17 @@ export function TransfersPanel({
         </Button>
       </header>
       {collapsed ? null : items.length === 0 ? (
-        <p className="p-4 text-center text-muted-foreground">
-          No transfers yet. Drag a file to the other pane.
-        </p>
+        <Empty className="min-h-0 gap-2 p-4">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <ArrowDownUpIcon aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>No transfers yet</EmptyTitle>
+            <EmptyDescription>
+              Files you download from the chat show up here.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
           <ul>
