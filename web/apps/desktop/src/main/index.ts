@@ -8,7 +8,7 @@ import {
   type Tray,
 } from "electron"
 import { release } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
 import updaterPackage from "electron-updater"
 import { CHANNELS } from "../shared/ipc-schema"
@@ -16,6 +16,7 @@ import { resolveSidecarPath } from "./config"
 import { checkHealth } from "./health"
 import {
   registerIpc,
+  registerRecentRoomsIpc,
   registerUpdateIpc,
   registerWindowIpc,
   type IpcHost,
@@ -26,7 +27,9 @@ import {
   showWindow,
   startsHidden,
 } from "./lifecycle"
+import { createJoinInbox, findJoinLink } from "./join-link"
 import { applyLoginItem } from "./login-item"
+import { openRecentRooms } from "./recent-rooms"
 import { openSettings } from "./settings"
 import { createTray, trayIconPaths } from "./tray"
 import { createUpdater } from "./updater"
@@ -36,7 +39,6 @@ import {
   applyLook,
   fixSocketOrigin,
   lockNavigation,
-  toggleMaximize,
   windowMaterial,
   windowOptions,
   windowState,
@@ -50,15 +52,24 @@ let quitIntent = false
 let closeToTray = false
 let tray: Tray | null = null
 
-function createWindow(hidden: boolean, look: WindowLook, onState: () => void) {
+// Join links wait here until the page says it is listening. Codes are
+// secrets: nothing in this file logs argv, a link or a code.
+const joinInbox = createJoinInbox((code) => {
+  if (window && !window.isDestroyed())
+    window.webContents.send(CHANNELS.joinLink, code)
+})
+// A link that started this launch. Read now, so it is not lost to startup.
+const startLink = findJoinLink(process.argv)
+if (startLink) joinInbox.push(startLink)
+
+function createWindow(hidden: boolean, look: WindowLook) {
   window = new BrowserWindow({
     ...windowOptions(join(import.meta.dirname, "../preload/index.cjs"), look),
     show: !hidden,
   })
   lockNavigation(window.webContents)
-  // The title bar swaps its maximise and restore button from these.
-  window.on("maximize", () => onState())
-  window.on("unmaximize", () => onState())
+  // A reloaded page has no listener yet, so links wait for its next ready.
+  window.webContents.on("did-start-loading", () => joinInbox.reset())
   hideOnClose(window, () => ({ closeToTray, quitting: quitIntent }))
 
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -71,6 +82,13 @@ function createWindow(hidden: boolean, look: WindowLook, onState: () => void) {
 async function main() {
   await app.whenReady()
   app.setAppUserModelId("connor.davis.Tailshare")
+  // Dev runs the generic Electron binary, which must be told the app script.
+  // Windows may still ask the user which app opens tailshare: links.
+  if (process.defaultApp && process.argv.length >= 2)
+    app.setAsDefaultProtocolClient("tailshare", process.execPath, [
+      resolve(process.argv[1]!),
+    ])
+  else app.setAsDefaultProtocolClient("tailshare")
 
   const binary = resolveSidecarPath({
     packaged: app.isPackaged,
@@ -109,7 +127,7 @@ async function main() {
   const liveWindow = () => (window && !window.isDestroyed() ? window : null)
   const pushWindowState = (mica?: boolean) => {
     const open = liveWindow()
-    open?.webContents.send(CHANNELS.windowState, windowState(open, look(mica)))
+    open?.webContents.send(CHANNELS.windowState, windowState(look(mica)))
   }
   const refreshLook = (mica?: boolean) => {
     const open = liveWindow()
@@ -152,20 +170,18 @@ async function main() {
   }
   await runtime.runPromise(registerIpc(host))
   registerUpdateIpc(host, settings, updater)
+  const recentRooms = openRecentRooms(app.getPath("userData"))
+  registerRecentRoomsIpc(host, recentRooms)
+  recentRooms.onChange((rooms) => {
+    for (const open of BrowserWindow.getAllWindows())
+      open.webContents.send(CHANNELS.recentRoomsChanged, rooms)
+  })
+  // The preload sends this once its join-link listener is attached.
+  ipcMain.on(CHANNELS.rendererReady, (event) => {
+    if (event.sender === window?.webContents) joinInbox.ready()
+  })
   registerWindowIpc(host, {
-    minimize: () => liveWindow()?.minimize(),
-    toggleMaximize: () => {
-      const open = liveWindow()
-      if (open) toggleMaximize(open)
-    },
-    // The close event runs the close-to-tray rule.
-    close: () => liveWindow()?.close(),
-    state: () => {
-      const open = liveWindow()
-      return open
-        ? windowState(open, look())
-        : { maximized: false, mica: false }
-    },
+    state: () => windowState(look()),
   })
 
   // One place reacts to a saved change: updater, login item, tray flag, windows.
@@ -210,7 +226,7 @@ async function main() {
       callback({ requestHeaders: fixSocketOrigin(details.requestHeaders) })
   )
 
-  createWindow(startsHidden(process.argv), look(), pushWindowState)
+  createWindow(startsHidden(process.argv) && !startLink, look())
 
   tray = createTray(
     { onOpen: () => showWindow(window), onQuit: () => app.quit() },
@@ -222,8 +238,7 @@ async function main() {
   )
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0)
-      createWindow(false, look(), pushWindowState)
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(false, look())
   })
 }
 
@@ -238,7 +253,12 @@ app.on("window-all-closed", () => {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on("second-instance", () => showWindow(window))
+  app.on("second-instance", (_event, argv) => {
+    showWindow(window)
+
+    const code = findJoinLink(argv)
+    if (code) joinInbox.push(code)
+  })
 
   main().catch((error: unknown) => {
     dialog.showErrorBox("Tailshare could not start", String(error))

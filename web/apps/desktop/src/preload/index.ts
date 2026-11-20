@@ -1,8 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron"
 import {
   SIDECAR_STATUSES,
+  isJoinCode,
+  isRecentRooms,
   isUpdateStatus,
   isWindowState,
+  type RecentRoom,
   type Settings,
   type SettingsPatch,
   type UpdateStatus,
@@ -35,10 +38,6 @@ const bridge: TailshareBridge = Object.freeze({
     ipcRenderer.on("tailshare:update-status", handler)
     return () => void ipcRenderer.off("tailshare:update-status", handler)
   },
-  minimizeWindow: () => ipcRenderer.invoke("tailshare:window-minimize"),
-  toggleMaximizeWindow: () =>
-    ipcRenderer.invoke("tailshare:window-toggle-maximize"),
-  closeWindow: () => ipcRenderer.invoke("tailshare:window-close"),
   getWindowState: () => ipcRenderer.invoke("tailshare:get-window-state"),
   onWindowState: (listener: (state: WindowState) => void) => {
     const handler = (_event: unknown, state: unknown) => {
@@ -46,6 +45,27 @@ const bridge: TailshareBridge = Object.freeze({
     }
     ipcRenderer.on("tailshare:window-state", handler)
     return () => void ipcRenderer.off("tailshare:window-state", handler)
+  },
+  onJoinLink: (listener: (code: string) => void) => {
+    const handler = (_event: unknown, code: unknown) => {
+      if (isJoinCode(code)) listener(code)
+    }
+    ipcRenderer.on("tailshare:join-link", handler)
+    // The listener exists now, so main may send any link it was holding.
+    ipcRenderer.send("tailshare:renderer-ready")
+    return () => void ipcRenderer.off("tailshare:join-link", handler)
+  },
+  getRecentRooms: () => ipcRenderer.invoke("tailshare:get-recent-rooms"),
+  touchRecentRoom: (room: { name: string; code: string }) =>
+    ipcRenderer.invoke("tailshare:touch-recent-room", room),
+  removeRecentRoom: (code: string) =>
+    ipcRenderer.invoke("tailshare:remove-recent-room", code),
+  onRecentRoomsChanged: (listener: (rooms: RecentRoom[]) => void) => {
+    const handler = (_event: unknown, rooms: unknown) => {
+      if (isRecentRooms(rooms)) listener(rooms)
+    }
+    ipcRenderer.on("tailshare:recent-rooms-changed", handler)
+    return () => void ipcRenderer.off("tailshare:recent-rooms-changed", handler)
   },
   getConnectionInfo: () => ipcRenderer.invoke("tailshare:connection-info"),
   chooseFolder: () => ipcRenderer.invoke("tailshare:choose-folder"),

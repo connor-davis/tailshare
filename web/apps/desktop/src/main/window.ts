@@ -44,10 +44,28 @@ export function windowBackground(look: WindowLook): string {
   return look.dark ? SOLID.dark : SOLID.light
 }
 
+/** Caption symbol colours: the foreground tokens in globals.css. */
+const SYMBOL = { light: "#000000", dark: "#ededee" } as const
+
+/** The title bar's height in px (`h-8`). The caption buttons match it. */
+const TITLE_BAR_HEIGHT = 32
+
+/**
+ * The Windows caption buttons drawn over our title bar. The page paints behind
+ * them, so the colour stays see-through; only the symbols follow the theme.
+ */
+export function titleBarOverlay(look: WindowLook) {
+  return {
+    color: "#00000000",
+    symbolColor: look.dark ? SYMBOL.dark : SYMBOL.light,
+    height: TITLE_BAR_HEIGHT,
+  }
+}
+
 /**
  * Window settings. Isolation and the sandbox are on and Node is off, so the
- * page only reaches what the preload bridge exposes. The frame is ours: the
- * page draws the title bar.
+ * page only reaches what the preload bridge exposes. The title bar is ours,
+ * but Windows draws the real minimise, maximise and close buttons over it.
  */
 export function windowOptions(
   preload: string,
@@ -59,7 +77,8 @@ export function windowOptions(
     height: 760,
     minWidth: 480,
     minHeight: 360,
-    frame: false,
+    titleBarStyle: "hidden",
+    titleBarOverlay: titleBarOverlay(look),
     backgroundMaterial: look.material,
     backgroundColor: windowBackground(look),
     webPreferences: {
@@ -71,33 +90,26 @@ export function windowOptions(
   }
 }
 
-/** The parts of a window that the title bar controls touch. */
+/** The parts of a window that {@link applyLook} touches. */
 export interface ControlledWindow {
-  isMaximized(): boolean
-  maximize(): void
-  unmaximize(): void
   setBackgroundMaterial(material: WindowMaterial): void
   setBackgroundColor(color: string): void
+  setTitleBarOverlay(options: ReturnType<typeof titleBarOverlay>): void
 }
 
-/** Maximises, or restores a window that already fills the screen. */
-export function toggleMaximize(window: ControlledWindow): void {
-  if (window.isMaximized()) window.unmaximize()
-  else window.maximize()
-}
-
-/** Switches a live window between Mica and the solid colour. */
+/**
+ * Switches a live window between Mica and the solid colour, and recolours the
+ * caption symbols to match the theme.
+ */
 export function applyLook(window: ControlledWindow, look: WindowLook): void {
   window.setBackgroundMaterial(look.material)
   window.setBackgroundColor(windowBackground(look))
+  window.setTitleBarOverlay(titleBarOverlay(look))
 }
 
 /** What the page is told about its window. */
-export function windowState(
-  window: ControlledWindow,
-  look: WindowLook
-): WindowState {
-  return { maximized: window.isMaximized(), mica: look.material === "mica" }
+export function windowState(look: WindowLook): WindowState {
+  return { mica: look.material === "mica" }
 }
 
 /** The parts of `webContents` that {@link lockNavigation} touches. */

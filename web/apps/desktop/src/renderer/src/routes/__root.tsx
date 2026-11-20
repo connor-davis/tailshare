@@ -12,13 +12,12 @@ export const Route = createRootRoute({ component: Root })
 
 function Root() {
   const sidecar = useLive()
-  const { maximized } = useWindowState()
+  useWindowState()
 
   return (
-    // A maximised frameless window overhangs the screen by 8 px on each edge.
     <TooltipProvider>
-      <div className={`flex h-screen flex-col ${maximized ? "p-2" : ""}`}>
-        <TitleBar maximized={maximized} />
+      <div className="flex h-screen flex-col">
+        <TitleBar />
         <SidecarBanner {...sidecar} />
         <ScrollArea className="min-h-0 flex-1">
           <Outlet />

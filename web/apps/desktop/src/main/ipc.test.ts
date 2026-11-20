@@ -14,12 +14,14 @@ import {
 import {
   check,
   registerIpc,
+  registerRecentRoomsIpc,
   registerUpdateIpc,
   registerWindowIpc,
   type IpcHost,
   type WindowControls,
 } from "./ipc"
 import { Sidecar } from "./sidecar"
+import { openRecentRooms } from "./recent-rooms"
 import { openSettings, type SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
 
@@ -171,10 +173,7 @@ describe("window IPC", () => {
   function setupWindow() {
     const handlers = new Map<string, Handler>()
     const controls = {
-      minimize: vi.fn(),
-      toggleMaximize: vi.fn(),
-      close: vi.fn(),
-      state: vi.fn(() => ({ maximized: true, mica: false })),
+      state: vi.fn(() => ({ mica: false })),
     } satisfies WindowControls
     registerWindowIpc(
       {
@@ -186,52 +185,33 @@ describe("window IPC", () => {
     return { handler: (channel: string) => handlers.get(channel)!, controls }
   }
 
-  const channels = [
-    CHANNELS.windowMinimize,
-    CHANNELS.windowToggleMaximize,
-    CHANNELS.windowClose,
-    CHANNELS.getWindowState,
-  ]
-
-  it("registers the four window requests", () => {
+  it("registers only the window state request", () => {
     const { handler } = setupWindow()
 
-    for (const channel of channels)
-      expect(handler(channel)).toBeTypeOf("function")
+    expect(handler(CHANNELS.getWindowState)).toBeTypeOf("function")
+    expect(Object.keys(CHANNELS)).not.toContain("windowClose")
   })
 
-  it("runs each control once and replies with the window state", async () => {
-    const { handler, controls } = setupWindow()
+  it("replies with the window state", async () => {
+    const { handler } = setupWindow()
 
-    await handler(CHANNELS.windowMinimize)(true, [])
-    await handler(CHANNELS.windowToggleMaximize)(true, [])
-    await handler(CHANNELS.windowClose)(true, [])
-
-    expect(controls.minimize).toHaveBeenCalledOnce()
-    expect(controls.toggleMaximize).toHaveBeenCalledOnce()
-    expect(controls.close).toHaveBeenCalledOnce()
     await expect(handler(CHANNELS.getWindowState)(true, [])).resolves.toEqual({
-      maximized: true,
       mica: false,
     })
   })
 
-  it.each(channels)(
-    "refuses other windows and extra arguments on %s",
-    async (channel) => {
-      const { handler, controls } = setupWindow()
+  it("refuses other windows and extra arguments", async () => {
+    const { handler, controls } = setupWindow()
+    const state = handler(CHANNELS.getWindowState)
 
-      await expect(handler(channel)(false, [])).rejects.toThrow(
-        "could not answer this window"
-      )
-      await expect(handler(channel)(true, ["extra"])).rejects.toThrow(
-        "could not read that request"
-      )
-      expect(controls.minimize).not.toHaveBeenCalled()
-      expect(controls.toggleMaximize).not.toHaveBeenCalled()
-      expect(controls.close).not.toHaveBeenCalled()
-    }
-  )
+    await expect(state(false, [])).rejects.toThrow(
+      "could not answer this window"
+    )
+    await expect(state(true, ["extra"])).rejects.toThrow(
+      "could not read that request"
+    )
+    expect(controls.state).not.toHaveBeenCalled()
+  })
 })
 
 type Handler = (senderOk: boolean, args: unknown[]) => Promise<unknown>
@@ -340,5 +320,82 @@ describe("registerIpc", () => {
     await expect(
       handlers.get(CHANNELS.connectionInfo)!(true, [])
     ).rejects.toThrow("The sidecar could not be started. Restart Tailshare.")
+  })
+})
+
+describe("recent rooms IPC", () => {
+  function setupRecent() {
+    const handlers = new Map<string, Handler>()
+    const store = openRecentRooms(
+      mkdtempSync(join(tmpdir(), "tailshare-ipc-recent-")),
+      () => 1_800_000_000_000
+    )
+    registerRecentRoomsIpc(
+      {
+        handle: (channel, handler) => void handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      store
+    )
+    return { handler: (channel: string) => handlers.get(channel)!, store }
+  }
+
+  const room = { name: "Movies", code: "7K3Q9PXM" }
+
+  it("touches, lists and removes a room", async () => {
+    const { handler, store } = setupRecent()
+
+    await handler(CHANNELS.touchRecentRoom)(true, [room])
+    await expect(handler(CHANNELS.getRecentRooms)(true, [])).resolves.toEqual([
+      { ...room, lastSeen: 1_800_000_000_000 },
+    ])
+
+    await handler(CHANNELS.removeRecentRoom)(true, [room.code])
+    expect(store.get()).toEqual([])
+  })
+
+  it.each([
+    CHANNELS.getRecentRooms,
+    CHANNELS.touchRecentRoom,
+    CHANNELS.removeRecentRoom,
+  ])("refuses another window on %s", async (channel) => {
+    const { handler, store } = setupRecent()
+
+    await expect(handler(channel)(false, [room])).rejects.toThrow(
+      "could not answer this window"
+    )
+    expect(store.get()).toEqual([])
+  })
+
+  it("refuses extra or missing arguments", async () => {
+    const { handler, store } = setupRecent()
+
+    await expect(handler(CHANNELS.getRecentRooms)(true, [1])).rejects.toThrow(
+      "could not read that request"
+    )
+    for (const channel of [
+      CHANNELS.touchRecentRoom,
+      CHANNELS.removeRecentRoom,
+    ]) {
+      await expect(handler(channel)(true, [])).rejects.toThrow(
+        "could not read that request"
+      )
+      await expect(handler(channel)(true, [room, room])).rejects.toThrow(
+        "could not read that request"
+      )
+    }
+    expect(store.get()).toEqual([])
+  })
+
+  it("refuses a room or code that is not valid", async () => {
+    const { handler, store } = setupRecent()
+
+    await expect(
+      handler(CHANNELS.touchRecentRoom)(true, [{ name: "x", code: "bad" }])
+    ).rejects.toThrow("not valid")
+    await expect(
+      handler(CHANNELS.removeRecentRoom)(true, ["bad"])
+    ).rejects.toThrow("not valid")
+    expect(store.get()).toEqual([])
   })
 })

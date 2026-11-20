@@ -28,28 +28,27 @@ const hasMica = () => document.documentElement.classList.contains("mica")
 
 describe("useWindowState", () => {
   it("adds html.mica only when main says Mica is on", async () => {
-    stubBridge({ maximized: false, mica: true })
+    stubBridge({ mica: true })
     renderHook(() => useWindowState())
 
     await waitFor(() => expect(hasMica()).toBe(true))
   })
 
   it("leaves the page solid when Mica is off", async () => {
-    stubBridge({ maximized: true, mica: false })
-    const { result } = renderHook(() => useWindowState())
+    stubBridge({ mica: false })
+    renderHook(() => useWindowState())
 
-    await waitFor(() => expect(result.current.maximized).toBe(true))
-    expect(hasMica()).toBe(false)
+    await waitFor(() => expect(hasMica()).toBe(false))
   })
 
   it("follows a live change and unsubscribes on unmount", async () => {
-    const { push, unsubscribe } = stubBridge({ maximized: false, mica: true })
+    const { push, unsubscribe } = stubBridge({ mica: true })
     const { result, unmount } = renderHook(() => useWindowState())
     await waitFor(() => expect(result.current.mica).toBe(true))
 
-    act(() => push({ maximized: true, mica: false }))
+    act(() => push({ mica: false }))
 
-    expect(result.current).toEqual({ maximized: true, mica: false })
+    expect(result.current).toEqual({ mica: false })
     expect(hasMica()).toBe(false)
     unmount()
     expect(unsubscribe).toHaveBeenCalledOnce()

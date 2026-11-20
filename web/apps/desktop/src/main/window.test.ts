@@ -3,7 +3,7 @@ import {
   applyLook,
   fixSocketOrigin,
   lockNavigation,
-  toggleMaximize,
+  titleBarOverlay,
   windowBackground,
   windowMaterial,
   windowOptions,
@@ -23,8 +23,23 @@ describe("windowOptions", () => {
     })
   })
 
-  it("draws no frame, so the page shows its own title bar", () => {
-    expect(options.frame).toBe(false)
+  it("hides the frame and lets Windows draw the caption buttons", () => {
+    expect(options.frame).toBeUndefined()
+    expect(options.titleBarStyle).toBe("hidden")
+    expect(options.titleBarOverlay).toEqual({
+      color: "#00000000",
+      symbolColor: "#000000",
+      height: 32,
+    })
+  })
+
+  it("colours the caption symbols to follow the theme", () => {
+    expect(titleBarOverlay({ material: "mica", dark: true }).symbolColor).toBe(
+      "#ededee"
+    )
+    expect(titleBarOverlay({ material: "none", dark: false }).symbolColor).toBe(
+      "#000000"
+    )
   })
 
   it("asks for Mica with a see-through window", () => {
@@ -118,30 +133,18 @@ describe("windowBackground", () => {
 })
 
 describe("window controls", () => {
-  function fake(maximized: boolean) {
+  function fake() {
     const calls: string[] = []
     const window: ControlledWindow = {
-      isMaximized: () => maximized,
-      maximize: () => void calls.push("maximize"),
-      unmaximize: () => void calls.push("unmaximize"),
       setBackgroundMaterial: (m) => void calls.push(`material:${m}`),
       setBackgroundColor: (c) => void calls.push(`color:${c}`),
+      setTitleBarOverlay: (o) => void calls.push(`symbols:${o.symbolColor}`),
     }
     return { window, calls }
   }
 
-  it("maximises a normal window and restores a maximised one", () => {
-    const normal = fake(false)
-    toggleMaximize(normal.window)
-    expect(normal.calls).toEqual(["maximize"])
-
-    const full = fake(true)
-    toggleMaximize(full.window)
-    expect(full.calls).toEqual(["unmaximize"])
-  })
-
-  it("switches the live material and the colour together", () => {
-    const { window, calls } = fake(false)
+  it("switches the live material, colour and caption symbols together", () => {
+    const { window, calls } = fake()
 
     applyLook(window, { material: "none", dark: true })
     applyLook(window, { material: "mica", dark: true })
@@ -149,17 +152,19 @@ describe("window controls", () => {
     expect(calls).toEqual([
       "material:none",
       "color:#0f0f10",
+      "symbols:#ededee",
       "material:mica",
       "color:#00000000",
+      "symbols:#ededee",
     ])
   })
 
-  it("reports maximised and whether Mica is really on", () => {
-    expect(
-      windowState(fake(true).window, { material: "mica", dark: false })
-    ).toEqual({ maximized: true, mica: true })
-    expect(
-      windowState(fake(false).window, { material: "none", dark: false })
-    ).toEqual({ maximized: false, mica: false })
+  it("reports whether Mica is really on", () => {
+    expect(windowState({ material: "mica", dark: false })).toEqual({
+      mica: true,
+    })
+    expect(windowState({ material: "none", dark: false })).toEqual({
+      mica: false,
+    })
   })
 })

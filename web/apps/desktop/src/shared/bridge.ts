@@ -70,8 +70,6 @@ export function isUpdateStatus(value: unknown): value is UpdateStatus {
 
 /** What the window reports to the title bar. */
 export interface WindowState {
-  /** The window fills the screen, so the page leaves room for the overhang. */
-  readonly maximized: boolean
   /** Windows 11 Mica is really on. False on Windows 10 or when it is off. */
   readonly mica: boolean
 }
@@ -81,10 +79,41 @@ export function isWindowState(value: unknown): value is WindowState {
   return (
     !!value &&
     typeof value === "object" &&
-    "maximized" in value &&
     "mica" in value &&
-    typeof value.maximized === "boolean" &&
     typeof value.mica === "boolean"
+  )
+}
+
+/** A room code as the bridge carries it: 8 uppercase Crockford characters. */
+export const JOIN_CODE = /^[0-9A-HJKMNP-TV-Z]{8}$/
+
+/** Checks a room code without loading Effect in the sandboxed preload. */
+export function isJoinCode(value: unknown): value is string {
+  return typeof value === "string" && JOIN_CODE.test(value)
+}
+
+/** A room kept for the recent list. Never holds chat, members or paths. */
+export interface RecentRoom {
+  /** The room's own name, 1 to 64 characters. */
+  readonly name: string
+  /** The bare code, such as `7K3Q9PXM`. A secret: it joins the room. */
+  readonly code: string
+  /** When the room was last joined or left, in ms since 1970. */
+  readonly lastSeen: number
+}
+
+/** Checks a recent-room list without loading Effect in the sandboxed preload. */
+export function isRecentRooms(value: unknown): value is RecentRoom[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (room) =>
+        !!room &&
+        typeof room === "object" &&
+        typeof room.name === "string" &&
+        isJoinCode(room.code) &&
+        typeof room.lastSeen === "number"
+    )
   )
 }
 
@@ -117,16 +146,29 @@ export interface TailshareBridge {
   readonly onUpdateStatus: (
     listener: (status: UpdateStatus) => void
   ) => () => void
-  /** Minimises the window. */
-  readonly minimizeWindow: () => Promise<void>
-  /** Maximises the window, or restores it if it already fills the screen. */
-  readonly toggleMaximizeWindow: () => Promise<void>
-  /** Closes the window. Close to tray may hide it instead of quitting. */
-  readonly closeWindow: () => Promise<void>
   /** Reads the window state, including changes sent before the page loaded. */
   readonly getWindowState: () => Promise<WindowState>
-  /** Calls `listener` on each maximise, restore and Mica change. */
+  /** Calls `listener` on each Mica change. */
   readonly onWindowState: (listener: (state: WindowState) => void) => () => void
+  /**
+   * Calls `listener` with the bare code from each `tailshare://join/<CODE>`
+   * link. Subscribing also tells main the page is ready, so a link that came
+   * in before this call is delivered now. Returns an unsubscribe.
+   */
+  readonly onJoinLink: (listener: (code: string) => void) => () => void
+  /** Reads the recent rooms, newest first. */
+  readonly getRecentRooms: () => Promise<RecentRoom[]>
+  /** Saves or refreshes a room on join and leave. */
+  readonly touchRecentRoom: (room: {
+    name: string
+    code: string
+  }) => Promise<void>
+  /** Forgets one room by its bare code. */
+  readonly removeRecentRoom: (code: string) => Promise<void>
+  /** Calls `listener` with the whole list after each change. */
+  readonly onRecentRoomsChanged: (
+    listener: (rooms: RecentRoom[]) => void
+  ) => () => void
   /**
    * Resolves once the sidecar passed its health check. Rejects with a plain
    * sentence if it is down for good.
