@@ -6,10 +6,25 @@ export const CHANNELS = {
   connectionInfo: "tailshare:connection-info",
   chooseFolder: "tailshare:choose-folder",
   sidecarStatus: "tailshare:sidecar-status",
+  getSettings: "tailshare:get-settings",
+  setUpdateChannel: "tailshare:set-update-channel",
+  getUpdateStatus: "tailshare:get-update-status",
+  restartToUpdate: "tailshare:restart-to-update",
+  updateStatus: "tailshare:update-status",
 } as const
 
 /** Our own bridge methods take no arguments, so any extra one is refused. */
 export const NoArgs = Schema.Tuple([])
+
+/** The channel switch accepts exactly one known channel. */
+export const UpdateChannelArgs = Schema.Tuple([
+  Schema.Literals(["latest", "nightly"]),
+])
+
+/** Validated preferences returned to the renderer. */
+export const SettingsSchema = Schema.Struct({
+  updateChannel: Schema.Literals(["latest", "nightly"]),
+})
 
 /** A loopback origin with a port, the only kind the sidecar may report. */
 export const LoopbackOrigin = Schema.String.check(

@@ -12,7 +12,7 @@ describe("preload bridge", () => {
     }
   })
 
-  it("exposes only the three bridge methods, never ipcRenderer", () => {
+  it("exposes the typed bridge methods, never ipcRenderer", () => {
     const exposed = [...source.matchAll(/exposeInMainWorld\("(\w+)", (\w+)\)/g)]
 
     expect(exposed.map((m) => [m[1], m[2]])).toEqual([["tailshare", "bridge"]])
@@ -21,6 +21,11 @@ describe("preload bridge", () => {
       "getConnectionInfo",
       "chooseFolder",
       "onSidecarStatus",
+      "getSettings",
+      "setUpdateChannel",
+      "getUpdateStatus",
+      "onUpdateStatus",
+      "restartToUpdate",
     ]) {
       expect(source).toContain(`${name}:`)
     }

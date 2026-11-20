@@ -1,6 +1,11 @@
-appId: ai.polyphron.tailshare
+appId: connor.davis.Tailshare
 productName: Tailshare
 asar: true
+publish:
+  provider: github
+  owner: connor-davis
+  repo: tailshare
+  channel: latest
 directories:
   output: ../../../dist
 files:
@@ -12,8 +17,8 @@ win:
   target:
     - target: nsis
       arch: [x64]
-  # ponytail: Polyphron placeholder; replace with a Tailshare mark before release.
   icon: build/icon.ico
+  verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker
 nsis:
   oneClick: false
