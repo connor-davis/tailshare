@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useTransfers } from "@/lib/api/transfers"
 import type { TransferView } from "@/lib/api/types"
-import { TransferRow } from "./transfer-row"
+import { TransferRow } from "../session/-components/transfer-row"
 
 const FINISHED = ["done", "failed", "canceled"]
 
@@ -26,10 +26,20 @@ function summary(items: TransferView[]): string {
   return text.length > 0 ? text.join(" · ") : "No transfers yet"
 }
 
-/** The queue under the panes. Collapses to its header. */
-export function TransferDock() {
+/**
+ * The queue at the bottom of the room. Its panel decides the height; the
+ * button only asks the panel to collapse to this header or open again.
+ */
+export function TransfersPanel({
+  collapsed,
+  onToggle,
+}: {
+  /** True while the panel is squeezed down to its header. */
+  collapsed: boolean
+  /** Asks the panel to collapse or expand. */
+  onToggle: () => void
+}) {
   const { data = [] } = useTransfers()
-  const [open, setOpen] = useState(true)
   // ponytail: "Clear" hides rows on this screen only. The API has no remove
   // event; upgrade is a delete route plus a remove event.
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
@@ -42,8 +52,7 @@ export function TransferDock() {
   return (
     <section
       aria-label="Transfers"
-      className="flex shrink-0 flex-col border-t bg-card"
-      style={{ height: open ? 180 : 40 }}
+      className="flex h-full min-h-0 flex-col border-t bg-card"
     >
       <header className="flex h-10 shrink-0 items-center gap-3 px-3">
         <h2 className="text-sm font-semibold">Transfers</h2>
@@ -62,36 +71,34 @@ export function TransferDock() {
         <Button
           size="sm"
           variant="ghost"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
+          aria-expanded={!collapsed}
+          onClick={onToggle}
         >
-          {open ? (
-            <ChevronDownIcon aria-hidden data-icon="inline-start" />
-          ) : (
+          {collapsed ? (
             <ChevronUpIcon aria-hidden data-icon="inline-start" />
+          ) : (
+            <ChevronDownIcon aria-hidden data-icon="inline-start" />
           )}
-          {open ? "Collapse" : "Expand"}
+          {collapsed ? "Expand" : "Collapse"}
         </Button>
       </header>
-      {open ? (
-        items.length === 0 ? (
-          <p className="p-4 text-center text-muted-foreground">
-            No transfers yet. Drag a file to the other pane.
-          </p>
-        ) : (
-          <ScrollArea className="min-h-0 flex-1">
-            <ul>
-              {items.map((item) => (
-                <TransferRow
-                  key={item.id}
-                  item={item}
-                  onClear={(id) => hide([id])}
-                />
-              ))}
-            </ul>
-          </ScrollArea>
-        )
-      ) : null}
+      {collapsed ? null : items.length === 0 ? (
+        <p className="p-4 text-center text-muted-foreground">
+          No transfers yet. Drag a file to the other pane.
+        </p>
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          <ul>
+            {items.map((item) => (
+              <TransferRow
+                key={item.id}
+                item={item}
+                onClear={(id) => hide([id])}
+              />
+            ))}
+          </ul>
+        </ScrollArea>
+      )}
     </section>
   )
 }

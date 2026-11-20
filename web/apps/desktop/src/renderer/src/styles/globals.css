@@ -25,6 +25,7 @@
   --success: #24963e;
   --border: #d0d0ce;
   --input: #858585;
+  --field: #efeee9;
   --ring: #0f1c2e;
   --radius: 6px;
 }
@@ -51,6 +52,7 @@
   --success: #3dd68c;
   --border: #262629;
   --input: #6b6b72;
+  --field: #09090a;
   --ring: #fa7a00;
 }
 
@@ -77,6 +79,7 @@
   --color-success: var(--success);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-field: var(--field);
   --color-ring: var(--ring);
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);

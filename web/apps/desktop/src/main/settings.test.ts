@@ -38,6 +38,7 @@ describe("settings", () => {
       startWithWindows: false,
       closeToTray: false,
       mica: true,
+      theme: "system",
     })
     expect(readdirSync(path)).toEqual([])
   })
@@ -127,6 +128,7 @@ describe("settings", () => {
     ["a folder over 4096 chars", { saveFolder: "C:\\" + "a".repeat(4094) }],
     ["a bad save mode", { saveMode: "sometimes" }],
     ["a bad channel", { updateChannel: "beta" }],
+    ["a bad theme", { theme: "sepia" }],
     ["a string for a flag", { mica: "yes" }],
     ["an unknown key", { colour: "red" }],
   ])("refuses %s whole, with no write and no listener", (_name, patch) => {

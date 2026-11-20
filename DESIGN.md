@@ -70,22 +70,23 @@ Use 4, 8, 12, 16, 24 and 32px spacing. Group a label and control tightly; separa
 unrelated actions. Controls have at least 32px hit height; compact rows retain
 keyboard access. Use 6px control corners, 4px small corners and 8px dialogs.
 
-Planned session layout:
+Shell layout:
 
 ```text
-+ Tailshare | peer / status | Host | Join code | Connect --------+
-| Local folder / breadcrumb      | Peer folder / breadcrumb      |
-| Name     Size     Modified     | Name     Size     Modified    |
-| file rows                      | file rows                     |
-+ Transfers | Active / Complete | progress / pause / retry ------+
-| queue dock                                      [Chat sheet]  |
-+---------------------------------------------------------------+
++ Rooms ----+ Peer / status      Leave ------+ Members -----+
+| New room  | [Files] [Chat]                 | You (host)   |
+| Recent    | Local folder   | Peer folder   | Pat   Host   |
+| Folder    | file rows      | file rows     |              |
+| Name, gear+ Transfers: active / done -------+--------------+
++-----------+ queue rows                                    |
++-------------------------------------------------------------+
 ```
 
-No permanent navigation sidebar. Start with equal resizable panes, each at least
-280px wide, a 56px connection bar and a 180px queue dock that can collapse to its
-40px header. Below 720px, stack panes and expose queue/chat as accessible overlays.
-These dimensions are Tailshare-derived starting values for step 11.
+Rooms shell: a rooms sidebar (plain aside, 180-360px), the room in the middle
+(56px header, Files and Chat tabs, a 180px transfers panel that collapses to its
+40px header) and a members column (160-360px). Every column is resizable and
+collapsible, and sizes are saved per computer. Files panes are at least 200px
+wide. ponytail: below 720px the columns do not stack yet.
 
 ## 5. Elevation & Depth
 
@@ -106,13 +107,14 @@ shape cues. Respect reduced motion and do not add motion to this placeholder.
 | --- | --- |
 | Button | Generated shadcn primitive; semantic colours; dark text on orange; visible keyboard focus; disabled controls cannot trigger actions. |
 | Settings | A large shadcn Dialog (solid surface), opened by the gear buttons on the connect screen and the session bar and closed by Esc or the X. A left menu (You, Saving, Transfers, App, Updates) picks the section shown in a ScrollArea on the right. Each setting is a row in a bordered, divided list: words on the left, control (Switch, Select, RadioGroup, Input) on the right. Switches, the save mode and the channel save as soon as they change; text and number fields have a Save button and say why a value is refused. A refused save shows an inline Alert in plain words. A note says limits, name and transfers at once apply from the next update. The shadcn state variants (`data-checked:` and friends) come from `@import "shadcn/tailwind.css"` in `globals.css`; the window itself never scrolls, only ScrollArea does. |
-| Updates (in Settings) | Stable is the default; Nightly explicitly opts into development builds. Saving disables the channel; errors stay inline; Check for updates runs one check now (off in development). Available updates show their version and formatted Markdown release notes (small headings, list bullets and muted code backgrounds in both themes; raw HTML and elements outside the release-note allowlist are skipped) before an explicit Download action. The title bar offers Update available in a no-drag button before the 138 px caption gap; its shadcn dialog uses the existing modal surface and ScrollArea with Download and Not now. Not now hides that version only, in memory. Links are underlined; only HTTPS github.com links open the system browser through guarded IPC. Other destinations stay inert; window navigation remains locked. Downloading uses Progress; downloaded updates expose Restart to update. No new tokens or elevation. |
+| Updates (in Settings) | Stable is the default; Nightly explicitly opts into development builds. Saving disables the channel; errors stay inline; Check for updates runs one check now (off in development). Available updates show their version and formatted Markdown release notes (small headings, list bullets and muted code backgrounds in both themes; raw HTML and elements outside the release-note allowlist are skipped) before an explicit Download action. The main top bar offers Update available in a no-drag button; its shadcn dialog uses the existing modal surface and ScrollArea with Download and Not now. Not now hides that version only, in memory. Links are underlined; only HTTPS github.com links open the system browser through guarded IPC. Other destinations stay inert; window navigation remains locked. Downloading uses Progress; downloaded updates expose Restart to update. No new tokens or elevation. |
 | Cards, alerts, tooltips | Hand-made boxes are gone: notices and errors use shadcn Alert, panels use Card, long names use Tooltip, scrolling uses ScrollArea, progress uses Progress, loading uses Skeleton. |
 | Join request | The connect screen shows the pending name as text in a Card. Allow and Deny act on that request ID; both disable while a decision is pending. Errors use an inline Alert. No new tokens, shadows or elevation. |
-| Connect and session routes | `/` picks a folder, then hosts (shows a code) or joins (types one). `/session` has two file panes, a transfer dock and a chat sheet. Live data comes over one socket; chat stays in memory. |
+| Shell route | `/` is the whole app: rooms sidebar with recent rooms, the open room with Files and Chat tabs, transfers panel, and the members column (host marked with the word Host). Live data comes over one socket; chat stays in memory. |
 
 The renderer applies `.dark` before React mounts and follows changes to
-`prefers-color-scheme`. There is no saved override or theme switch yet. Native
+`prefers-color-scheme`. Settings can force Light or Dark (default System); main sets
+`nativeTheme.themeSource`, which flips that query. Inputs use the `--field` fill and `--border`. Native
 controls inherit `color-scheme`; both modes use the same layout and spacing.
 
 ## 8. Do's and Don'ts

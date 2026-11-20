@@ -33,6 +33,8 @@ export interface Settings {
   readonly closeToTray: boolean
   /** Windows 11 Mica background. */
   readonly mica: boolean
+  /** `system` follows Windows; `light` and `dark` force the look. */
+  readonly theme: "system" | "light" | "dark"
 }
 
 /** Any subset of {@link Settings}. A patch is applied whole or not at all. */

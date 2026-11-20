@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { ChatSheet } from "./chat-sheet"
+import { RoomChat } from "../../-components/room-chat"
 import { RowMenu } from "./row-menu"
 
 const messages = Array.from({ length: 30 }, (_, index) => ({
@@ -45,7 +45,7 @@ describe("scroll areas", () => {
 
   it("keeps the newest chat message in view by scrolling the viewport", () => {
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo")
-    render(<ChatSheet open onOpenChange={() => {}} peerName="Studio PC" />)
+    render(<RoomChat />)
 
     const log = screen.getByRole("log", { name: "Chat messages" })
     const viewport = log.querySelector('[data-slot="scroll-area-viewport"]')

@@ -133,9 +133,11 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
 | Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
 | Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
-| Custom title bar: logo, name, drag area, update dialog and per-version dismissal, 138 px kept free for the native buttons | `src/renderer/src/components/title-bar.tsx`, `title-bar.test.tsx` beside it |
-| Update event subscription and initial-read race guard, shared by Settings and title bar | `src/renderer/src/components/use-update-status.ts` |
-| Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and title dialog | `src/renderer/src/components/update-release.tsx` |
+| Window drag strip on top of each column (no window-wide title bar; 138 px kept free for the native buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
+| Update available button and dialog with per-version dismissal, shown in the main top bar | `src/renderer/src/components/update-button.tsx`, `update-button.test.tsx` beside it |
+| Shell pieces: main top bar, empty state, join form and dialog, folder hint, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `folder-hint`, `share-code`, `code-countdown`, `name-editor`) |
+| Update event subscription and initial-read race guard, shared by Settings and the update button | `src/renderer/src/components/use-update-status.ts` |
+| Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and the update dialog | `src/renderer/src/components/update-release.tsx` |
 | `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |
 | Recent rooms store: `recent-rooms.json` in userData, max 20, 30-day prune, atomic write, change listeners | `src/main/recent-rooms.ts`, `src/main/recent-rooms.test.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
@@ -150,16 +152,16 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
 | Query client and hash router | `src/renderer/src/main.tsx` |
 | Root outlet, live socket start, sidecar banner, announcements | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/components/sidecar-banner.tsx`, `src/renderer/src/components/status-region.tsx` |
-| Connect screen (folder, host code, join by code) | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` |
+| App shell: rooms sidebar, room (header, Files and Chat tabs, transfers panel), members column; panel sizes saved per computer | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` (`room-sidebar`, `room-view`, `room-header`, `room-files`, `room-chat`, `members-panel`, `transfers-panel`, `panel-layout.ts`, `recent-rooms.ts`) |
 | Local join prompt, pending/error state and Allow/Deny actions | `src/renderer/src/routes/-components/join-request.tsx`, `join-request.test.tsx` beside it |
 | Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
 | Byte, speed, time and date text | `src/renderer/src/lib/format.ts` |
 | Local API client, query keys, hooks and types (match `internal/api`) | `src/renderer/src/lib/api/` |
 | One live socket, seq ordering, reconnect, cache updates | `src/renderer/src/lib/live/` |
-| Session screen: two panes, transfer dock, chat sheet | `src/renderer/src/routes/session.tsx`, `src/renderer/src/routes/session/-components/` |
+| File panes, rows, path crumbs, drag | `src/renderer/src/routes/session/-components/` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |
-| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`alert.tsx`, `breadcrumb.tsx`, `button.tsx`, `card.tsx`, `context-menu.tsx`, `field.tsx`, `input.tsx`, `label.tsx`, `progress.tsx`, `radio-group.tsx`, `resizable.tsx`, `scroll-area.tsx`, `select.tsx`, `separator.tsx`, `sheet.tsx`, `skeleton.tsx`, `switch.tsx`, `table.tsx`, `tooltip.tsx`; added with shadcn CLI 4.23.0) |
+| Shared UI primitives (shadcn) | `src/renderer/src/components/ui/` (`alert.tsx`, `breadcrumb.tsx`, `button.tsx`, `card.tsx`, `context-menu.tsx`, `field.tsx`, `input.tsx`, `label.tsx`, `progress.tsx`, `radio-group.tsx`, `resizable.tsx`, `scroll-area.tsx`, `select.tsx`, `separator.tsx`, `sheet.tsx`, `skeleton.tsx`, `switch.tsx`, `table.tsx`, `tabs.tsx`, `badge.tsx`, `tooltip.tsx`; added with shadcn CLI 4.23.0) |
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |
 
 ## Transfers

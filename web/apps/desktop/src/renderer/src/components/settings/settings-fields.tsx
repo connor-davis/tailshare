@@ -344,6 +344,32 @@ export function AppSection({ settings, save, saving }: SectionProps) {
       title="App"
       description="How Tailshare lives on this computer."
     >
+      <RadioGroup
+        aria-label="Appearance"
+        value={settings.theme}
+        disabled={saving}
+        className="gap-0"
+        onValueChange={(value) => {
+          if (value === "system" || value === "light" || value === "dark")
+            void save({ theme: value })
+        }}
+      >
+        <SettingList>
+          <SettingRow
+            label="System"
+            htmlFor="theme-system"
+            description="Light or dark, whichever Windows uses."
+          >
+            <RadioGroupItem value="system" id="theme-system" />
+          </SettingRow>
+          <SettingRow label="Light" htmlFor="theme-light">
+            <RadioGroupItem value="light" id="theme-light" />
+          </SettingRow>
+          <SettingRow label="Dark" htmlFor="theme-dark">
+            <RadioGroupItem value="dark" id="theme-dark" />
+          </SettingRow>
+        </SettingList>
+      </RadioGroup>
       <SettingList>
         <SwitchRow
           id="start-with-windows"

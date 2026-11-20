@@ -108,6 +108,16 @@ func (session *Session) Members() []peer.ShareMember {
 	return session.mesh.Roster().Members
 }
 
+// SelfID is this computer's member ID in the roster, or empty after close.
+func (session *Session) SelfID() string {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.closed {
+		return ""
+	}
+	return session.mesh.Self().ID
+}
+
 // Pending returns the current local prompt, if any.
 func (session *Session) Pending() (PendingJoin, bool) {
 	session.mu.Lock()

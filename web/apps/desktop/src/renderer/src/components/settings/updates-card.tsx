@@ -89,7 +89,7 @@ export function UpdatesCard({
             }}
             disabled={saving}
           >
-            <SelectTrigger id="update-channel" className="w-32 border-input">
+            <SelectTrigger id="update-channel" className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

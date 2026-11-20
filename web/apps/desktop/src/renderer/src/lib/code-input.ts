@@ -46,3 +46,19 @@ export function formatCode(code: string): string {
 
   return `${bare.slice(0, 4)}-${bare.slice(4)}`
 }
+
+/** The link a friend clicks to join: `tailshare://join/7K3Q9PXM`, no dash. */
+export function joinLink(code: string): string {
+  return `tailshare://join/${code.replace(/-/g, "")}`
+}
+
+/**
+ * Reads what a person typed or pasted into the join box: a code, or a
+ * `tailshare://join/<CODE>` link. Returns the bare code, or `null`.
+ */
+export function codeFromInput(raw: string): string | null {
+  const text = raw.trim()
+  const link = /^tailshare:\/\/join\/([^/?#\s]+)\/?$/i.exec(text)
+
+  return foldCode(link ? link[1] : text)
+}

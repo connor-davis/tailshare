@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   formatBytes,
   formatCountdown,
+  formatAgo,
   formatDate,
   formatSpeed,
   percent,
@@ -36,5 +37,17 @@ describe("format", () => {
   it("gives a dash for a date it cannot read", () => {
     expect(formatDate("not a date")).toBe("—")
     expect(formatDate("2026-11-20T10:00:00Z")).toContain("2026")
+  })
+})
+
+describe("formatAgo", () => {
+  it("uses the shortest unit", () => {
+    const now = 10 * 24 * 3600_000
+
+    expect(formatAgo(now - 30_000, now)).toBe("now")
+    expect(formatAgo(now - 5 * 60_000, now)).toBe("5m")
+    expect(formatAgo(now - 2 * 3600_000, now)).toBe("2h")
+    expect(formatAgo(now - 3 * 24 * 3600_000, now)).toBe("3d")
+    expect(formatAgo(now + 60_000, now)).toBe("now")
   })
 })

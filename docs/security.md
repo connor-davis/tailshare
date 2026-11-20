@@ -237,6 +237,8 @@ drive it.
 - **Folder access.** The API opens the folder the picker chose with
   `share.Open`, and every path from a query goes through `share.Localize` and
   `os.Root`. The folder cannot change while a session is open.
+- **Members list.** `session.state` carries each member's id, display name and
+  host/you flags only. Addresses and keys stay in the sidecar.
 
 The current local API still selects one control peer for browsing, chat and
 transfers. Losing that peer ends the local API session, including when other
