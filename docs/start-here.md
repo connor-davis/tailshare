@@ -1,5 +1,25 @@
 # Start here
 
+## Install and update on Windows
+
+Download the installer from [Tailshare releases](https://github.com/connor-davis/tailshare/releases).
+It installs for the current user without elevation. Builds are unsigned: if
+SmartScreen warns, verify the source and app before choosing **More info** and
+**Run anyway**. Organization policy may prevent this override.
+
+The connect screen's **Updates** card defaults to **Stable**. Packaged builds
+check on start and every four hours and download in the background. Click
+**Restart to update** after transfers finish. Offline checks can fail without
+interrupting sharing; development builds do not check.
+
+Choose **Nightly** to follow development builds only. Returning to **Stable**
+waits for a newer stable release; Tailshare never downgrades. The channel is
+saved locally in Electron's user-data folder. Chat is never saved there.
+
+Development branches are `connor_davis/<name>` into `develop`, then `develop`
+into `main`. The owner merges. A push to main publishes a missing stable
+version; a push to develop publishes a nightly with patch+1 and a UTC timestamp.
+
 ## What happens when two people share
 
 1. Alice clicks **Host**. Her sidecar makes a code (`7K3-Q9P`), derives
@@ -52,3 +72,4 @@ Everything runs through [Task](https://taskfile.dev). Run `task` to list them.
 | `task test:web` | Desktop main-process tests (offline). |
 | `task build:web` | Build the desktop bundles. |
 | `task dist` | Build the Windows x64 installer into `dist/` (see `web/apps/desktop/README.md`). |
+| `task icons` | Export and verify app and tray icons from the Tailshare SVG. |

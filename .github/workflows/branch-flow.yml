@@ -1,0 +1,27 @@
+name: Branch flow
+on:
+  pull_request:
+    branches: [develop, main]
+permissions:
+  contents: read
+jobs:
+  branch-flow:
+    runs-on: windows-latest
+    steps:
+      - name: Validate source branch
+        shell: pwsh
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          if ($env:HEAD_REPO -ne $env:REPO) {
+            throw 'Release flow requires a branch in this repository.'
+          }
+          if ($env:BASE -eq 'main' -and $env:HEAD -ne 'develop') {
+            throw 'Only develop can merge into main.'
+          }
+          if ($env:BASE -eq 'develop' -and $env:HEAD -notlike 'connor_davis/*') {
+            throw 'Only connor_davis/* branches can merge into develop.'
+          }

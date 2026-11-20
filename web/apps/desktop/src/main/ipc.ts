@@ -4,7 +4,11 @@ import {
   ChosenFolderSchema,
   ConnectionInfoSchema,
   NoArgs,
+  UpdateChannelArgs,
+  SettingsSchema,
 } from "../shared/ipc-schema"
+import type { SettingsStore } from "./settings"
+import type { UpdateController } from "./updater"
 import { Sidecar } from "./sidecar"
 
 /** What the handlers need from Electron, so tests need no Electron. */
@@ -36,6 +40,42 @@ const guard = (senderOk: boolean, args: unknown[]) =>
       Effect.mapError(() => refuse("read that request"))
     )
   })
+
+/** Registers settings and updater requests behind the same window and tuple guards. */
+export function registerUpdateIpc(
+  host: IpcHost,
+  settings: SettingsStore,
+  updater: UpdateController
+) {
+  const actions: Record<string, () => unknown | Promise<unknown>> = {
+    [CHANNELS.getSettings]: () => settings.get(),
+    [CHANNELS.getUpdateStatus]: () => updater.status(),
+    [CHANNELS.restartToUpdate]: () => updater.restart(),
+  }
+
+  for (const [channel, action] of Object.entries(actions)) {
+    host.handle(channel, async (senderOk, args) => {
+      await Effect.runPromise(guard(senderOk, args))
+      const result = await action()
+      return channel === CHANNELS.getSettings
+        ? Effect.runPromise(check(SettingsSchema, result))
+        : result
+    })
+  }
+
+  host.handle(CHANNELS.setUpdateChannel, async (senderOk, args) => {
+    if (!senderOk) throw refuse("answer this window")
+    const [channel] = await Effect.runPromise(
+      check(UpdateChannelArgs, args).pipe(
+        Effect.mapError(() => refuse("read that request"))
+      )
+    )
+
+    const result = settings.setUpdateChannel(channel)
+    updater.setChannel(channel)
+    return Effect.runPromise(check(SettingsSchema, result))
+  })
+}
 
 /**
  * Registers the two request channels. Each one refuses a sender that is not

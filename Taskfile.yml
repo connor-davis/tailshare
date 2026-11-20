@@ -6,7 +6,8 @@ version: "3"
 
 vars:
   BIN: bin/tailshare{{exeExt}}
-  VERSION: dev
+  PACKAGE_VERSION:
+    sh: node -p "JSON.parse(require('node:fs').readFileSync('web/apps/desktop/package.json', 'utf8')).version"
   # Name the Go roots so go never walks into web/ node_modules.
   GO_PKGS: ./cmd/... ./internal/... ./tests/...
 
@@ -20,6 +21,7 @@ tasks:
   build:
     desc: Build the sidecar into bin/
     vars:
+      VERSION: '{{.VERSION | default "dev"}}'
       VERSION_FLAG: -X github.com/Polyphron-AI/tailshare/internal/platform/config.Version={{.VERSION}}
     cmds:
       - go build -trimpath -ldflags "{{.VERSION_FLAG}}" -o {{.BIN}} ./cmd/tailshare
@@ -27,8 +29,11 @@ tasks:
   dist:
     desc: Build the Windows x64 sidecar and desktop NSIS installer
     vars:
-      RELEASE_VERSION:
-        sh: node -p "JSON.parse(require('node:fs').readFileSync('web/apps/desktop/package.json', 'utf8')).version"
+      RELEASE_VERSION: '{{.VERSION | default .PACKAGE_VERSION}}'
+      CHANNEL: '{{.CHANNEL | default "latest"}}'
+    preconditions:
+      - sh: 'test "{{.CHANNEL}}" = latest || test "{{.CHANNEL}}" = nightly'
+        msg: CHANNEL must be latest or nightly
     env:
       GOOS: windows
       GOARCH: amd64
@@ -38,7 +43,13 @@ tasks:
           BIN: bin/tailshare.exe
           VERSION: "{{.RELEASE_VERSION}}"
       - task: build:web
-      - cd web/apps/desktop && npx electron-builder --win nsis --x64
+      - task: icons
+      - cd web/apps/desktop && npx electron-builder --win nsis --x64 --publish never -c.extraMetadata.version={{.RELEASE_VERSION}} -c.publish.channel={{.CHANNEL}}
+
+  icons:
+    desc: Export and verify the Tailshare app and tray icons from logo.svg
+    cmds:
+      - node web/apps/desktop/scripts/export-icons.mjs
 
   fmt:
     desc: Format Go code
@@ -54,7 +65,7 @@ tasks:
     desc: go vet and staticcheck
     cmds:
       - go vet {{.GO_PKGS}}
-      - go run honnef.co/go/tools/cmd/staticcheck@latest {{.GO_PKGS}}
+      - go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 {{.GO_PKGS}}
 
   test:
     desc: Go tests (offline)

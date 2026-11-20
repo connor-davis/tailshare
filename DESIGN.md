@@ -105,6 +105,7 @@ shape cues. Respect reduced motion and do not add motion to this placeholder.
 | Component | Contract |
 | --- | --- |
 | Button | Generated shadcn primitive; semantic colours; dark text on orange; visible keyboard focus; disabled controls cannot trigger actions. |
+| Updates card | Connect screen uses generated shadcn Card and Select with existing semantic tokens in light and dark. Stable is the default; Nightly explicitly opts into development builds. Loading disables the channel; errors stay inline; downloaded updates expose Restart to update. No new tokens or elevation. |
 | Connect and session routes | `/` picks a folder, then hosts (shows a code) or joins (types one). `/session` has two file panes, a transfer dock and a chat sheet. Live data comes over one socket; chat stays in memory. |
 
 The renderer applies `.dark` before React mounts and follows changes to

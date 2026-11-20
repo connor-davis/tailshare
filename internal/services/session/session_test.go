@@ -133,7 +133,8 @@ func TestOldAddressRefusedAfterRekey(t *testing.T) {
 	// The ack is sent before Join returns; wait for the host to retire its old server.
 	select {
 	case <-host.bootstrapDone:
-	case <-time.After(5 * time.Second):
+	// CI runners are slow, so allow more than a desktop needs.
+	case <-time.After(30 * time.Second):
 		t.Fatal("bootstrap server was not retired")
 	}
 

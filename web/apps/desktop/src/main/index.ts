@@ -1,10 +1,13 @@
 import { app, BrowserWindow, dialog, ipcMain, session } from "electron"
 import { join } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
+import updaterPackage from "electron-updater"
 import { CHANNELS } from "../shared/ipc-schema"
 import { resolveSidecarPath } from "./config"
 import { checkHealth } from "./health"
-import { registerIpc } from "./ipc"
+import { registerIpc, registerUpdateIpc, type IpcHost } from "./ipc"
+import { openSettings } from "./settings"
+import { createUpdater } from "./updater"
 import { Sidecar, sidecarLayer } from "./sidecar"
 import { newToken, spawnSidecar } from "./sidecar-process"
 import { fixSocketOrigin, lockNavigation, windowOptions } from "./window"
@@ -27,6 +30,7 @@ function createWindow() {
 
 async function main() {
   await app.whenReady()
+  app.setAppUserModelId("connor.davis.Tailshare")
 
   const binary = resolveSidecarPath({
     packaged: app.isPackaged,
@@ -47,21 +51,42 @@ async function main() {
     })
   )
 
-  await runtime.runPromise(
-    registerIpc({
-      handle: (channel, handler) =>
-        ipcMain.handle(channel, (event, ...args) =>
-          handler(event.sender === window?.webContents, args)
-        ),
-      pickFolder: async () => {
-        const options = { properties: ["openDirectory" as const] }
-        const result = window
-          ? await dialog.showOpenDialog(window, options)
-          : await dialog.showOpenDialog(options)
-        return result.canceled ? null : (result.filePaths[0] ?? null)
-      },
+  const settings = openSettings(app.getPath("userData"))
+  let shutdownPromise: Promise<void> | undefined
+  const shutdown = () => {
+    updater.stop()
+    shutdownPromise ??= runtime.dispose().then(() => {
+      quitting = true
     })
-  )
+    return shutdownPromise
+  }
+  const updater = createUpdater({
+    packaged: app.isPackaged,
+    adapter: updaterPackage.autoUpdater,
+    channel: settings.get().updateChannel,
+    send: (status) => {
+      if (window && !window.isDestroyed())
+        window.webContents.send(CHANNELS.updateStatus, status)
+    },
+    shutdown,
+    log: (error) => console.warn("Tailshare update check:", error),
+  })
+
+  const host: IpcHost = {
+    handle: (channel, handler) =>
+      ipcMain.handle(channel, (event, ...args) =>
+        handler(event.sender === window?.webContents, args)
+      ),
+    pickFolder: async () => {
+      const options = { properties: ["openDirectory" as const] }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    },
+  }
+  await runtime.runPromise(registerIpc(host))
+  registerUpdateIpc(host, settings, updater)
 
   sidecar.onStatus((status) => {
     if (window && !window.isDestroyed()) {
@@ -72,9 +97,13 @@ async function main() {
   // Quit waits for the sidecar to stop (stdin closes, then a kill if needed).
   app.on("before-quit", (event) => {
     if (quitting) return
-    quitting = true
     event.preventDefault()
-    void runtime.dispose().finally(() => app.quit())
+    void shutdown()
+      .then(() => app.quit())
+      .catch((error: unknown) => {
+        console.error("Tailshare could not stop:", error)
+        app.exit(1)
+      })
   })
 
   // The packaged page is file://, and its socket needs the Origin the sidecar knows.
