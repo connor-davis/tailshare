@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { createUpdater, type UpdaterAdapter } from "./updater"
+import { CHECK_EVERY_MS, createUpdater, type UpdaterAdapter } from "./updater"
 
 function setup(packaged = true) {
   const events = new EventEmitter()
@@ -50,18 +50,46 @@ describe("updater", () => {
     controller.stop()
   })
 
-  it("checks on start and every four hours, and stops cleanly", async () => {
+  it("checks on start and every two minutes, and stops cleanly", async () => {
     vi.useFakeTimers()
     const { adapter, controller, events } = setup()
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(1)
     expect(adapter.autoDownload).toBe(true)
     expect(adapter.autoInstallOnAppQuit).toBe(false)
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
     controller.stop()
     expect(events.eventNames()).toEqual([])
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
+  })
+
+  it("checks now once, and ignores the button while a check runs or an update is ready", async () => {
+    vi.useFakeTimers()
+    const { adapter, controller, events } = setup()
+    await settle()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    controller.checkNow()
+    await settle()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
+
+    // A check that is still running swallows the click.
+    let finish: () => void = () => {}
+    vi.mocked(adapter.checkForUpdates).mockReturnValueOnce(
+      new Promise((resolve) => (finish = () => resolve(null)))
+    )
+    controller.checkNow()
+    controller.checkNow()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(3)
+    finish()
+    await settle()
+
+    events.emit("update-downloaded")
+    controller.checkNow()
+    await settle()
+    expect(adapter.checkForUpdates).toHaveBeenCalledTimes(3)
+    controller.stop()
   })
 
   it("never overlaps checks or downloads and defers a channel switch", async () => {
@@ -75,12 +103,12 @@ describe("updater", () => {
     vi.mocked(adapter.checkForUpdates).mockResolvedValue({
       downloadPromise: download,
     })
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     controller.setChannel("nightly")
     events.emit("update-downloaded")
     expect(controller.status().state).toBe("checking")
     await expect(controller.restart()).rejects.toThrow("No update")
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     expect(adapter.checkForUpdates).toHaveBeenCalledTimes(2)
     expect(adapter.channel).toBe("latest")
     finish()
@@ -107,7 +135,7 @@ describe("updater", () => {
     expect(adapter.allowPrerelease).toBe(false)
     expect(adapter.allowDowngrade).toBe(false)
     expect(controller.status().state).toBe("error")
-    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000)
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS)
     events.emit("update-not-available")
     expect(controller.status().state).toBe("current")
     controller.stop()

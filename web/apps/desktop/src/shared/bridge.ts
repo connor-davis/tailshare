@@ -140,6 +140,8 @@ export interface TailshareBridge {
   ) => () => void
   /** Reads the current state, including events sent before the page loaded. */
   readonly getUpdateStatus: () => Promise<UpdateStatus>
+  /** Checks for an update now. Does nothing while a check runs or an update is ready. */
+  readonly checkForUpdates: () => Promise<void>
   /** Stops the sidecar before installing a downloaded update. */
   readonly restartToUpdate: () => Promise<void>
   /** Subscribes to update state without polling. */

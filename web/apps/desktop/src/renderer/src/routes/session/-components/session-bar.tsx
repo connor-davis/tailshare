@@ -1,6 +1,6 @@
 import { useEffect } from "react"
-import { Link } from "@tanstack/react-router"
 import { SettingsIcon } from "lucide-react"
+import { useOpenSettings } from "@/components/settings/settings-dialog"
 import { announce } from "@/components/status-region"
 import { Button } from "@/components/ui/button"
 import type { PeerInfo } from "@/lib/api/types"
@@ -26,6 +26,7 @@ export function SessionBar({
   leaving: boolean
 }) {
   const live = useLiveStatus()
+  const openSettings = useOpenSettings()
   const reconnecting = live === "reconnecting"
 
   useEffect(() => {
@@ -48,10 +49,13 @@ export function SessionBar({
       <p className="text-sm font-medium">
         {reconnecting ? "Reconnecting…" : "Connected"}
       </p>
-      <Button variant="ghost" size="icon" aria-label="Settings" asChild>
-        <Link to="/settings">
-          <SettingsIcon aria-hidden />
-        </Link>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Settings"
+        onClick={openSettings}
+      >
+        <SettingsIcon aria-hidden />
       </Button>
       <Button variant="outline" aria-expanded={chatOpen} onClick={onToggleChat}>
         Chat

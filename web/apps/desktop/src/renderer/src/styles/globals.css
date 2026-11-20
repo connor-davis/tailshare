@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -100,6 +101,12 @@ html.mica body {
 @layer base {
   * {
     @apply border-border;
+  }
+
+  /* Only the shadcn ScrollArea may scroll; never the window itself. */
+  html,
+  body {
+    overflow: hidden;
   }
 
   body {

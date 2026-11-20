@@ -27,6 +27,7 @@ describe("preload bridge", () => {
       "onSettingsChanged",
       "getUpdateStatus",
       "onUpdateStatus",
+      "checkForUpdates",
       "restartToUpdate",
       "getWindowState",
       "onWindowState",

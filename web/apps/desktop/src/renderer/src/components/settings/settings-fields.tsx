@@ -1,24 +1,7 @@
 import { useState, type ReactNode } from "react"
 import { FolderIcon } from "lucide-react"
-import type { Settings } from "../../../../../shared/bridge"
+import type { Settings } from "../../../../shared/bridge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
@@ -27,16 +10,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { SettingList, SettingRow } from "./setting-row"
 import type { SettingsHandle } from "./use-settings"
 
 /** The biggest speed limit main accepts, in KiB per second. */
 const MAX_LIMIT_KIB = 1048576
 
 /** What every section gets: the loaded settings and the way to save them. */
-type SectionProps = SettingsHandle & { settings: Settings }
+export type SectionProps = SettingsHandle & { settings: Settings }
 
-/** A titled card, so every section looks the same. */
-function Section({
+/** A titled pane, so every section looks the same. */
+export function Section({
   id,
   title,
   description,
@@ -48,23 +32,38 @@ function Section({
   title: string
   /** One line under the heading. */
   description: string
-  /** The fields. */
+  /** The rows. */
   children: ReactNode
 }) {
   return (
-    <Card
-      role="region"
-      aria-labelledby={id}
-      className="rounded-lg border ring-0"
-    >
-      <CardHeader>
-        <CardTitle id={id} role="heading" aria-level={2}>
+    <section aria-labelledby={id} className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h3 id={id} className="text-lg font-semibold">
           {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+        </h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </header>
+      {children}
+    </section>
+  )
+}
+
+/** A save button on its own row at the end of a form. */
+function SaveRow({
+  disabled,
+  children,
+}: {
+  /** True when there is nothing to save. */
+  disabled: boolean
+  /** The button's words. */
+  children: ReactNode
+}) {
+  return (
+    <div className="flex justify-end p-3">
+      <Button type="submit" disabled={disabled}>
+        {children}
+      </Button>
+    </div>
   )
 }
 
@@ -79,34 +78,30 @@ export function YouSection({ settings, save, saving }: SectionProps) {
       description="How the other computer sees you."
     >
       <form
-        className="flex flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault()
           void save({ displayName: name.trim() })
         }}
       >
-        <Field>
-          <FieldLabel htmlFor="display-name">Display name</FieldLabel>
-          <Input
-            id="display-name"
-            value={name}
-            maxLength={64}
-            autoComplete="off"
-            onChange={(event) => setName(event.target.value)}
-          />
-          <FieldDescription>
-            Up to 64 characters. Leave it empty to use this computer&apos;s
-            name.
-          </FieldDescription>
-        </Field>
-        <div>
-          <Button
-            type="submit"
-            disabled={saving || name.trim() === settings.displayName}
+        <SettingList>
+          <SettingRow
+            label="Display name"
+            htmlFor="display-name"
+            description="Up to 64 characters. Leave it empty to use this computer's name."
           >
+            <Input
+              id="display-name"
+              className="w-56"
+              value={name}
+              maxLength={64}
+              autoComplete="off"
+              onChange={(event) => setName(event.target.value)}
+            />
+          </SettingRow>
+          <SaveRow disabled={saving || name.trim() === settings.displayName}>
             Save name
-          </Button>
-        </div>
+          </SaveRow>
+        </SettingList>
       </form>
     </Section>
   )
@@ -129,42 +124,48 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
       title="Saving"
       description="What happens to files you download."
     >
-      <FieldGroup>
-        <RadioGroup
-          aria-label="When a file arrives"
-          value={settings.saveMode}
-          disabled={saving}
-          onValueChange={(value) => {
-            if (value === "folder" || value === "ask")
-              void save({ saveMode: value })
-          }}
-        >
-          <Field orientation="horizontal">
+      <RadioGroup
+        aria-label="When a file arrives"
+        value={settings.saveMode}
+        disabled={saving}
+        className="gap-0"
+        onValueChange={(value) => {
+          if (value === "folder" || value === "ask")
+            void save({ saveMode: value })
+        }}
+      >
+        <SettingList>
+          <SettingRow
+            label="Save to folder"
+            htmlFor="save-folder-mode"
+            description="Files go straight into your save folder."
+          >
             <RadioGroupItem value="folder" id="save-folder-mode" />
-            <FieldLabel htmlFor="save-folder-mode">Save to folder</FieldLabel>
-          </Field>
-          <Field orientation="horizontal">
+          </SettingRow>
+          <SettingRow
+            label="Ask every time"
+            htmlFor="save-ask-mode"
+            description="Tailshare asks where each file should go."
+          >
             <RadioGroupItem value="ask" id="save-ask-mode" />
-            <FieldLabel htmlFor="save-ask-mode">Ask every time</FieldLabel>
-          </Field>
-        </RadioGroup>
-        {settings.saveMode === "folder" ? (
-          <Field>
-            <FieldLabel id="save-folder-label">Save folder</FieldLabel>
-            <div className="flex items-center gap-3">
-              <FolderIcon aria-hidden className="size-4 shrink-0" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <p
-                    aria-labelledby="save-folder-label"
-                    tabIndex={0}
-                    className="min-w-0 flex-1 truncate"
-                  >
-                    {settings.saveFolder}
-                  </p>
-                </TooltipTrigger>
-                <TooltipContent>{settings.saveFolder}</TooltipContent>
-              </Tooltip>
+          </SettingRow>
+          {settings.saveMode === "folder" ? (
+            <SettingRow
+              label="Save folder"
+              description={
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="flex max-w-64 items-center gap-2">
+                      <FolderIcon aria-hidden className="size-4 shrink-0" />
+                      <span tabIndex={0} className="min-w-0 truncate">
+                        {settings.saveFolder}
+                      </span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{settings.saveFolder}</TooltipContent>
+                </Tooltip>
+              }
+            >
               <Button
                 variant="outline"
                 disabled={saving}
@@ -172,10 +173,10 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
               >
                 Change
               </Button>
-            </div>
-          </Field>
-        ) : null}
-      </FieldGroup>
+            </SettingRow>
+          ) : null}
+        </SettingList>
+      </RadioGroup>
     </Section>
   )
 }
@@ -188,8 +189,8 @@ function wholeNumber(text: string, min: number, max: number): number | null {
   return value >= min && value <= max ? value : null
 }
 
-/** A number box with its hint, or its error when the value is out of range. */
-function NumberField({
+/** A number row with its hint, or its reason when the value is out of range. */
+function NumberRow({
   id,
   label,
   hint,
@@ -201,7 +202,7 @@ function NumberField({
   id: string
   /** The setting's name. */
   label: string
-  /** The rule, in plain words. Becomes the error when the value is bad. */
+  /** The rule, in plain words. Becomes the reason when the value is bad. */
   hint: string
   /** What is typed. */
   text: string
@@ -211,21 +212,16 @@ function NumberField({
   onChange: (text: string) => void
 }) {
   return (
-    <Field data-invalid={!valid}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <SettingRow label={label} htmlFor={id} description={hint} invalid={!valid}>
       <Input
         id={id}
+        className="w-28"
         inputMode="numeric"
         value={text}
         aria-invalid={!valid}
         onChange={(event) => onChange(event.target.value)}
       />
-      {valid ? (
-        <FieldDescription>{hint}</FieldDescription>
-      ) : (
-        <FieldError>{hint}</FieldError>
-      )}
-    </Field>
+    </SettingRow>
   )
 }
 
@@ -252,7 +248,6 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
       description="How fast, and how many at the same time."
     >
       <form
-        className="flex flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault()
           if (uploadValue === null || downloadValue === null) return
@@ -265,8 +260,8 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
           })
         }}
       >
-        <FieldGroup>
-          <NumberField
+        <SettingList>
+          <NumberRow
             id="upload-limit"
             label="Upload limit"
             hint={limitHint}
@@ -274,7 +269,7 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
             valid={uploadValue !== null}
             onChange={setUpload}
           />
-          <NumberField
+          <NumberRow
             id="download-limit"
             label="Download limit"
             hint={limitHint}
@@ -282,7 +277,7 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
             valid={downloadValue !== null}
             onChange={setDownload}
           />
-          <NumberField
+          <NumberRow
             id="transfers-at-once"
             label="Transfers at once"
             hint="A whole number from 1 to 8."
@@ -290,10 +285,7 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
             valid={slotsValue !== null}
             onChange={setSlots}
           />
-        </FieldGroup>
-        <div>
-          <Button
-            type="submit"
+          <SaveRow
             disabled={
               saving ||
               !changed ||
@@ -303,15 +295,15 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
             }
           >
             Save transfers
-          </Button>
-        </div>
+          </SaveRow>
+        </SettingList>
       </form>
     </Section>
   )
 }
 
-/** One switch with its words, saved the moment it flips. */
-function SwitchField({
+/** One switch row, saved the moment it flips. */
+function SwitchRow({
   id,
   label,
   description,
@@ -333,18 +325,14 @@ function SwitchField({
   onChange: (value: boolean) => void
 }) {
   return (
-    <Field orientation="horizontal">
-      <FieldContent>
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <FieldDescription>{description}</FieldDescription>
-      </FieldContent>
+    <SettingRow label={label} htmlFor={id} description={description}>
       <Switch
         id={id}
         checked={checked}
         disabled={disabled}
         onCheckedChange={onChange}
       />
-    </Field>
+    </SettingRow>
   )
 }
 
@@ -356,37 +344,32 @@ export function AppSection({ settings, save, saving }: SectionProps) {
       title="App"
       description="How Tailshare lives on this computer."
     >
-      <FieldSet>
-        <FieldLegend variant="label" className="sr-only">
-          App options
-        </FieldLegend>
-        <FieldGroup>
-          <SwitchField
-            id="start-with-windows"
-            label="Start with Windows"
-            description="Opens hidden in the tray when you sign in."
-            checked={settings.startWithWindows}
-            disabled={saving}
-            onChange={(value) => void save({ startWithWindows: value })}
-          />
-          <SwitchField
-            id="close-to-tray"
-            label="Close to tray"
-            description="The close button hides the window. Use the tray to quit."
-            checked={settings.closeToTray}
-            disabled={saving}
-            onChange={(value) => void save({ closeToTray: value })}
-          />
-          <SwitchField
-            id="background-effect"
-            label="Background effect"
-            description="A soft Mica look behind the window. Windows 11 only."
-            checked={settings.mica}
-            disabled={saving}
-            onChange={(value) => void save({ mica: value })}
-          />
-        </FieldGroup>
-      </FieldSet>
+      <SettingList>
+        <SwitchRow
+          id="start-with-windows"
+          label="Start with Windows"
+          description="Opens hidden in the tray when you sign in."
+          checked={settings.startWithWindows}
+          disabled={saving}
+          onChange={(value) => void save({ startWithWindows: value })}
+        />
+        <SwitchRow
+          id="close-to-tray"
+          label="Close to tray"
+          description="The close button hides the window. Use the tray to quit."
+          checked={settings.closeToTray}
+          disabled={saving}
+          onChange={(value) => void save({ closeToTray: value })}
+        />
+        <SwitchRow
+          id="background-effect"
+          label="Background effect"
+          description="A soft Mica look behind the window. Windows 11 only."
+          checked={settings.mica}
+          disabled={saving}
+          onChange={(value) => void save({ mica: value })}
+        />
+      </SettingList>
     </Section>
   )
 }

@@ -12,7 +12,7 @@ import type {
   Settings,
   TailshareBridge,
   UpdateStatus,
-} from "../../../../../shared/bridge"
+} from "../../../../shared/bridge"
 import { UpdatesCard } from "./updates-card"
 
 const stable = { updateChannel: "latest" } as Settings
@@ -21,6 +21,7 @@ const nightly = { updateChannel: "nightly" } as Settings
 let listener: (status: UpdateStatus) => void
 const unsubscribe = vi.fn()
 const getUpdateStatus = vi.fn(async () => ({ state: "current" }))
+const checkForUpdates = vi.fn(async () => {})
 const restartToUpdate = vi.fn(async () => {})
 const save = vi.fn(async () => true)
 
@@ -28,6 +29,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal("tailshare", {
     getUpdateStatus,
+    checkForUpdates,
     restartToUpdate,
     onUpdateStatus: (next: (status: UpdateStatus) => void) => {
       listener = next
@@ -58,6 +60,25 @@ describe("Updates card", () => {
     await screen.findByText(
       "Nightly follows development builds only. Changes may be unfinished."
     )
+  })
+
+  it("checks for updates when the button is pressed, and not while checking or in development", async () => {
+    render(<UpdatesCard settings={stable} save={save} saving={false} />)
+    await screen.findByText("No update available.")
+    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }))
+    await waitFor(() => expect(checkForUpdates).toHaveBeenCalledOnce())
+
+    act(() => listener({ state: "checking" }))
+    expect(
+      screen.getByRole("button", { name: "Checking…" }).hasAttribute("disabled")
+    ).toBe(true)
+
+    act(() => listener({ state: "disabled" }))
+    expect(
+      screen
+        .getByRole("button", { name: "Check for updates" })
+        .hasAttribute("disabled")
+    ).toBe(true)
   })
 
   it("disables the channel while a save runs", () => {

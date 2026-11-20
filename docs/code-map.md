@@ -114,9 +114,9 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Packaged update lifecycle, channel checks, download events and sidecar-safe installation | `src/main/updater.ts`, `src/main/updater.test.ts` |
 | Atomic JSON desktop preferences in userData, corruption fallback | `src/main/settings.ts`, `src/main/settings.test.ts` |
 | Settings/update sender and argument guards, typed request/event bridge | `src/main/ipc.ts`, `src/shared/ipc-schema.ts`, `src/shared/bridge.ts`, `src/preload/index.ts` |
-| Settings page (`/settings`): sections You, Saving, Transfers, App; gear buttons on the connect screen and session bar | `src/renderer/src/routes/settings.tsx`, `src/renderer/src/routes/settings/-components/settings-fields.tsx`, `settings-page.test.tsx` beside it |
-| Settings load, push follow and save (plain-sentence errors) | `src/renderer/src/routes/settings/-components/use-settings.ts` |
-| Updates card on the settings page: Stable/Nightly choice and restart action | `src/renderer/src/routes/settings/-components/updates-card.tsx`, `updates-card.test.tsx` beside it |
+| Settings dialog (open state in context, gear buttons call `useOpenSettings`): menu You, Saving, Transfers, App, Updates | `src/renderer/src/components/settings/settings-dialog.tsx`, `settings-fields.tsx`, `setting-row.tsx`, `settings-dialog.test.tsx` beside them |
+| Settings load, push follow and save (plain-sentence errors) | `src/renderer/src/components/settings/use-settings.ts` |
+| Updates section of the settings dialog: Stable/Nightly choice, Check for updates and restart action | `src/renderer/src/components/settings/updates-card.tsx`, `updates-card.test.tsx` beside it |
 | Light and dark follow the system (`followColorScheme`) | `src/renderer/src/lib/theme.ts`, `theme.test.ts` beside it |
 | jsdom stand-ins (ResizeObserver, matchMedia, scroll) for renderer tests | `src/test-setup.ts` (named in `vitest.config.ts`) |
 | Windows CI and source-branch enforcement | root `.github/workflows/ci.yml`, `.github/workflows/branch-flow.yml` |

@@ -15,6 +15,9 @@ export interface UpdaterAdapter {
   quitAndInstall(): void
 }
 
+/** How often a packaged build looks for an update: 30 requests an hour, under GitHub's unauthenticated limit. */
+export const CHECK_EVERY_MS = 2 * 60 * 1000
+
 /** Starts one packaged updater; development never touches the network or timers. */
 export function createUpdater(options: {
   packaged: boolean
@@ -52,6 +55,8 @@ export function createUpdater(options: {
 
   async function check() {
     if (!options.packaged || stopped || active || installing) return
+    // A downloaded update waits for Restart; checking again would hide it.
+    if (status.state === "ready") return
     active = true
     configure()
     report({ state: "checking" })
@@ -118,7 +123,7 @@ export function createUpdater(options: {
         const timer = setInterval(callback, milliseconds)
         return () => clearInterval(timer)
       })
-    cancelTimer = every(() => void check(), 4 * 60 * 60 * 1000)
+    cancelTimer = every(() => void check(), CHECK_EVERY_MS)
     void check()
   }
 
@@ -130,6 +135,10 @@ export function createUpdater(options: {
       options.send({ ...status })
       if (active) recheck = true
       else void check()
+    },
+    /** Runs one check now. Ignored while a check or download runs, or an update is ready. */
+    checkNow() {
+      void check()
     },
     async restart() {
       if (
