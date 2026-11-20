@@ -19,6 +19,8 @@ const (
 	sessionPort = 80
 	allowWindow = 60 * time.Second
 	lostGrace   = 15 * time.Second
+	// leaveWait bounds how long Leave waits for members to see its notice.
+	leaveWait = 2 * time.Second
 )
 
 // Options supplies the shared folder and handlers before any control peer starts.
@@ -158,6 +160,18 @@ func (session *Session) Leave() error {
 
 	for _, control := range controls {
 		_ = control.Notify(peer.MethodShareLeave, peer.ShareLeave{})
+	}
+
+	// Closing the tunnel at once can drop the leave notice in flight. Each
+	// member closes its side when the notice arrives, so wait for that, briefly.
+	wait := time.NewTimer(leaveWait)
+	defer wait.Stop()
+	for _, control := range controls {
+		select {
+		case <-control.Done():
+		case <-wait.C:
+			return session.Close()
+		}
 	}
 	return session.Close()
 }
