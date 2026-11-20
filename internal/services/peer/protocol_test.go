@@ -93,7 +93,7 @@ func (raw *rawSide) sendRaw(t *testing.T, data []byte) {
 	_, _ = raw.conn.Write(data)
 }
 
-var goodHello = helloResult{Version: 1, DisplayName: "Raw"}
+var goodHello = helloResult{Version: 2, DisplayName: "Raw"}
 
 func greet(t *testing.T, raw *rawSide, versions ...int) {
 	t.Helper()
@@ -144,6 +144,15 @@ func TestBrokenFramesCloseThePeer(t *testing.T) {
 }
 
 func TestVersionNegotiation(t *testing.T) {
+	t.Run("v1 peer is refused", func(t *testing.T) {
+		raw, _ := startAgainstRaw(t, Options{DisplayName: "Real"}, goodHello)
+		greet(t, raw, 1)
+		answer := raw.read(t)
+		if answer.Error == nil || answer.Error.Code != CodeUnsupportedVersion {
+			t.Fatalf("v1 hello = %+v", answer)
+		}
+	})
+
 	t.Run("they are too new", func(t *testing.T) {
 		local, remote := net.Pipe()
 		defer remote.Close()
@@ -182,11 +191,11 @@ func TestVersionNegotiation(t *testing.T) {
 
 	t.Run("highest common version wins", func(t *testing.T) {
 		raw, _ := startAgainstRaw(t, Options{DisplayName: "Real"}, goodHello)
-		greet(t, raw, 7, 1, 3)
+		greet(t, raw, 7, 1, 2, 3)
 
 		answer := raw.read(t)
 		var result helloResult
-		if err := json.Unmarshal(answer.Result, &result); err != nil || result.Version != 1 {
+		if err := json.Unmarshal(answer.Result, &result); err != nil || result.Version != 2 {
 			t.Fatalf("answer = %+v, %v", answer, err)
 		}
 	})
@@ -204,7 +213,7 @@ func TestHostileNamesAreRefused(t *testing.T) {
 		}()
 
 		hello := raw.read(t)
-		bad, _ := json.Marshal(helloResult{Version: 1, DisplayName: name})
+		bad, _ := json.Marshal(helloResult{Version: 2, DisplayName: name})
 		raw.send(t, envelope{Version: 1, Kind: KindResponse, ID: hello.ID, Result: bad})
 
 		if err := <-failed; err == nil || err.Error() != errBadName.Error() {
@@ -225,12 +234,12 @@ func TestRequestsBeforeHelloAreRefused(t *testing.T) {
 	}
 
 	// A second hello must not be able to replace the first.
-	greet(t, raw, 1)
+	greet(t, raw, 2)
 	if first := raw.read(t); first.Error != nil {
 		t.Fatalf("first hello refused: %+v", first)
 	}
 
-	greet(t, raw, 1)
+	greet(t, raw, 2)
 	if second := raw.read(t); second.Error == nil || second.Error.Code != CodeBadRequest {
 		t.Fatalf("second hello = %+v", second)
 	}
@@ -261,7 +270,7 @@ func TestTooManyOpenRequestsCloseThePeer(t *testing.T) {
 			return struct{}{}, nil
 		},
 	}}, goodHello)
-	greet(t, raw, 1)
+	greet(t, raw, 2)
 
 	go func() {
 		for i := range maxInflight + 2 {

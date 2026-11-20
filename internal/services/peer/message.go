@@ -10,7 +10,7 @@ import (
 const envelopeVersion = 1
 
 // supportedVersions are the protocol versions this build speaks, highest last.
-var supportedVersions = []int{1}
+var supportedVersions = []int{2}
 
 // Kind says what an envelope is.
 type Kind string
@@ -35,6 +35,14 @@ const (
 	MethodStat = "stat"
 	// MethodChat delivers one chat message.
 	MethodChat = "chat"
+	// MethodShareRoster asks for the approved joiner's roster.
+	MethodShareRoster = "share.roster"
+	// MethodShareLinks submits one fresh key for each existing member.
+	MethodShareLinks = "share.links"
+	// MethodShareAdmit authorizes an incoming link from a new member.
+	MethodShareAdmit = "share.admit"
+	// MethodShareLeave announces the authenticated sender's departure.
+	MethodShareLeave = "share.leave"
 	// MethodTransferOffer offers a file in one direction.
 	MethodTransferOffer = "transfer.offer"
 	// MethodTransferCancel stops a transfer.
@@ -71,6 +79,14 @@ const (
 	CodeDenied = "denied"
 	// CodeInternal means something went wrong that the user did not cause.
 	CodeInternal = "internal"
+	// CodeNotAdmitter means only the earliest member may admit a joiner.
+	CodeNotAdmitter = "not_admitter"
+	// CodeShareFull means eight people are already sharing.
+	CodeShareFull = "share_full"
+	// CodeBusy means another admission is in progress.
+	CodeBusy = "busy"
+	// CodeJoinFailed means not every member could prepare the new link.
+	CodeJoinFailed = "join_failed"
 )
 
 // RemoteError is an error the other computer sent back. Message is safe to
