@@ -28,7 +28,7 @@ export function JoinRequest({
       <CardContent className="flex flex-col gap-3">
         <p className="break-words">{join.displayName}</p>
         <p className="text-muted-foreground">
-          Allow this computer to access your shared folder?
+          Let this computer into the room?
         </p>
         <div className="flex gap-2" aria-busy={busy}>
           <Button disabled={busy} onClick={() => allow.mutate(join.id)}>

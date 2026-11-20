@@ -19,18 +19,6 @@ export function useTransfers() {
   })
 }
 
-/**
- * Join a folder path and a file name with a slash. A name that holds a
- * separator or `..` is refused, so a peer's name can never climb out.
- */
-export function joinPath(directory: string, name: string): string {
-  if (name === "" || name === ".." || /[\\/]/.test(name)) {
-    throw new Error("That file name can't be sent.")
-  }
-
-  return directory === "" ? name : `${directory}/${name}`
-}
-
 /** Ask the sidecar to move one file. The live socket reports its progress. */
 export function useStartTransfer() {
   const client = useQueryClient()

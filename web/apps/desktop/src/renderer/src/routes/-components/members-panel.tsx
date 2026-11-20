@@ -21,10 +21,10 @@ export function MembersPanel({ session }: { session: SessionState }) {
   return (
     <aside
       aria-label="Members"
-      className="flex h-full min-h-0 flex-col border-l bg-card"
+      className="flex h-full min-h-0 flex-col bg-card"
     >
       {/* Rightmost column: it sits under the Windows caption buttons. */}
-      <DragBar reserveCaption>
+      <DragBar reserveCaption className="pl-3">
         <h2 className="text-sm font-semibold">
           Members
           <span className="ml-2 font-normal text-muted-foreground tabular-nums">

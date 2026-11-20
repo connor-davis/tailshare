@@ -9,6 +9,14 @@ Status: the app works end to end: host or join by code, browse, transfer
 with resume, and chat. The installer and docs are the last steps
 ([plan](project/plans/tailshare-v1.md)).
 
+## Room files
+
+Start or join a room, then add files with the attach button or drag and drop.
+Each computer keeps its own room files in `<userData>/rooms/<CODE>`. Leaving
+keeps those files; joining the same code reuses them. **Open folder** opens that
+room on this computer. Downloads go to the save folder in Settings, separately
+from room files, and existing names get a numbered suffix.
+
 ## Develop
 
 Needs Go 1.27, Node.js 22.13+ and [Task](https://taskfile.dev).

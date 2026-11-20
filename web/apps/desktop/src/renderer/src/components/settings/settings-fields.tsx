@@ -107,7 +107,7 @@ export function YouSection({ settings, save, saving }: SectionProps) {
   )
 }
 
-/** Where downloads go: a folder, or a question every time. */
+/** Where downloads go: the save folder. */
 export function SavingSection({ settings, save, saving, fail }: SectionProps) {
   async function change() {
     try {
@@ -124,59 +124,35 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
       title="Saving"
       description="What happens to files you download."
     >
-      <RadioGroup
-        aria-label="When a file arrives"
-        value={settings.saveMode}
-        disabled={saving}
-        className="gap-0"
-        onValueChange={(value) => {
-          if (value === "folder" || value === "ask")
-            void save({ saveMode: value })
-        }}
-      >
-        <SettingList>
-          <SettingRow
-            label="Save to folder"
-            htmlFor="save-folder-mode"
-            description="Files go straight into your save folder."
+      {/* ponytail: the "Ask every time" mode is hidden. The stored value is
+          kept and treated as "folder"; bring the radio back with a real
+          per-file picker in the main process. */}
+      <SettingList>
+        <SettingRow
+          label="Save folder"
+          description={
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex max-w-64 items-center gap-2">
+                  <FolderIcon aria-hidden className="size-4 shrink-0" />
+                  <span tabIndex={0} className="min-w-0 truncate">
+                    {settings.saveFolder}
+                  </span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{settings.saveFolder}</TooltipContent>
+            </Tooltip>
+          }
+        >
+          <Button
+            variant="outline"
+            disabled={saving}
+            onClick={() => void change()}
           >
-            <RadioGroupItem value="folder" id="save-folder-mode" />
-          </SettingRow>
-          <SettingRow
-            label="Ask every time"
-            htmlFor="save-ask-mode"
-            description="Tailshare asks where each file should go."
-          >
-            <RadioGroupItem value="ask" id="save-ask-mode" />
-          </SettingRow>
-          {settings.saveMode === "folder" ? (
-            <SettingRow
-              label="Save folder"
-              description={
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="flex max-w-64 items-center gap-2">
-                      <FolderIcon aria-hidden className="size-4 shrink-0" />
-                      <span tabIndex={0} className="min-w-0 truncate">
-                        {settings.saveFolder}
-                      </span>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{settings.saveFolder}</TooltipContent>
-                </Tooltip>
-              }
-            >
-              <Button
-                variant="outline"
-                disabled={saving}
-                onClick={() => void change()}
-              >
-                Change
-              </Button>
-            </SettingRow>
-          ) : null}
-        </SettingList>
-      </RadioGroup>
+            Change
+          </Button>
+        </SettingRow>
+      </SettingList>
     </Section>
   )
 }

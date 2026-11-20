@@ -459,3 +459,81 @@ describe("recent rooms IPC", () => {
     expect(store.get()).toEqual([])
   })
 })
+
+describe("room file IPC", () => {
+  it("checks sender, arguments, cap, cancellation and canonical room paths", async () => {
+    const { registerRoomIpc, roomFolder } = await import("./room-ipc")
+    const handlers = new Map<string, Handler>()
+    const result = { added: [{ name: "report.pdf", size: 3 }], skipped: [] }
+    const pickFiles = vi
+      .fn<() => Promise<string[] | null>>()
+      .mockResolvedValue(null)
+    const addFiles = vi.fn(async () => result)
+    const openPath = vi.fn(async () => "")
+    const roomsDir = "C:/User/Tailshare/rooms"
+    registerRoomIpc(
+      {
+        handle: (channel, handler) => handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      { roomsDir, pickFiles, addFiles, openPath }
+    )
+    const call = (channel: string, sender: boolean, args: unknown[]) =>
+      handlers.get(channel)!(sender, args)
+    expect(await call(CHANNELS.addFiles, true, [])).toBeNull()
+    expect(addFiles).not.toHaveBeenCalled()
+    pickFiles.mockResolvedValue(["C:/report.pdf"])
+    expect(await call(CHANNELS.addFiles, true, [])).toEqual(result)
+    expect(
+      await call(CHANNELS.addDroppedFiles, true, [["C:/report.pdf"]])
+    ).toEqual(result)
+    await call(CHANNELS.openRoomFolder, true, ["7k3q 9pxm"])
+    expect(openPath).toHaveBeenCalledWith(join(roomsDir, "7K3Q-9PXM"))
+    for (const channel of [
+      CHANNELS.addFiles,
+      CHANNELS.addDroppedFiles,
+      CHANNELS.openRoomFolder,
+    ]) {
+      await expect(call(channel, false, [])).rejects.toThrow()
+    }
+    await expect(call(CHANNELS.addFiles, true, [1])).rejects.toThrow()
+    for (const paths of [["relative"], Array(101).fill("C:/x"), [1], null]) {
+      await expect(
+        call(CHANNELS.addDroppedFiles, true, [paths])
+      ).rejects.toThrow()
+    }
+    for (const code of ["../escape", "7K3Q/9PXM", "", "7K3Q9PXU", null]) {
+      expect(() => roomFolder(roomsDir, code)).toThrow()
+    }
+    openPath.mockResolvedValue("raw OS detail")
+    await expect(
+      call(CHANNELS.openRoomFolder, true, ["7K3Q9PXM"])
+    ).rejects.toThrow("Could not open the room folder.")
+  })
+
+  it("sends both tokens only from main", async () => {
+    const { callMainApi } = await import("./room-ipc")
+    const fetcher = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true }),
+    }))
+    vi.stubGlobal("fetch", fetcher)
+    try {
+      await callMainApi(GOOD, "main-only", "/api/downloads", {
+        folder: "C:/Downloads",
+      })
+      expect(fetcher).toHaveBeenCalledWith(
+        GOOD.baseUrl + "/api/downloads",
+        expect.objectContaining({
+          method: "PUT",
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${GOOD.token}`,
+            "X-Tailshare-Main": "main-only",
+          }),
+        })
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})

@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { announce } from "@/components/status-region"
+import { FolderOpenIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ShareCode } from "./share-code"
 import { CodeCountdown } from "./code-countdown"
@@ -8,13 +9,14 @@ import { useLiveStatus } from "@/lib/live/use-live"
 
 /**
  * The bar over the room: who we are connected to, the share code for the
- * host, and Leave. The column toggles live in the top bar above it.
+ * host, Open folder and Leave. The column toggles live in the top bar above it.
  */
 export function RoomHeader({
   peer,
   onLeave,
   leaving,
   code,
+  roomCode,
   startedAt = null,
 }: {
   /** The other computer; missing while the host waits for someone. */
@@ -25,6 +27,8 @@ export function RoomHeader({
   leaving: boolean
   /** The code to share again; only the host has one. */
   code?: string
+  /** The room's own code, host or joiner, for finding its folder. */
+  roomCode?: string
   /** Epoch milliseconds the room opened, for the code countdown. */
   startedAt?: number | null
 }) {
@@ -43,10 +47,6 @@ export function RoomHeader({
           <span className="font-medium" title={peer.displayName}>
             {peer.displayName}
           </span>
-          <span className="text-muted-foreground">
-            {" "}
-            · shares {peer.sharedFolderName}
-          </span>
         </p>
       ) : (
         <p className="min-w-0 flex-1 truncate">
@@ -62,6 +62,15 @@ export function RoomHeader({
         <p className="text-sm font-medium">
           {reconnecting ? "Reconnecting…" : "Connected"}
         </p>
+      ) : null}
+      {roomCode ? (
+        <Button
+          variant="outline"
+          onClick={() => void window.tailshare.openRoomFolder(roomCode)}
+        >
+          <FolderOpenIcon aria-hidden data-icon="inline-start" />
+          Open folder
+        </Button>
       ) : null}
       <Button variant="outline" disabled={leaving} onClick={onLeave}>
         {peer

@@ -72,9 +72,15 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 	manager.mu.Lock()
 	offset, size, hash := item.view.Offset, item.view.Size, item.hash
 	manager.mu.Unlock()
-	err = receiveTo(manager.root, item.local, offset, size, progressReader{conn, manager, item})
+	err = receiveTo(
+		manager.receiverRoot(item),
+		item.local,
+		offset,
+		size,
+		progressReader{conn, manager, item},
+	)
 	if err == nil {
-		err = verifyPartial(manager.root, item.local, hash)
+		err = verifyPartial(manager.receiverRoot(item), item.local, hash)
 	}
 	if err == nil {
 		manager.mu.Lock()
@@ -82,9 +88,9 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 		if item.ctx.Err() != nil {
 			err = errDropped
 		} else {
-			err = manager.root.Commit(item.local)
+			err = manager.receiverRoot(item).Commit(item.local)
 			if err != nil {
-				_ = manager.root.RemovePartial(item.local)
+				_ = manager.receiverRoot(item).RemovePartial(item.local)
 			}
 			if err == nil {
 				item.view.State = Done
@@ -114,7 +120,7 @@ func (manager *Manager) negotiate(item *job) error {
 			return err
 		}
 	} else {
-		if _, err := manager.root.Stat(item.local); err == nil {
+		if _, err := manager.receiverRoot(item).Stat(item.local); err == nil {
 			return errors.New("A file with that name already exists.")
 		}
 	}
@@ -200,7 +206,7 @@ func (manager *Manager) finish(item *job, err error) {
 		}
 	}
 	if item.view.State == Canceled && !item.sender {
-		_ = manager.root.RemovePartial(item.local)
+		_ = manager.receiverRoot(item).RemovePartial(item.local)
 	}
 	item.cancel()
 	manager.emitLocked(item)

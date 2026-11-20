@@ -16,7 +16,7 @@ export function JoinForm({
 }: {
   /** Unique id for the input, so its label names it. */
   id: string
-  /** False until a folder is chosen, or while another room is open. */
+  /** False while another room is open. */
   enabled: boolean
   /** True while a host or join is running. */
   busy: boolean

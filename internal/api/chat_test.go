@@ -50,3 +50,19 @@ func TestChatRoutes(t *testing.T) {
 
 	f.send("POST", "/api/chat", map[string]string{"text": "anyone?"}).expect(t, 502, "unavailable")
 }
+
+func TestChatAttachments(t *testing.T) {
+	f := newFixture(t, config.Config{}, nil)
+	f.chooseFolder("report.pdf")
+	f.connectPipe()
+	result := f.send("POST", "/api/chat", map[string]any{"text": "", "attachment": map[string]any{"path": "report.pdf", "name": "spoof", "size": 99}})
+	result.expect(t, 201, "")
+	attachment := result.Body["attachment"].(map[string]any)
+	if attachment["name"] != "report.pdf" || attachment["size"] != float64(len("report.pdf")) {
+		t.Fatal(string(result.Raw))
+	}
+	for _, path := range []string{"../escape", "/absolute", `C:\secret`, "a:b", ""} {
+		f.send("POST", "/api/chat", map[string]any{"attachment": map[string]string{"path": path}}).expect(t, 400, "bad_path")
+	}
+	f.send("POST", "/api/chat", map[string]any{"attachment": map[string]string{"path": "missing"}}).expect(t, 404, "not_found")
+}

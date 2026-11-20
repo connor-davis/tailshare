@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"strings"
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
 	"github.com/gofiber/fiber/v3"
@@ -144,6 +146,10 @@ func (server *Server) startTransfer(c fiber.Ctx) error {
 		return apperr.BadRequest("Say which file to move and where to put it.")
 	}
 
+	if in.Direction == DirectionDownload && strings.ContainsAny(in.Destination, "/\\") ||
+		(in.Direction == DirectionDownload && strings.Contains(in.Destination, "..")) {
+		return share.ErrBadPath
+	}
 	item, err := transfers.Enqueue(server.ctx, in)
 	if err != nil {
 		return err

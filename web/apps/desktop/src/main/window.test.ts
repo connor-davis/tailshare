@@ -29,7 +29,7 @@ describe("windowOptions", () => {
     expect(options.titleBarOverlay).toEqual({
       color: "#00000000",
       symbolColor: "#000000",
-      height: 32,
+      height: 40,
     })
   })
 

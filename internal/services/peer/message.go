@@ -147,9 +147,10 @@ type statParams struct {
 // chatParams is the chat wire shape. SentAt is for the sender's records only:
 // the receiver stamps its own clock, so a wrong clock cannot reorder the log.
 type chatParams struct {
-	ID     string    `json:"id"`
-	Text   string    `json:"text"`
-	SentAt time.Time `json:"sentAt"`
+	Attachment *Attachment `json:"attachment,omitempty"`
+	ID         string      `json:"id"`
+	Text       string      `json:"text"`
+	SentAt     time.Time   `json:"sentAt"`
 }
 
 // Direction is which way a file travels, from the offering side's view.

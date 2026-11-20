@@ -58,8 +58,9 @@ Limits, all required:
   A network split
   can leave two live servers using the same code key, and pairwise loss can
   leave rosters inconsistent at a third member. Version 1 has no roster
-  resync. Members keep the code in memory only until the share ends, never
-  on disk or in logs, so a survivor can start the same code server.
+  resync. The session service keeps the code in memory until the share ends,
+  so a survivor can start the same code server. Desktop recent rooms and room
+  directory names persist codes locally; neither service logs them.
 - **Member trust.** Rosters and admission messages distribute each member's
   Tailcat address, including its pre-shared key, to other admitted members.
   The address is not a secret from the share. The authenticated link key,
@@ -101,19 +102,22 @@ What it does not cover:
 - A junction whose last part is the link itself, in the changing calls
   (`Mkdir`, `MkdirAll`), was a Go bug fixed in Go 1.27.2. We use 1.27.4. Keep
   the Go version current, and test any new changing call we add.
-- The folder the user picks is trusted. Anything the user already put inside it
-  is shared, including files other programs can change while we read.
+- Room folders live under `<userData>/rooms/<CODE>`. The code is parsed and
+  canonicalized before a confined child root is created or reopened. Leave closes
+  the handle after workers stop; files persist and are shared again when that code
+  is reused. Local programs can still change these trusted files while we read.
 - Names and sizes are shown to the other computer as they are.
 
 ## Desktop shell
 
 The Electron main process starts the Go sidecar and is the only place that
-knows its address and token.
+owns its address and tokens. The normal API token is given to the renderer;
+the main-only token stays in main.
 
 - The window has context isolation and the sandbox on and Node off. It refuses
   every new window, navigation, redirect and webview. `window.tailshare` is the
-  only thing the page can reach: `getConnectionInfo`, `chooseFolder` and
-  `onSidecarStatus`. No `ipcRenderer`, no generic invoke.
+  only interface the page can reach. It includes `addFiles`, `addDroppedFiles`
+  and `openRoomFolder`; no `ipcRenderer` or generic invoke is exposed.
 - Each IPC handler checks that the call came from our window, refuses extra
   arguments, and checks its reply with an `effect/Schema` schema before it
   leaves main. A folder path is only ever returned from the native dialog.
@@ -164,8 +168,13 @@ knows its address and token.
 
 ## Transfers
 
-Transfer sources and destinations use the same shared root and slash-path
-checks. A download destination is selected locally. Peer upload destinations
+Transfer sources and upload destinations use the room root. Locally requested
+downloads use a separate confined downloads root; they never become room files.
+The destination must be a base name without separators or `..`, and collisions
+become `name (2).ext`. Each queued download pins its root and relative name,
+including across pause/resume and settings changes. Retired roots remain open
+until shutdown so paused jobs keep their destination. Stored `ask` mode currently
+uses the configured save folder. Peer upload destinations
 and download sources pass through `share.Localize` and `os.Root`. Files only
 are supported, with two active transfers across both directions and a 1 TiB
 size limit. The declared size caps reads and writes on the data stream.
@@ -234,9 +243,22 @@ drive it.
 - **Safe errors.** Callers only see `{code, message}` with a plain sentence.
   Raw Go errors, local paths and text from the other computer are never sent
   on. Unknown errors become a generic 500.
-- **Folder access.** The API opens the folder the picker chose with
-  `share.Open`, and every path from a query goes through `share.Localize` and
-  `os.Root`. The folder cannot change while a session is open.
+- **Room access.** Host and join open a room root under `TAILSHARE_ROOMS_DIR`.
+  Every peer path goes through `share.Localize` and `os.Root`; the removed
+  `/api/folder` route cannot replace that root.
+- **Main-only paths.** `POST /api/room/files` and `PUT /api/downloads` also need
+  one `X-Tailshare-Main` header, compared in constant time against
+  `TAILSHARE_MAIN_TOKEN`. Main generates a fresh second token for each sidecar
+  launch, including dev launches, and never sends it to the renderer.
+- **Add-files consent.** Main obtains paths from its native multi-file dialog or
+  preload resolves real dropped Files with `webUtils.getPathForFile`. Empty
+  paths are dropped. At most 100 files are copied through the room root; folders,
+  links, junctions and unreadable sources are skipped. Publication is atomic and
+  never replaces a file. Replies contain base names and safe sentences only.
+  Open folder accepts a validated code; main constructs the canonical path itself.
+- **Downloads configuration.** Main sends the save folder after health succeeds
+  and whenever it changes. The main-only endpoint creates missing directories
+  and opens a separate root; absolute destinations never enter peer or live DTOs.
 - **Members list.** `session.state` carries each member's id, display name and
   host/you flags only. Addresses and keys stay in the sidecar.
 

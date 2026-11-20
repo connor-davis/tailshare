@@ -22,7 +22,15 @@ func Host(ctx context.Context, cfg config.Config, name string, options Options) 
 }
 
 func host(ctx context.Context, options settings) (*Session, codes.Code, error) {
-	code := codes.New()
+	code := options.options.Code
+	if code == "" {
+		code = codes.New()
+	}
+	parsed, err := codes.Parse(string(code))
+	if err != nil {
+		return nil, "", err
+	}
+	code = parsed
 	session, err := newSession(ctx, options, code)
 	if err != nil {
 		return nil, "", err

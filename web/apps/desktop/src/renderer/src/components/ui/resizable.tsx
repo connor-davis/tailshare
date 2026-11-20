@@ -17,8 +17,17 @@ function ResizablePanelGroup({
   )
 }
 
-function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
-  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />
+// The library sets `overflow: auto` inline, which shows a native scrollbar
+// whenever content is a pixel too tall. Each panel scrolls inside its own
+// ScrollArea instead, so panels clip.
+function ResizablePanel({ style, ...props }: ResizablePrimitive.PanelProps) {
+  return (
+    <ResizablePrimitive.Panel
+      data-slot="resizable-panel"
+      style={{ overflow: "hidden", ...style }}
+      {...props}
+    />
+  )
 }
 
 function ResizableHandle({

@@ -31,6 +31,8 @@ import {
 import { createJoinInbox, findJoinLink } from "./join-link"
 import { applyLoginItem } from "./login-item"
 import { openRecentRooms } from "./recent-rooms"
+import { callMainApi, registerRoomIpc } from "./room-ipc"
+import type { AddFilesResult, ConnectionInfo } from "../shared/bridge"
 import { openSettings } from "./settings"
 import { createTray, trayIconPaths } from "./tray"
 import { createUpdater } from "./updater"
@@ -97,11 +99,35 @@ async function main() {
     repoRoot: join(app.getAppPath(), "../../.."),
   })
 
+  const roomsDir = join(app.getPath("userData"), "rooms")
+  const settings = openSettings(app.getPath("userData"), {
+    downloads: app.getPath("downloads"),
+  })
+  let mainToken = newToken()
+  let downloadsUpdate = Promise.resolve<unknown>(undefined)
+  const configureDownloads = (info: ConnectionInfo) => {
+    // Serialize changes and read the newest folder when each request starts.
+    downloadsUpdate = downloadsUpdate
+      .catch(() => {})
+      .then(() =>
+        callMainApi(info, mainToken, "/api/downloads", {
+          folder: settings.get().saveFolder,
+        })
+      )
+    return downloadsUpdate
+  }
   const runtime = ManagedRuntime.make(
     sidecarLayer({
-      spawn: (token) => spawnSidecar(binary, token),
+      spawn: (token) => {
+        mainToken = newToken()
+        return spawnSidecar(binary, token, roomsDir, mainToken)
+      },
       newToken,
-      health: (url, token) => checkHealth(url, token),
+      health: async (baseUrl, token) => {
+        await checkHealth(baseUrl, token)
+        // ponytail: stored "ask" uses the folder too until per-file dialogs return.
+        await configureDownloads({ baseUrl, token })
+      },
     })
   )
   const sidecar = await runtime.runPromise(
@@ -110,9 +136,6 @@ async function main() {
     })
   )
 
-  const settings = openSettings(app.getPath("userData"), {
-    downloads: app.getPath("downloads"),
-  })
   closeToTray = settings.get().closeToTray
   // Forcing light or dark here flips prefers-color-scheme in the page too.
   nativeTheme.themeSource = settings.get().theme
@@ -172,6 +195,25 @@ async function main() {
     },
   }
   await runtime.runPromise(registerIpc(host))
+  registerRoomIpc(host, {
+    roomsDir,
+    openPath: (path) => shell.openPath(path),
+    pickFiles: async () => {
+      const options = {
+        properties: ["openFile" as const, "multiSelections" as const],
+      }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      return result.canceled ? null : result.filePaths
+    },
+    addFiles: async (paths) => {
+      const info = await runtime.runPromise(sidecar.connectionInfo)
+      return (await callMainApi(info, mainToken, "/api/room/files", {
+        paths,
+      })) as AddFilesResult
+    },
+  })
   registerUpdateIpc(host, settings, updater, (url) => shell.openExternal(url))
   const recentRooms = openRecentRooms(app.getPath("userData"))
   registerRecentRoomsIpc(host, recentRooms)
@@ -190,6 +232,17 @@ async function main() {
   // One place reacts to a saved change: updater, login item, tray flag, windows.
   settings.onChange((next, previous) => {
     closeToTray = next.closeToTray
+    if (next.saveFolder !== previous.saveFolder) {
+      void runtime
+        .runPromise(sidecar.connectionInfo)
+        .then(configureDownloads)
+        .catch(() =>
+          dialog.showErrorBox(
+            "Downloads folder",
+            "Could not set the downloads folder. Choose it again."
+          )
+        )
+    }
     if (next.updateChannel !== previous.updateChannel)
       updater.setChannel(next.updateChannel)
     if (next.startWithWindows !== previous.startWithWindows)

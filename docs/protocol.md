@@ -174,6 +174,15 @@ Owners: `internal/services/peer/share.go` (wire types),
 ## Chat
 
 - `chat` carries an `id` and `text` (and the sender's `sentAt`).
+- Optional `attachment` is `{ "name": "file.pdf", "path": "docs/file.pdf", "size": 123 }`.
+  `path` is relative to the sender's room and passes `share.Localize`; `name`
+  is its base name and `size` is nonnegative. The sender stats its own room file
+  to fill metadata. Invalid remote attachments reject the whole message with
+  `bad_request` and are never recorded. Empty text is allowed only with an attachment.
+  JSON decoding ignores unknown fields, so this adds no protocol version. Older
+  receivers ignore attachments (and may refuse attachment-only messages).
+  Local chat JSON and live events carry the same optional attachment.
+  `sharedFolderName` remains in hello for compatibility; the renderer hides it.
 - Text is at most 8 KiB of valid UTF-8. The ID is at most 64 characters with
   no control characters.
 - The receiver stamps its own clock and its own `seq`, so a wrong clock on the

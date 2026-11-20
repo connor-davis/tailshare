@@ -107,18 +107,20 @@ func (server *Server) getSession(c fiber.Ctx) error {
 }
 
 // reserve claims the idle session for a host or join, so a second request
-// gets a conflict while the first is still setting up. It hands back the
-// shared folder, which cannot change until the session ends.
-func (server *Server) reserve(role string) (*share.Root, error) {
+// gets a conflict while the first is still setting up. It opens that code's
+// persistent room folder, which stays reserved until the session ends.
+func (server *Server) reserve(role string, code codes.Code) (*share.Root, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
 	if server.phase != phaseIdle {
 		return nil, apperr.Conflict("conflict", "A session is already open. Leave it first.")
 	}
-	if server.root == nil {
-		return nil, errNoFolder()
+	root, err := server.openRoom(code)
+	if err != nil {
+		return nil, err
 	}
+	server.root = root
 
 	server.phase = phaseConnecting
 	server.role = role
@@ -128,7 +130,15 @@ func (server *Server) reserve(role string) (*share.Root, error) {
 
 // release undoes reserve after a failed setup.
 func (server *Server) release() {
+	server.roomIO.Lock()
+	defer server.roomIO.Unlock()
+
 	server.mu.Lock()
+	if server.root != nil {
+		_ = server.root.Close()
+		server.root = nil
+	}
+	server.manager = nil
 	server.phase = phaseIdle
 	server.role = ""
 	server.mu.Unlock()
@@ -137,14 +147,15 @@ func (server *Server) release() {
 }
 
 func (server *Server) hostSession(c fiber.Ctx) error {
-	root, err := server.reserve(roleHost)
+	selected := codes.New()
+	root, err := server.reserve(roleHost, selected)
 	if err != nil {
 		return err
 	}
 
-	manager := transfer.New(root)
+	manager := server.roomManager(root)
 	sess, code, err := session.Host(server.ctx, server.cfg, displayName(), session.Options{
-		Root: root, Handlers: manager.Handlers(),
+		Root: root, Handlers: manager.Handlers(), Code: selected,
 	})
 	if err != nil {
 		_ = manager.Close()
@@ -217,11 +228,12 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 		return apperr.BadRequest("The request could not be understood.")
 	}
 
-	if _, err := codes.Parse(in.Code); err != nil {
+	parsed, err := codes.Parse(in.Code)
+	if err != nil {
 		return apperr.BadRequest(err.Error())
 	}
 
-	root, err := server.reserve(roleJoiner)
+	root, err := server.reserve(roleJoiner, parsed)
 	if err != nil {
 		return err
 	}
@@ -229,7 +241,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	ctx, cancel := server.contextWithin(joinTimeout)
 	defer cancel()
 
-	manager := transfer.New(root)
+	manager := server.roomManager(root)
 	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(), session.Options{
 		Root: root, Handlers: manager.Handlers(),
 	})
@@ -351,7 +363,7 @@ func (server *Server) leaveSession(c fiber.Ctx) error {
 	return c.JSON(server.sessionState())
 }
 
-// leave closes the session and peer and goes idle. The shared folder stays.
+// leave closes the session, peer and root handle. Room files remain on disk.
 // Calling it with nothing open does nothing.
 func (server *Server) leave() {
 	server.endCurrent(nil)
@@ -377,12 +389,16 @@ func (server *Server) endCurrent(expected *session.Session) {
 		return
 	}
 	transfers, done := server.transfers, server.transferDone
+	manager := server.manager
 	ending := make(chan struct{})
 	server.ending = ending
 	server.phase = phaseConnecting
 	server.transfers = nil
 	server.mu.Unlock()
 
+	if manager != nil {
+		_ = manager.Close()
+	}
 	if closer, ok := transfers.(interface{ Close() error }); ok {
 		_ = closer.Close()
 	}
@@ -394,10 +410,18 @@ func (server *Server) endCurrent(expected *session.Session) {
 		_ = other.Close()
 	}
 
+	server.roomIO.Lock()
+	defer server.roomIO.Unlock()
+
 	server.mu.Lock()
 	server.sess, server.peer = nil, nil
 	server.phase, server.role, server.code = phaseIdle, "", ""
 	server.transferDone = nil
+	if server.root != nil {
+		_ = server.root.Close()
+		server.root = nil
+	}
+	server.manager = nil
 	server.ending = nil
 	close(ending)
 	server.mu.Unlock()
