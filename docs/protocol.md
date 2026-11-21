@@ -231,6 +231,51 @@ offset, which must be between 0 and the file size and match the agreed hash.
 Owners: `internal/services/transfer/stream.go` (header),
 `run.go` (negotiation), `send.go` and `receive.go` (bytes).
 
+## Session streams and shared apps
+
+Any member can open a stream to any other, whichever side dialed the link. A
+stream with the prefix `S` is a session stream. It never reaches the transfer
+queue. It carries: a kind byte, a one-byte header length (at most 64), then
+the header, then raw bytes.
+
+- **Kind 0 is the reverse path.** Links are one-way: only the newer member
+  can open a stream. The older member sends the control request
+  `stream.open` `{kind, header, nonce}` (the nonce is 16 random bytes). The
+  newer member opens a stream back with kind 0 whose header is the nonce. The
+  asker matches the nonce to its waiter, and only the member it asked may
+  answer. The newer member then runs its own handler for `kind`.
+- Other kinds are registered with `Session.HandleStream`. An unknown kind, or
+  a header that takes longer than 10 seconds, closes the stream.
+- The mesh keeps at most 80 live accepted streams per member.
+
+Shared apps (kind 1) send raw TCP over a session stream. A member shares a
+local TCP port with a label; every member sees the label and the sharer,
+never the sharer's real address.
+
+- `forward.announce` `{rev, shares:[{id,label,port}]}` is sent to every member
+  whenever the sharer's list changes. `rev` only goes up; an older list is
+  ignored. `forward.list` asks a member for its list, so a late joiner gets
+  the shares already running. A member that answers `unknown_method` is shown
+  as a build that cannot share apps.
+- Limits: 16 shares per member, label 1 to 64 characters (no control
+  characters), id 16 lowercase hex characters chosen by the sharer, port 1 to
+  65535, 64 piped connections per opened share, 10 second header deadline.
+- The viewer's stream header is the share id. The sharer looks the id up in
+  its own list, dials `127.0.0.1:<listed port>` and pipes both ways. An
+  unknown or stopped id closes the stream and dials nothing.
+- Stop, leave, removal and session end close the listener and every piped
+  connection on both sides, and drop the member's shares from everyone's list.
+- Shares live in memory only. The local API is `GET /api/forwards`,
+  `POST /api/forwards`, `DELETE /api/forwards/:id`,
+  `POST` and `DELETE /api/forwards/:id/open`, and the live event
+  `forward.changed` carries `{mine, others, unsupported}`. The snapshot has
+  the same `forwards` object.
+
+Protocol version stays 2.
+
+Owners: `internal/services/session/streams.go`, `internal/services/forward/`,
+`internal/services/peer/{stream,forward}.go`.
+
 ## Direction in an offer
 
 `direction` in `transfer.offer` is the offering side's view. `upload` means the

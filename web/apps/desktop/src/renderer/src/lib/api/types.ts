@@ -107,12 +107,42 @@ export interface ChatMessage {
   time: string
 }
 
+/** One app (a TCP port) a member shares with the room. */
+export interface ForwardItem {
+  /** Share id, chosen by the sharer. */
+  id: string
+  /** Name the sharer gave it. */
+  label: string
+  /** Port on the sharer's computer. */
+  port: number
+  /** Member id of the sharer. */
+  ownerId: string
+  /** Display name of the sharer. */
+  ownerName: string
+  /** True while this computer listens for it. */
+  open: boolean
+  /** Loopback port on this computer; set only while `open`. */
+  localPort?: number
+}
+
+/** Every share in the room, from this computer's point of view. */
+export interface ForwardState {
+  /** Apps this computer shares. */
+  mine: ForwardItem[]
+  /** Apps other members share. */
+  others: ForwardItem[]
+  /** Names of members whose build cannot share apps. */
+  unsupported: string[]
+}
+
 /** What the first live message carries. */
 export interface Snapshot {
   /** Session state. */
   session: SessionState
   /** Every transfer, oldest first. */
   transfers: TransferItem[]
+  /** Shared apps. Missing when the sidecar is older than the screen. */
+  forwards?: ForwardState
 }
 
 /** The one shape of every live message. */

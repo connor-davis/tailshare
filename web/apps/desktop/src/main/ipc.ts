@@ -10,6 +10,7 @@ import {
   WindowStateSchema,
 } from "../shared/ipc-schema"
 import {
+  isForwardLink,
   isReleaseLink,
   type DownloadsStatus,
   type WindowState,
@@ -83,6 +84,18 @@ export function registerUpdateIpc(
       await openExternal(args[0])
     } catch {
       throw refuse("open this release link. Try again")
+    }
+  })
+
+  host.handle(CHANNELS.openForwardLink, async (senderOk, args) => {
+    if (!senderOk) throw refuse("answer this window")
+    if (args.length !== 1 || !isForwardLink(args[0]))
+      throw refuse("read that request")
+
+    try {
+      await openExternal(args[0])
+    } catch {
+      throw refuse("open this app. Try again")
     }
   })
 

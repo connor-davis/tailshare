@@ -3,7 +3,9 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { PeerInfo } from "@/lib/api/types"
+import { AppsPanel } from "./apps-panel"
 import { usePanelLayout, usePanelOpen } from "./panel-layout"
 import { RoomChat } from "./room-chat"
 import { RoomHeader } from "./room-header"
@@ -64,7 +66,23 @@ export function RoomView({
           {...layout}
         >
           <ResizablePanel id="chat" minSize={160}>
-            <RoomChat connected={peer !== undefined} />
+            <Tabs defaultValue="chat" className="h-full min-h-0 gap-0">
+              <TabsList variant="line" className="px-2">
+                <TabsTrigger value="chat">Chat</TabsTrigger>
+                <TabsTrigger value="apps">Apps</TabsTrigger>
+              </TabsList>
+              {/* forceMount keeps the chat alive (and scrolled) on the Apps tab. */}
+              <TabsContent
+                value="chat"
+                forceMount
+                className="min-h-0 flex-1 data-[state=inactive]:hidden"
+              >
+                <RoomChat connected={peer !== undefined} />
+              </TabsContent>
+              <TabsContent value="apps" className="min-h-0 flex-1">
+                <AppsPanel connected={peer !== undefined} />
+              </TabsContent>
+            </Tabs>
           </ResizablePanel>
           {transfersOpen ? (
             <>

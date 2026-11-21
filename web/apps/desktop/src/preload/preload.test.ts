@@ -39,6 +39,7 @@ describe("preload bridge", () => {
       "checkForUpdates",
       "downloadUpdate",
       "openReleaseLink",
+      "openForwardLink",
       "restartToUpdate",
       "getWindowState",
       "onWindowState",

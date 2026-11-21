@@ -161,7 +161,10 @@ describe("shell", () => {
     expect(screen.getByRole("button", { name: "Copy code" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Copy link" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Open folder" })).toBeTruthy()
-    expect(screen.queryByRole("tab")).toBeNull()
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Chat",
+      "Apps",
+    ])
     expect(screen.getByText("You (host)")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
     expect(
