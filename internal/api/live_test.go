@@ -304,3 +304,17 @@ func mustJSON(value any) []byte {
 
 	return raw
 }
+
+func TestRemovedEventReachesLiveSocket(t *testing.T) {
+	fake := newFake()
+	f := newFixture(t, config.Config{}, fake)
+	live := f.dialLive()
+	next(t, live)
+
+	fake.events <- TransferEvent{Type: "transfer.removed", IDs: []string{"a", "b"}}
+
+	event := until(t, live, "transfer.removed", nil)
+	if got := string(mustJSON(event.Data)); !strings.Contains(got, `"ids":["a","b"]`) {
+		t.Fatalf("removed event = %s", got)
+	}
+}

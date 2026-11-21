@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Effect, Layer } from "effect"
 import { describe, expect, it, vi } from "vitest"
+import { registerRoomIpc } from "./room-ipc"
 import type { ConnectionInfo } from "../shared/bridge"
 import {
   CHANNELS,
@@ -494,8 +495,16 @@ describe("recent rooms IPC", () => {
   })
 })
 
+/** Save-dialog parts of the host that most tests never touch. */
+const saveStubs = {
+  pickSaveFile: async () => null,
+  saveMode: () => "folder" as const,
+  saveToFolder: async () => null,
+  saveInto: async () => null,
+}
+
 describe("room file IPC", () => {
-  it("checks sender, arguments, cap, cancellation and canonical room paths", async () => {
+  it("checks sender, arguments, cancellation and canonical room paths", async () => {
     const { registerRoomIpc, roomFolder } = await import("./room-ipc")
     const handlers = new Map<string, Handler>()
     const result = { added: [{ name: "report.pdf", size: 3 }], skipped: [] }
@@ -510,7 +519,7 @@ describe("room file IPC", () => {
         handle: (channel, handler) => handlers.set(channel, handler),
         pickFolder: async () => null,
       },
-      { roomsDir, pickFiles, addFiles, openPath }
+      { roomsDir, pickFiles, addFiles, openPath, ...saveStubs }
     )
     const call = (channel: string, sender: boolean, args: unknown[]) =>
       handlers.get(channel)!(sender, args)
@@ -531,7 +540,7 @@ describe("room file IPC", () => {
       await expect(call(channel, false, [])).rejects.toThrow()
     }
     await expect(call(CHANNELS.addFiles, true, [1])).rejects.toThrow()
-    for (const paths of [["relative"], Array(101).fill("C:/x"), [1], null]) {
+    for (const paths of [["relative"], [1], null]) {
       await expect(
         call(CHANNELS.addDroppedFiles, true, [paths])
       ).rejects.toThrow()
@@ -558,6 +567,7 @@ describe("room file IPC", () => {
         pickFiles: async () => null,
         addFiles: async () => ({ added: [], skipped: [] }),
         openPath: async () => "",
+        ...saveStubs,
       }
     )
     const call = (channel: string, sender: boolean, args: unknown[]) =>
@@ -608,5 +618,190 @@ describe("room file IPC", () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe("big drops and Save dialog IPC", () => {
+  const room = (over: Record<string, unknown>) => {
+    const handlers = new Map<string, Handler>()
+    registerRoomIpc(
+      {
+        handle: (channel, handler) => handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      {
+        roomsDir: "C:/rooms",
+        pickFiles: async () => null,
+        addFiles: async () => ({ added: [], skipped: [] }),
+        openPath: async () => "",
+        ...saveStubs,
+        ...over,
+      }
+    )
+
+    return (channel: string, sender: boolean, args: unknown[]) =>
+      handlers.get(channel)!(sender, args)
+  }
+  const paths = (count: number) =>
+    Array.from({ length: count }, (_, i) => `C:/drop/file${i}.txt`)
+
+  it("cuts 250 paths into 100, 100 and 50 and merges the answers", async () => {
+    const sizes: number[] = []
+    const call = room({
+      addFiles: async (batch: readonly string[]) => {
+        sizes.push(batch.length)
+        return {
+          added: batch.map((name) => ({ name, size: 1 })),
+          skipped: [],
+        }
+      },
+    })
+
+    const result = (await call(CHANNELS.addDroppedFiles, true, [
+      paths(250),
+    ])) as { added: unknown[] }
+
+    expect(sizes).toEqual([100, 100, 50])
+    expect(result.added).toHaveLength(250)
+  })
+
+  it("keeps the other chunks when one fails, and says what was skipped", async () => {
+    let calls = 0
+    const call = room({
+      addFiles: async (batch: readonly string[]) => {
+        calls += 1
+        if (calls === 2) throw new Error("C:/secret/path")
+        return {
+          added: batch.map((name) => ({ name, size: 1 })),
+          skipped: [],
+        }
+      },
+    })
+
+    const result = (await call(CHANNELS.addDroppedFiles, true, [
+      paths(150),
+    ])) as { added: unknown[]; skipped: { name: string; reason: string }[] }
+
+    expect(result.added).toHaveLength(100)
+    expect(result.skipped).toEqual([
+      { name: "50 files", reason: "Tailshare could not add these files." },
+    ])
+  })
+
+  it("throws only when every chunk failed", async () => {
+    const call = room({
+      addFiles: async () => {
+        throw new Error("no")
+      },
+    })
+
+    await expect(
+      call(CHANNELS.addDroppedFiles, true, [paths(150)])
+    ).rejects.toThrow("could not add those files")
+  })
+
+  it("refuses startDownload from a stranger and bad requests", async () => {
+    const call = room({ saveMode: () => "ask" })
+    const good = { source: "docs/a.txt", name: "a.txt" }
+
+    await expect(call(CHANNELS.startDownload, false, [good])).rejects.toThrow()
+    await expect(
+      call(CHANNELS.startDownload, true, [{ ...good, name: "..\\a" }])
+    ).rejects.toThrow()
+    await expect(call(CHANNELS.startDownload, true, [])).rejects.toThrow()
+  })
+
+  it("asks for a place in ask mode and sends it to the sidecar", async () => {
+    const saveInto = vi.fn(async () => ({ id: "t1" }))
+    const pickSaveFile = vi.fn(async () => "D:\\Inbox\\renamed.txt")
+    const call = room({ saveMode: () => "ask", pickSaveFile, saveInto })
+
+    const item = await call(CHANNELS.startDownload, true, [
+      { source: "docs/a.txt", name: "a.txt" },
+    ])
+
+    expect(pickSaveFile).toHaveBeenCalledWith("a.txt")
+    expect(saveInto).toHaveBeenCalledWith({
+      source: "docs/a.txt",
+      folder: "D:\\Inbox",
+      name: "renamed.txt",
+    })
+    expect(item).toEqual({ id: "t1" })
+  })
+
+  it("changes nothing when the Save dialog is cancelled", async () => {
+    const saveInto = vi.fn()
+    const call = room({
+      saveMode: () => "ask",
+      pickSaveFile: async () => null,
+      saveInto,
+    })
+
+    expect(
+      await call(CHANNELS.startDownload, true, [
+        { source: "docs/a.txt", name: "a.txt" },
+      ])
+    ).toBeNull()
+    expect(saveInto).not.toHaveBeenCalled()
+  })
+
+  it("uses the save folder and no dialog in folder mode", async () => {
+    const saveToFolder = vi.fn(async () => ({ id: "t2" }))
+    const pickSaveFile = vi.fn()
+    const call = room({ saveToFolder, pickSaveFile })
+
+    await call(CHANNELS.startDownload, true, [
+      { source: "docs/a.txt", name: "a.txt" },
+    ])
+
+    expect(pickSaveFile).not.toHaveBeenCalled()
+    expect(saveToFolder).toHaveBeenCalledWith({
+      source: "docs/a.txt",
+      name: "a.txt",
+    })
+  })
+})
+
+describe("callMainApi errors", () => {
+  const call = async (reply: () => unknown) => {
+    const { callMainApi } = await import("./room-ipc")
+    vi.stubGlobal("fetch", vi.fn(reply))
+    try {
+      return await callMainApi(GOOD, "main-only", "/api/transfers", {})
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+  const generic = "Tailshare could not complete that file request."
+
+  it("shows the sidecar's own sentence, cut to a safe length", async () => {
+    await expect(
+      call(async () => ({
+        ok: false,
+        json: async () => ({ code: "busy", message: "Not connected yet." }),
+      }))
+    ).rejects.toThrow("Not connected yet.")
+
+    const long = "x".repeat(500)
+    await expect(
+      call(async () => ({ ok: false, json: async () => ({ message: long }) }))
+    ).rejects.toThrow(`${"x".repeat(200)}`)
+  })
+
+  it("keeps the generic sentence for network, timeout and odd bodies", async () => {
+    const odd = [
+      async () => {
+        throw new Error("ECONNREFUSED")
+      },
+      async () => ({
+        ok: false,
+        json: async () => {
+          throw new Error("not json")
+        },
+      }),
+      async () => ({ ok: false, json: async () => ({ message: 42 }) }),
+      async () => ({ ok: false, json: async () => ({ message: "  " }) }),
+    ]
+    for (const reply of odd) await expect(call(reply)).rejects.toThrow(generic)
   })
 })

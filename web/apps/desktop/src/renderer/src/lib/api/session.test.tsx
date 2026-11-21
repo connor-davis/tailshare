@@ -37,6 +37,24 @@ describe("session calls", () => {
     )
   })
 
+  it("sends the old code when a saved room is reopened", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ state: "hosting", role: "host" })
+    const client = new QueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useHost("Pat"), { wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync({ roomName: "Studio", code: "7K3Q9PXM" })
+    })
+
+    expect(apiFetch).toHaveBeenCalledWith("/api/session/host", {
+      method: "POST",
+      body: { displayName: "Pat", roomName: "Studio", code: "7K3Q9PXM" },
+    })
+  })
+
   it("removes a member with an escaped id and stores the answer", async () => {
     const client = new QueryClient()
     vi.mocked(apiFetch).mockResolvedValue({ state: "connected" })

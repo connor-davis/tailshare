@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { ArrowDownUpIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,7 +8,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useTransfers } from "@/lib/api/transfers"
+import { useClearTransfers, useTransfers } from "@/lib/api/transfers"
 import type { TransferView } from "@/lib/api/types"
 import { TransferRow } from "../session/-components/transfer-row"
 
@@ -36,14 +35,9 @@ function summary(items: TransferView[]): string {
 /** The transfer queue inside a tile, with counts and local Clear actions. */
 export function TransfersPanel() {
   const { data = [] } = useTransfers()
-  // ponytail: "Clear" hides rows on this screen only. The API has no remove
-  // event; upgrade is a delete route plus a remove event.
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
-  const items = data.filter((item) => !hidden.has(item.id))
+  const clear = useClearTransfers()
+  const items = data
   const finished = items.filter((item) => FINISHED.includes(item.state))
-
-  const hide = (ids: string[]) =>
-    setHidden((current) => new Set([...current, ...ids]))
 
   return (
     <section
@@ -58,12 +52,18 @@ export function TransfersPanel() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => hide(finished.map((item) => item.id))}
+            disabled={clear.isPending}
+            onClick={() => clear.mutate()}
           >
             Clear finished
           </Button>
         ) : null}
       </header>
+      {clear.error ? (
+        <p role="alert" className="px-3 text-xs text-destructive">
+          {clear.error.message}
+        </p>
+      ) : null}
       {items.length === 0 ? (
         <Empty className="min-h-0 gap-2 p-4">
           <EmptyHeader>
@@ -80,11 +80,7 @@ export function TransfersPanel() {
         <ScrollArea className="min-h-0 flex-1">
           <ul>
             {items.map((item) => (
-              <TransferRow
-                key={item.id}
-                item={item}
-                onClear={(id) => hide([id])}
-              />
+              <TransferRow key={item.id} item={item} />
             ))}
           </ul>
         </ScrollArea>

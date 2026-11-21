@@ -124,9 +124,33 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
       title="Saving"
       description="What happens to files you download."
     >
-      {/* ponytail: the "Ask every time" mode is hidden. The stored value is
-          kept and treated as "folder"; bring the radio back with a real
-          per-file picker in the main process. */}
+      <RadioGroup
+        aria-label="Where downloads go"
+        value={settings.saveMode}
+        disabled={saving}
+        className="gap-0"
+        onValueChange={(value) => {
+          if (value === "folder" || value === "ask")
+            void save({ saveMode: value })
+        }}
+      >
+        <SettingList>
+          <SettingRow
+            label="Save to my folder"
+            htmlFor="save-mode-folder"
+            description="Every file goes to the folder below."
+          >
+            <RadioGroupItem value="folder" id="save-mode-folder" />
+          </SettingRow>
+          <SettingRow
+            label="Ask every time"
+            htmlFor="save-mode-ask"
+            description="Pick where each file goes."
+          >
+            <RadioGroupItem value="ask" id="save-mode-ask" />
+          </SettingRow>
+        </SettingList>
+      </RadioGroup>
       <SettingList>
         <SettingRow
           label="Save folder"

@@ -174,6 +174,16 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
       return
     }
 
+    case "transfer.removed": {
+      const { ids } = event.data as { ids: string[] }
+      claimLive(client, keys.transfers)
+      client.setQueryData<TransferView[]>(keys.transfers, (list = []) =>
+        list.filter((entry) => !ids.includes(entry.id))
+      )
+
+      return
+    }
+
     default:
       // Unknown types come from a newer sidecar; ignoring them is safe.
       return

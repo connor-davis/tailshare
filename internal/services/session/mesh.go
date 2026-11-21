@@ -85,6 +85,7 @@ func (session *Session) startControl(ctx context.Context, id string, conn net.Co
 	if session.timer != nil {
 		session.timer.Stop()
 	}
+	session.expiresAt = time.Time{}
 	session.changedLocked()
 	session.mu.Unlock()
 	go session.watchMember(id, control, subscription)

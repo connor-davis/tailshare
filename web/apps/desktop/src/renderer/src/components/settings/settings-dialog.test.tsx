@@ -207,12 +207,15 @@ describe("Settings dialog", () => {
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
   })
 
-  it("always shows the save folder and has no Ask every time option", async () => {
+  it("shows the save folder and an Ask every time option that saves", async () => {
     await open("Saving")
 
     expect(await screen.findByText(saved.saveFolder)).toBeTruthy()
     expect(screen.getByRole("button", { name: "Change" })).toBeTruthy()
-    expect(screen.queryByRole("radio", { name: "Ask every time" })).toBeNull()
+    fireEvent.click(screen.getByRole("radio", { name: /Ask every time/ }))
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith({ saveMode: "ask" })
+    )
   })
 
   it("changes the save folder with the folder picker", async () => {

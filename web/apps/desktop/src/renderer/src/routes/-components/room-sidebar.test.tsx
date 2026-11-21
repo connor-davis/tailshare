@@ -55,6 +55,7 @@ function show(session: SessionState) {
   const onNewRoom = vi.fn()
   const onJoin = vi.fn()
   const onRejoin = vi.fn()
+  const onReopen = vi.fn()
   render(
     <TooltipProvider>
       <RoomSidebar
@@ -63,11 +64,12 @@ function show(session: SessionState) {
         onNewRoom={onNewRoom}
         onJoin={onJoin}
         onRejoin={onRejoin}
+        onReopen={onReopen}
       />
     </TooltipProvider>
   )
 
-  return { onNewRoom, onJoin, onRejoin }
+  return { onNewRoom, onJoin, onRejoin, onReopen }
 }
 
 describe("RoomSidebar", () => {
@@ -122,6 +124,17 @@ describe("RoomSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Join" }))
 
     expect(onJoin).toHaveBeenCalledWith("7K3Q9PXM")
+  })
+
+  it("reopens a recent room as its host", async () => {
+    const { onReopen } = show(idle)
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reopen Pat's room" })
+    )
+    expect(onReopen).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Pat's room", code: "7K3Q9PXM" })
+    )
   })
 
   it("rejoins a recent room from its row, and forgets it", async () => {

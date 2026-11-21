@@ -40,6 +40,9 @@ type SessionState struct {
 	// Role is host or joiner. Empty while idle.
 	Role string `json:"role,omitempty"`
 	Code string `json:"code,omitempty"`
+	// ExpiresAt is when the unused code stops working, in RFC 3339. It is left out once
+	// someone has joined, because the code then no longer expires.
+	ExpiresAt string `json:"expiresAt,omitempty"`
 	// RoomName is the host's name for the room: the host's own, or the one
 	// the host sent a joiner. At most 64 characters.
 	RoomName string `json:"roomName,omitempty"`
@@ -83,6 +86,11 @@ func (server *Server) stateLocked() SessionState {
 	state := SessionState{State: server.phase, Role: server.role, RoomName: server.roomName}
 	if server.phase == phaseHosting {
 		state.Code = server.code
+		if server.sess != nil {
+			if expires, ok := server.sess.ExpiresAt(); ok {
+				state.ExpiresAt = expires.UTC().Format(time.RFC3339)
+			}
+		}
 	}
 	if server.phase == phaseConnected {
 		remote := server.peer.Remote()
@@ -165,6 +173,8 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	var in struct {
 		DisplayName string `json:"displayName"`
 		RoomName    string `json:"roomName"`
+		// Code reopens an earlier room: the same code, so its folder and link come back.
+		Code string `json:"code"`
 	}
 	// An empty body is fine: the computer name stands in.
 	if len(c.Body()) > 0 && json.Unmarshal(c.Body(), &in) != nil {
@@ -172,6 +182,14 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	}
 
 	selected := codes.New()
+	if in.Code != "" {
+		// Every join still needs the host's Allow, so reusing a code opens no new door.
+		parsed, err := codes.Parse(in.Code)
+		if err != nil {
+			return apperr.BadRequest("That room code is not valid.")
+		}
+		selected = parsed
+	}
 	root, err := server.reserve(roleHost, selected)
 	if err != nil {
 		return err

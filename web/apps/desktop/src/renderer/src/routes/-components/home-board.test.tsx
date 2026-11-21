@@ -12,6 +12,7 @@ import { HomeBoard } from "./home-board"
 const remove = vi.fn(async () => {})
 const join = vi.fn()
 const open = vi.fn()
+const reopen = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -36,6 +37,7 @@ it("filters saved cards and uses their real Rejoin and Forget actions", async ()
       busy={false}
       onCreate={vi.fn()}
       onJoin={join}
+      onReopen={reopen}
       onOpenRoom={open}
     />
   )
@@ -45,6 +47,10 @@ it("filters saved cards and uses their real Rejoin and Forget actions", async ()
 
   fireEvent.click(within(card).getByRole("button", { name: "Rejoin Studio" }))
   expect(join).toHaveBeenCalledWith("7K3Q9PXM")
+  fireEvent.click(within(card).getByRole("button", { name: "Reopen Studio" }))
+  expect(reopen).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "Studio", code: "7K3Q9PXM" })
+  )
   fireEvent.click(within(card).getByRole("button", { name: "Forget Studio" }))
   expect(remove).toHaveBeenCalledWith("7K3Q9PXM")
 
@@ -66,6 +72,7 @@ it("shows actual live seats and opens the room without joining again", async () 
       busy={false}
       onCreate={vi.fn()}
       onJoin={join}
+      onReopen={reopen}
       onOpenRoom={open}
     />
   )
@@ -93,6 +100,7 @@ it("keeps a failed Forget visible with a recovery sentence", async () => {
       busy={false}
       onCreate={vi.fn()}
       onJoin={join}
+      onReopen={reopen}
       onOpenRoom={open}
     />
   )

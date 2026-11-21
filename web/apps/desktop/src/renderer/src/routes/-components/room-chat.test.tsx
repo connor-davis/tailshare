@@ -29,6 +29,7 @@ vi.mock("@/lib/api/chat", () => ({
 }))
 vi.mock("@/lib/api/transfers", () => ({
   useTransfers: () => ({ data: mocks.transfers }),
+  useClearTransfers: () => ({ mutate: vi.fn(), isPending: false }),
   useStartTransfer: () => ({
     mutate: mocks.startMutate,
     isPending: false,
@@ -289,6 +290,20 @@ describe("file cards", () => {
 
     expect(screen.getByText("Saved")).toBeTruthy()
     expect(screen.queryByRole("button", { name: /Download/ })).toBeNull()
+  })
+
+  it("keeps following the file when a retry gives it a new id", () => {
+    mocks.messages = [message({ attachment })]
+    mocks.transfers = [transfer()]
+    const view = render(<RoomChat />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Download plan.pdf" }))
+    mocks.startMutate.mock.calls[0][1].onSuccess({ id: "t1" })
+    mocks.transfers = [transfer({ id: "t2", bytes: 70 })]
+    view.rerender(<RoomChat />)
+
+    const bar = screen.getByRole("progressbar", { name: "plan.pdf progress" })
+    expect(bar.getAttribute("aria-valuenow")).toBe("70")
   })
 
   it("shows why a download failed and offers another try", () => {

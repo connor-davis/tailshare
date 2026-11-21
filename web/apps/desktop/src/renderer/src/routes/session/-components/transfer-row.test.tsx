@@ -7,7 +7,11 @@ import { TransferRow } from "./transfer-row"
 
 afterEach(cleanup)
 
-function show(state: TransferState, error?: string) {
+function show(
+  state: TransferState,
+  error?: string,
+  extra: Partial<TransferView> = {}
+) {
   const item: TransferView = {
     id: "t1",
     direction: "download",
@@ -17,11 +21,12 @@ function show(state: TransferState, error?: string) {
     bytes: 42,
     state,
     error,
+    ...extra,
   }
 
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <TransferRow item={item} onClear={() => undefined} />
+      <TransferRow item={item} />
     </QueryClientProvider>
   )
 }
@@ -34,9 +39,9 @@ describe("TransferRow", () => {
     ["starting", ["Pause", "Cancel"]],
     ["running", ["Pause", "Cancel"]],
     ["paused", ["Resume", "Cancel"]],
-    ["failed", ["Retry", "Clear"]],
-    ["done", ["Clear"]],
-    ["canceled", ["Clear"]],
+    ["failed", ["Retry"]],
+    ["done", []],
+    ["canceled", []],
   ] as [TransferState, string[]][])("%s shows %j", (state, expected) => {
     show(state)
 
@@ -49,6 +54,16 @@ describe("TransferRow", () => {
     expect(
       screen.getByText("Failed: The other computer ran out of space.")
     ).toBeTruthy()
+  })
+
+  it("counts down to the next try and hides Retry while it waits", () => {
+    show("failed", "The other computer was busy.", {
+      attempt: 1,
+      retryAt: new Date(Date.now() + 30_000).toISOString(),
+    })
+
+    expect(screen.getByText(/Retrying in 3\d s \(try 2\)/)).toBeTruthy()
+    expect(buttons()).toEqual([])
   })
 
   it("labels the progress bar with the file name", () => {

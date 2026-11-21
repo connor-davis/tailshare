@@ -50,6 +50,13 @@ Limits, all required:
 - **Unused-code expiry.** A code expires ten minutes after it is shown unless
   someone is allowed. Pending and denied requests do not stop expiry. The
   first registered mesh control stream stops expiry for the remainder of the share.
+  The API reports the real expiry as `expiresAt`, so a reload shows the true time.
+- **Reopening a room.** A host can reopen a recent room with the same code. The
+  folder and room link come back and the code gets a fresh ten minutes. Nothing
+  else changes: keys still come from the code, the same Argon2 settings and salt
+  apply, a second host is refused while one session is open, and every join still
+  needs the host's local Allow. Anyone who saw the old code can ask to join again,
+  and the host decides each time.
 - **Independent links.** Every member has a fresh random mesh server and a
   fresh random client key for each outgoing link. Mesh starts with only its
   own key allowlisted; admission adds expected link keys. Every stream is
@@ -217,9 +224,14 @@ manager's attached member may call transfer methods; offers are limited to four
 per second. Refused offers are discarded and terminal history retains at most
 200 jobs. The peer's authenticated conversation supplies this authorization.
 
-Download resume trusts the owned prefix size until the final whole-file checksum;
-a stale prefix is removed on mismatch and the user retries from zero. A
-prefix hash in `transfer.resume` is the future upgrade. Progress stays local;
+A resumed partial is checked before any byte is requested. When a transfer stops,
+the receiver saves a checkpoint (size and SHA-256 of the bytes on disk) in the
+partial's private metadata. On resume it re-hashes that prefix; a mismatch, or no
+checkpoint, removes the partial and the file starts again from zero. This is local
+to the receiver, so peer protocol 2 is unchanged and 0.1.2 peers keep working. The
+final whole-file checksum still runs. Dropped or busy transfers retry on their own
+up to three times (2 s, 8 s, 30 s); checksum failures and refusals never retry.
+Clearing finished rows never deletes a partial. Progress stays local;
 only completion, failure and cancel verdicts travel on the control stream.
 Transfer IDs must have the 26-character `rand.Text` base32 shape on every
 peer-sent control and data message. A responder refuses every known ID,

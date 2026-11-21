@@ -102,6 +102,8 @@ const bridge: TailshareBridge = Object.freeze({
     })
     return ipcRenderer.invoke("tailshare:add-dropped-files", paths)
   },
+  startDownload: (request: { source: string; name: string }) =>
+    ipcRenderer.invoke("tailshare:start-download", request),
   openRoomFolder: (code: string) =>
     ipcRenderer.invoke("tailshare:open-room-folder", code),
   onSidecarStatus: (listener: (status: SidecarStatus) => void) => {

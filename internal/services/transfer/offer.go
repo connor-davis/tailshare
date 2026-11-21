@@ -53,7 +53,7 @@ func (manager *Manager) offer(ctx context.Context, raw json.RawMessage) (any, er
 		manager.mu.Unlock()
 		return refusal(errInvalid)
 	}
-	if manager.slotsLocked() >= maxActive ||
+	if manager.slotsLocked() >= manager.slots ||
 		(offer.Direction == peer.DirectionUpload && manager.destinationBusyLocked(offer.Path, nil)) {
 		manager.mu.Unlock()
 		return refusal(errBusy)

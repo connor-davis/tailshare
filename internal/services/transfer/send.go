@@ -72,6 +72,7 @@ type progressWriter struct {
 func (writer progressWriter) Write(bytes []byte) (int, error) {
 	count, err := writer.writer.Write(bytes)
 	writer.manager.progress(writer.item, count)
+	writer.manager.upload.wait(writer.item.ctx, count)
 	return count, err
 }
 

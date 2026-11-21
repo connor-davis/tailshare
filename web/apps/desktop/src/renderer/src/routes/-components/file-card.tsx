@@ -26,7 +26,19 @@ export function FileCard({
   const downloadsOk = useDownloadsOk()
   // The id is exact; matching by name breaks when the same file is fetched twice.
   const [transferId, setTransferId] = useState<string | null>(null)
-  const transfer = transfers.find((item) => item.id === transferId)
+  // A retry gives the transfer a new id, so follow the newest download of the
+  // same file once the first row is gone.
+  const first = transfers.find((item) => item.id === transferId)
+  const transfer =
+    first ??
+    (transferId
+      ? [...transfers]
+          .reverse()
+          .find(
+            (item) =>
+              item.direction === "download" && item.source === attachment.path
+          )
+      : undefined)
 
   const download = () =>
     start.mutate(
@@ -35,7 +47,7 @@ export function FileCard({
         source: attachment.path,
         destination: attachment.name,
       },
-      { onSuccess: (item) => setTransferId(item.id) }
+      { onSuccess: (item) => item && setTransferId(item.id) }
     )
 
   const active =

@@ -2,12 +2,15 @@ package api
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
 	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/share"
 )
 
 // fakeTransfers is a manager that only remembers what it was asked.
@@ -68,6 +71,29 @@ func (fake *fakeTransfers) Resume(_ context.Context, id string) (TransferItem, e
 
 func (fake *fakeTransfers) Cancel(_ context.Context, id string) (TransferItem, error) {
 	return fake.change("cancel", id, "canceled")
+}
+
+func (fake *fakeTransfers) EnqueueInto(
+	ctx context.Context, request TransferRequest, _ *share.Root,
+) (TransferItem, error) {
+	return fake.Enqueue(ctx, request)
+}
+
+func (fake *fakeTransfers) Clear(context.Context) ([]string, error) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+
+	var removed []string
+	kept := fake.items[:0]
+	for _, item := range fake.items {
+		if item.State == "done" || item.State == "failed" || item.State == "canceled" {
+			removed = append(removed, item.ID)
+			continue
+		}
+		kept = append(kept, item)
+	}
+	fake.items = kept
+	return removed, nil
 }
 
 func (fake *fakeTransfers) List() []TransferItem {
@@ -166,4 +192,87 @@ func TestTransferRoutes(t *testing.T) {
 			t.Fatalf("manager was asked %v, want %v", fake.asked, want)
 		}
 	}
+}
+
+func TestClearTransfersRoute(t *testing.T) {
+	fake := newFake()
+	f := newFixture(t, config.Config{}, fake)
+	f.chooseFolder()
+	f.connectPipe()
+
+	fake.items = []TransferItem{
+		{ID: "1", State: "done"}, {ID: "2", State: "running"}, {ID: "3", State: "failed"},
+		{ID: "4", State: "canceled"}, {ID: "5", State: "queued"}, {ID: "6", State: "paused"},
+	}
+
+	cleared := f.send("POST", "/api/transfers/clear", nil)
+	cleared.expect(t, 200, "")
+	removed, _ := cleared.Body["removed"].([]any)
+	if len(removed) != 3 {
+		t.Fatalf("removed = %s", cleared.Raw)
+	}
+
+	list := f.send("GET", "/api/transfers", nil)
+	items, _ := list.Body["items"].([]any)
+	if len(items) != 3 {
+		t.Fatalf("list = %s", list.Raw)
+	}
+}
+
+func TestTransferLimitsRoute(t *testing.T) {
+	f := newFixture(t, config.Config{}, nil)
+	ok := map[string]int{"transfersAtOnce": 3, "uploadLimitKiB": 100, "downloadLimitKiB": 0}
+
+	f.send("PUT", "/api/transfers/limits", ok).expect(t, 403, "forbidden")
+	f.send("PUT", "/api/transfers/limits", ok, mainHeader).expect(t, 200, "")
+	if f.server.limits.slots != 3 || f.server.limits.uploadKiB != 100 {
+		t.Fatalf("limits = %+v", f.server.limits)
+	}
+
+	for _, bad := range []map[string]int{
+		{"transfersAtOnce": 0},
+		{"transfersAtOnce": 9},
+		{"transfersAtOnce": 2, "uploadLimitKiB": -1},
+		{"transfersAtOnce": 2, "downloadLimitKiB": 1048577},
+	} {
+		f.send("PUT", "/api/transfers/limits", bad, mainHeader).expect(t, 400, "bad_request")
+	}
+}
+
+func TestSaveTransferNeedsMainAndSafeFolder(t *testing.T) {
+	fake := newFake()
+	f := newFixture(t, config.Config{}, fake)
+	f.chooseFolder()
+	f.connectPipe()
+
+	dir := t.TempDir()
+	body := map[string]string{"source": "docs/a.txt", "folder": dir, "name": "a.txt"}
+	f.send("POST", "/api/transfers/save", body).expect(t, 403, "forbidden")
+
+	file := filepath.Join(dir, "plain.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	linked := os.Symlink(dir, link) == nil
+
+	bad := []string{"relative/folder", dir + string(filepath.Separator) + ".." + string(filepath.Separator) + "x",
+		file, filepath.Join(dir, "missing"), ""}
+	if linked {
+		bad = append(bad, link)
+	}
+	for _, folder := range bad {
+		attempt := map[string]string{"source": "docs/a.txt", "folder": folder, "name": "a.txt"}
+		f.send("POST", "/api/transfers/save", attempt, mainHeader).expect(t, 400, "bad_request")
+	}
+
+	for _, name := range []string{"../a.txt", "sub/a.txt", ""} {
+		attempt := map[string]string{"source": "docs/a.txt", "folder": dir, "name": name}
+		got := f.send("POST", "/api/transfers/save", attempt, mainHeader)
+		if got.Status != 400 {
+			t.Fatalf("name %q = %d %s", name, got.Status, got.Raw)
+		}
+	}
+
+	f.send("POST", "/api/transfers/save", body, mainHeader).expect(t, 202, "")
 }

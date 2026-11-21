@@ -33,6 +33,8 @@ export interface SessionState {
   code?: string
   /** The host's name for the room, shown to every member. */
   roomName?: string
+  /** When the share code stops working. Gone once someone joins. */
+  expiresAt?: string
   /** The other computer. Present only while connected. */
   peer?: PeerInfo
   /** One person waiting for local approval. */
@@ -63,6 +65,10 @@ export interface TransferItem {
   state: TransferState
   /** Plain sentence, set when the transfer failed. */
   error?: string
+  /** Retries so far. Zero or missing for a first try. */
+  attempt?: number
+  /** When the next retry starts, as a time string. */
+  retryAt?: string
 }
 
 /** A transfer plus the speed the renderer measured from progress events. */

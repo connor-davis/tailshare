@@ -43,9 +43,19 @@ func host(ctx context.Context, options settings) (*Session, codes.Code, error) {
 	session.mu.Lock()
 	if !session.closed && options.expiry > 0 {
 		session.timer = time.AfterFunc(options.expiry, func() { _ = session.Close() })
+		session.expiresAt = time.Now().UTC().Add(options.expiry)
 	}
 	session.mu.Unlock()
 	return session, code, nil
+}
+
+// ExpiresAt says when an unused code stops working. It reports false once someone has
+// joined (the code no longer expires) or the session has closed.
+func (session *Session) ExpiresAt() (time.Time, bool) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	return session.expiresAt, !session.expiresAt.IsZero()
 }
 
 func (session *Session) startCodeServer() error {

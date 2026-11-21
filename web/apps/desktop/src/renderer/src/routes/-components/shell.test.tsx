@@ -48,6 +48,7 @@ vi.mock("@/lib/api/forwards", () => ({
 }))
 vi.mock("@/lib/api/transfers", () => ({
   useTransfers: () => ({ data: [] }),
+  useClearTransfers: () => ({ mutate: vi.fn(), isPending: false }),
   useStartTransfer: () => ({ mutate: vi.fn(), isPending: false, error: null }),
 }))
 vi.mock("@/lib/api/chat", () => ({
