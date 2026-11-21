@@ -13,7 +13,8 @@ rooms of up to 8 people, and local Allow/Deny for every joiner.
 
 | Core feature | LocalSend | Blip | Tailshare | Verdict |
 |---|---|---|---|---|
-| Send files and folders | Yes | Yes | Yes, dropped into a room's chat | Match |
+| Send files | Yes | Yes | Yes, dropped into a room's chat | Match |
+| Send whole folders | Yes | Yes | No, a dropped folder is skipped with a note; zip it first | Skip for 0.1.2: folder send is a follow-up |
 | Works across the internet, not just one LAN | No (LAN only) | Yes | Yes, through relays when no direct path | Beat LocalSend, match Blip |
 | No account | Yes | No (sign-in) | Yes | Match LocalSend, beat Blip |
 | Resume after a drop | No | Yes | Yes, by offset with SHA-256 check | Match Blip |
