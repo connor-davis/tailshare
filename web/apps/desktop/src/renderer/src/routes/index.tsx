@@ -32,7 +32,6 @@ function Shell() {
   const [home, setHome] = useState(false)
   const [naming, setNaming] = useState(false)
   const [roomsOpen, toggleRooms] = usePanelOpen("rooms")
-  const [startedAt, setStartedAt] = useState<number | null>(null)
   // True once this computer ended the room itself, so no notice shows.
   const [ownEnd, setOwnEnd] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -162,11 +161,15 @@ function Shell() {
   const error = host.error ?? join.error ?? leave.error
   const createRoom = (name: string) =>
     host.mutate(name, {
-      onSuccess: () => {
-        setHome(false)
-        setStartedAt(Date.now())
-      },
+      onSuccess: () => setHome(false),
     })
+  // Reopens a saved room as its host: same code, same name, and every join
+  // still needs Allow.
+  const reopenRoom = (room: { name: string; code: string }) =>
+    host.mutate(
+      { roomName: room.name, code: room.code },
+      { onSuccess: () => setHome(false) }
+    )
   const leaveRoom = () => {
     setOwnEnd(true)
     leave.mutate(undefined, { onError: () => setOwnEnd(false) })
@@ -199,6 +202,7 @@ function Shell() {
               onNewRoom={() => setNaming(true)}
               onJoin={joinCode}
               onRejoin={joinCode}
+              onReopen={reopenRoom}
             />
           </div>
         ) : null}
@@ -223,6 +227,7 @@ function Shell() {
               busy={busy}
               onCreate={() => setNaming(true)}
               onJoin={joinCode}
+              onReopen={reopenRoom}
               onOpenRoom={() => setHome(false)}
             />
           </div>
@@ -247,7 +252,7 @@ function Shell() {
                     ? (session.code ?? hostCode ?? undefined)
                     : (joinedCode ?? undefined)
                 }
-                startedAt={startedAt}
+                expiresAt={session.expiresAt}
                 onLeave={leaveRoom}
               />
             </div>

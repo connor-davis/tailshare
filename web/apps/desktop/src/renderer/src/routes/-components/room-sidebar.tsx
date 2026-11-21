@@ -4,6 +4,7 @@ import {
   LayoutGridIcon,
   LogInIcon,
   PlusIcon,
+  RotateCcwIcon,
   SearchIcon,
   SettingsIcon,
   XIcon,
@@ -76,6 +77,7 @@ export function RoomSidebar({
   onNewRoom,
   onJoin,
   onRejoin,
+  onReopen,
   compact = false,
   homeActive = false,
   onHome,
@@ -99,6 +101,8 @@ export function RoomSidebar({
   onJoin: (code: string) => void
   /** Joins a recent room again by its bare code. */
   onRejoin: (code: string) => void
+  /** Hosts a recent room again under its old code. */
+  onReopen: (room: { name: string; code: string }) => void
 }) {
   const rooms = useRecentRooms()
   const openSettings = useOpenSettings()
@@ -129,8 +133,6 @@ export function RoomSidebar({
     return () => window.removeEventListener("keydown", onKey)
   }, [])
   const canStart = idle && !busy
-  // ponytail: a rejoin only joins. Reopening a room as its host when nobody
-  // answers is later work; it needs a host-by-code call in the sidecar.
 
   return (
     <aside
@@ -324,6 +326,16 @@ export function RoomSidebar({
                           : ""}
                       </TooltipContent>
                     </Tooltip>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      className="absolute right-7 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label={`Reopen ${room.name}`}
+                      disabled={!canStart}
+                      onClick={() => onReopen(room)}
+                    >
+                      <RotateCcwIcon aria-hidden />
+                    </Button>
                     <Button
                       size="icon-xs"
                       variant="ghost"

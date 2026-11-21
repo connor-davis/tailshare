@@ -88,7 +88,7 @@ func TestAuditPartialIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(inside, "file"+PartialSuffix), "abc")
-	for _, identity := range []partialIdentity{{"B", "hash-a", 3}, {"A", "hash-b", 3}, {"A", "hash-a", 2}} {
+	for _, identity := range []partialIdentity{{Owner: "B", Hash: "hash-a", Size: 3}, {Owner: "A", Hash: "hash-b", Size: 3}, {Owner: "A", Hash: "hash-a", Size: 2}} {
 		if err := root.ClaimPartial("file", identity.Owner, identity.Hash, identity.Size); err == nil {
 			t.Fatal("foreign partial claimed")
 		}

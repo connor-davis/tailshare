@@ -31,13 +31,19 @@ function useSessionCall<Input>(send: (input: Input) => Promise<SessionState>) {
 /**
  * Start hosting. The answer carries the code. `displayName` is the name from
  * Settings; without it the sidecar uses the computer name. The call takes the
- * room's name; blank lets the sidecar name it "<name>'s room".
+ * room's name; blank lets the sidecar name it "<name>'s room". Pass
+ * `{ roomName, code }` to reopen a saved room under its old code.
  */
 export function useHost(displayName?: string) {
-  return useSessionCall<string | undefined>((roomName) =>
+  return useSessionCall<
+    string | undefined | { roomName: string; code: string }
+  >((room) =>
     apiFetch<SessionState>("/api/session/host", {
       method: "POST",
-      body: { displayName, roomName },
+      body: {
+        displayName,
+        ...(typeof room === "object" ? room : { roomName: room }),
+      },
     })
   )
 }

@@ -156,6 +156,25 @@ describe("applyEvent", () => {
     expect(list?.[0].bytes).toBe(50)
   })
 
+  it("drops the rows a removed event names", () => {
+    const client = new QueryClient()
+    applyEvent(client, { seq: 1, type: "transfer.state", data: item() })
+    applyEvent(client, {
+      seq: 2,
+      type: "transfer.state",
+      data: item({ id: "t2" }),
+    })
+
+    applyEvent(client, {
+      seq: 3,
+      type: "transfer.removed",
+      data: { ids: ["t1"] },
+    })
+
+    const list = client.getQueryData<TransferView[]>(keys.transfers)
+    expect(list?.map((row) => row.id)).toEqual(["t2"])
+  })
+
   it("ignores unknown types", () => {
     const client = new QueryClient()
 

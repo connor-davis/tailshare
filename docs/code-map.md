@@ -79,8 +79,9 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Local room and peer folder listing | `internal/api/files.go` |
 | Canonical room root and per-session manager creation | `internal/api/rooms.go` |
 | Main-only header guard, consented file import and downloads root configuration | `internal/api/room_files.go` |
+| Main-only save into a Save-dialog folder (`POST /api/transfers/save`) | `internal/api/save_transfer.go` |
 | Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
-| Transfer routes, the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
+| Transfer routes, clear (`POST /api/transfers/clear`), main-only limits (`PUT /api/transfers/limits`), the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
 | Manager adapter, direction/path mapping, state/progress events and subscription recovery | `internal/api/transfer_manager.go` (`managedTransfers`), `internal/api/session.go` (manager lifetime) |
 | One event hub, bounded client queues, snapshot-first WebSocket (also `forward.changed`) | `internal/api/live.go` (`hub`, `Event`, `Snapshot`) |
 | Shared-app routes, state and live change hook | `internal/api/forwards.go` |
@@ -152,7 +153,8 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |
 | Recent rooms store: `recent-rooms.json` in userData, max 20, 30-day prune, atomic write, change listeners | `src/main/recent-rooms.ts`, `src/main/recent-rooms.test.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
-| Room file IPC, canonical folder opening and main-only HTTP calls | `src/main/room-ipc.ts` (`registerRoomIpc`, `roomFolder`, `callMainApi`) |
+| Room file IPC (a big drop is cut into 100-path calls), the `startDownload` Save dialog ("Ask every time"), canonical folder opening and main-only HTTP calls | `src/main/room-ipc.ts` (`registerRoomIpc`, `roomFolder`, `callMainApi`) |
+| Transfer count and speed caps sent to the sidecar after ready and on change | `src/main/limits.ts` (`createLimits`), `limits.test.ts` |
 | Real sidecar process (spawn, both tokens, room storage env, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
 | Health check call | `src/main/health.ts` |
@@ -187,13 +189,15 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Job | Owner |
 | --- | --- |
 | Transfer states, snapshots, events and ID validation | `internal/services/transfer/transfer.go` (`State`, `Transfer`, `Event`) |
-| Queue, two shared slots, pause, cancel, resume and lifetime | `internal/services/transfer/manager.go` (`Manager`, `New`, `Attach`, `Done`) |
+| Queue, shared slots (`SetSlots`), pause, cancel, resume and lifetime | `internal/services/transfer/manager.go` (`Manager`, `New`, `Attach`, `Done`) |
+| Automatic retry, slot count and clearing finished rows | `internal/services/transfer/retry.go` (`planRetryLocked`, `SetSlots`, `Forget`) |
+| Upload and download speed caps | `internal/services/transfer/limit.go` (`SetLimits`) |
 | Offer and download-resume checks, duplicate offer refusal | `internal/services/transfer/offer.go` |
 | Data streams, bounded ID header, duplicate waiter refusal | `internal/services/transfer/stream.go` |
 | Negotiation, transfer execution and receiver verdicts | `internal/services/transfer/run.go` |
 | Source hashing and exact-size sending | `internal/services/transfer/send.go` |
 | Download destination configuration, root pinning and reserved names | `internal/services/transfer/downloads.go`, `manager.go` |
-| Partial receive, full checksum and commit | `internal/services/transfer/receive.go` |
+| Partial receive, prefix checkpoint check on resume, full checksum and commit | `internal/services/transfer/receive.go` (`checkPrefix`, `saveCheckpoint`), `internal/services/share/partial_policy.go` (`SavePartialPrefix`, `PartialPrefix`) |
 | Throttled progress, average speed and subscriptions | `internal/services/transfer/progress.go` (`Subscribe`) |
 | Real-session upload/download, pause, disconnect, cancel and queue tests | `internal/services/transfer/transfer_test.go` |
 | Path, partial, duplicate ID, waiter and resume guards | `internal/services/transfer/guard_test.go` |

@@ -17,7 +17,7 @@ export interface Settings {
   readonly updateChannel: UpdateChannel
   /** Shown to the other side. 1 to 64 characters. */
   readonly displayName: string
-  /** `folder` saves into {@link Settings.saveFolder}; `ask` currently also uses that folder. */
+  /** `folder` saves into {@link Settings.saveFolder}; `ask` opens a Save dialog for each file. */
   readonly saveMode: "folder" | "ask"
   /** Absolute path where downloads land. */
   readonly saveFolder: string
@@ -260,6 +260,15 @@ export interface TailshareBridge {
   readonly addFiles: () => Promise<AddFilesResult | null>
   /** Resolves real dropped Files in preload; paths never enter renderer code. */
   readonly addDroppedFiles: (files: File[]) => Promise<AddFilesResult>
+  /**
+   * Starts a download. With "Ask every time" a Save dialog picks the place;
+   * otherwise it goes to the save folder. Resolves to the new transfer, or
+   * `null` when the person cancels the dialog.
+   */
+  readonly startDownload: (request: {
+    source: string
+    name: string
+  }) => Promise<unknown>
   /** Opens the persistent folder for a validated room code. */
   readonly openRoomFolder: (code: string) => Promise<void>
   /** Calls `listener` on each status change. Returns an unsubscribe. */

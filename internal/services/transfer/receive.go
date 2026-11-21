@@ -2,7 +2,10 @@ package transfer
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"hash"
 	"io"
 
 	"github.com/connor-davis/tailshare/internal/services/share"
@@ -46,11 +49,78 @@ func (manager *Manager) prepareReceiver(item *job) error {
 	if offset > size {
 		return share.ErrDenied
 	}
-	// ponytail: resume trusts the prefix size; add a prefix hash to transfer.resume later.
+
+	// A resumed partial must match the checkpoint saved when it stopped. Anything else
+	// (edited, no checkpoint) is thrown away and the file starts again from zero.
+	sum, err := manager.checkPrefix(item, offset)
+	if err != nil {
+		return err
+	}
+	if sum == nil {
+		offset = 0
+		if err := manager.receiverRoot(item).ClaimPartial(item.local, owner, item.hash, size); err != nil {
+			return err
+		}
+		sum = &prefixSum{hash: sha256.New()}
+	}
 	manager.mu.Lock()
 	item.view.Offset, item.view.Bytes = offset, offset
+	item.prefix = sum
 	manager.mu.Unlock()
 	return nil
+}
+
+// prefixSum hashes the bytes written to a partial, so a checkpoint costs no extra read.
+type prefixSum struct {
+	hash hash.Hash
+	n    int64
+}
+
+func (sum *prefixSum) Write(bytes []byte) (int, error) {
+	sum.n += int64(len(bytes))
+	return sum.hash.Write(bytes)
+}
+
+// checkPrefix re-reads the first offset bytes of a partial and compares them with the saved
+// checkpoint. It returns nil when the partial cannot be trusted and has been removed.
+func (manager *Manager) checkPrefix(item *job, offset int64) (*prefixSum, error) {
+	root := manager.receiverRoot(item)
+	if offset == 0 {
+		return &prefixSum{hash: sha256.New()}, nil
+	}
+
+	savedSize, savedHash := root.PartialPrefix(item.local)
+	if savedSize != offset || savedHash == "" {
+		return nil, root.RemovePartial(item.local)
+	}
+
+	file, err := root.ReadPartial(item.local)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	sum := &prefixSum{hash: sha256.New()}
+	if _, err := io.Copy(sum, io.LimitReader(contextReader{item.ctx, file}, offset)); err != nil {
+		return nil, errors.New("The file could not be checked.")
+	}
+	if sum.n != offset || hex.EncodeToString(sum.hash.Sum(nil)) != savedHash {
+		return nil, root.RemovePartial(item.local)
+	}
+	return sum, nil
+}
+
+// saveCheckpoint records what a stopped partial holds so the next resume can check it.
+func (manager *Manager) saveCheckpoint(item *job) {
+	manager.mu.Lock()
+	sum := item.prefix
+	manager.mu.Unlock()
+	root := manager.receiverRoot(item)
+	size, err := root.PartialSize(item.local)
+	if sum == nil || err != nil || size == 0 || sum.n != size {
+		return
+	}
+	_ = root.SavePartialPrefix(item.local, size, hex.EncodeToString(sum.hash.Sum(nil)))
 }
 
 func receiveTo(root *share.Root, name string, offset, size int64, source io.Reader) error {
@@ -112,5 +182,6 @@ type progressReader struct {
 func (reader progressReader) Read(bytes []byte) (int, error) {
 	count, err := reader.reader.Read(bytes)
 	reader.manager.progress(reader.item, count)
+	reader.manager.download.wait(reader.item.ctx, count)
 	return count, err
 }

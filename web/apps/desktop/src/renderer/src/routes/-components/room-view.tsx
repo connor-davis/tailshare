@@ -24,7 +24,7 @@ export function RoomView({
   leaving,
   code,
   roomCode,
-  startedAt,
+  expiresAt,
 }: {
   /** Live membership and approval state. */
   session: SessionState
@@ -42,8 +42,8 @@ export function RoomView({
   code?: string
   /** The room's own code, host or joiner, for Open folder. */
   roomCode?: string
-  /** Epoch milliseconds the room opened, for the code countdown. */
-  startedAt?: number | null
+  /** When the code stops working, from the sidecar. */
+  expiresAt?: string | null
 }) {
   const [expanded, setExpanded] = useState<Tile | null>(null)
   const connected = peer !== undefined
@@ -99,7 +99,7 @@ export function RoomView({
         leaving={leaving}
         code={code}
         roomCode={roomCode}
-        startedAt={startedAt}
+        expiresAt={expiresAt}
       />
       {/* People may be below the fold or hidden by another expanded tile. */}
       {session.role === "host" && session.join && expanded !== "People" ? (

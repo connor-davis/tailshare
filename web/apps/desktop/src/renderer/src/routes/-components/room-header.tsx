@@ -20,7 +20,7 @@ export function RoomHeader({
   leaving,
   code,
   roomCode,
-  startedAt = null,
+  expiresAt = null,
 }: {
   /** True when this computer is the host, so Leave ends the room for all. */
   host?: boolean
@@ -36,8 +36,8 @@ export function RoomHeader({
   code?: string
   /** The room's own code, host or joiner, for finding its folder. */
   roomCode?: string
-  /** Epoch milliseconds the room opened, for the code countdown. */
-  startedAt?: number | null
+  /** When the code stops working, from the sidecar. */
+  expiresAt?: string | null
 }) {
   const live = useLiveStatus()
   const [folderError, setFolderError] = useState(false)
@@ -77,7 +77,7 @@ export function RoomHeader({
           )}
           <span className="text-sm text-muted-foreground">
             {" "}
-            · <CodeCountdown startedAt={startedAt} />
+            · <CodeCountdown expiresAt={expiresAt} />
           </span>
         </p>
       )}

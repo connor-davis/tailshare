@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
 	"github.com/connor-davis/tailshare/internal/services/share"
@@ -274,5 +275,39 @@ func TestRoomNameDefaults(t *testing.T) {
 		if got := roomName(c.chosen, c.host); got != c.want {
 			t.Errorf("roomName(%q, %q) = %q, want %q", c.chosen, c.host, got, c.want)
 		}
+	}
+}
+
+func TestHostReopensSameCodeWithFreshExpiry(t *testing.T) {
+	derp := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
+	f := newFixture(t, config.Config{Region: tailcattest.RegionID, DERPMapURL: derp}, nil)
+
+	first := f.send("POST", "/api/session/host", map[string]string{"roomName": "Movie night"})
+	first.expect(t, 201, "")
+	code, _ := first.Body["code"].(string)
+	stamp, _ := first.Body["expiresAt"].(string)
+	expires, err := time.Parse(time.RFC3339, stamp)
+	if err != nil || time.Until(expires) < 9*time.Minute || time.Until(expires) > 10*time.Minute+time.Second {
+		t.Fatalf("expiresAt = %q (%v)", stamp, err)
+	}
+
+	if err := os.WriteFile(filepath.Join(f.server.cfg.RoomsDir, code, "kept.txt"), []byte("hi"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// A second host is refused while the first is open, even with the same code.
+	f.send("POST", "/api/session/host", map[string]string{"code": code}).expect(t, 409, "conflict")
+	f.send("DELETE", "/api/session", nil).expect(t, 200, "")
+
+	f.send("POST", "/api/session/host", map[string]string{"code": "nope"}).expect(t, 400, "bad_request")
+
+	// Time passes, then the same code comes back with a new ten minutes.
+	again := f.send("POST", "/api/session/host", map[string]string{"code": strings.ToLower(code)})
+	again.expect(t, 201, "")
+	if again.Body["code"] != code || again.Body["expiresAt"] == nil {
+		t.Fatalf("reopen = %s", again.Raw)
+	}
+	if got := f.send("GET", "/api/files/local", nil); !strings.Contains(string(got.Raw), "kept.txt") {
+		t.Fatalf("reopened folder lost its file: %s", got.Raw)
 	}
 }

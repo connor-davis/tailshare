@@ -24,12 +24,25 @@ func (server *Server) openRoom(code codes.Code) (*share.Root, error) {
 	return share.OpenRoom(server.cfg.RoomsDir, parsed.String())
 }
 
+// transferLimits are the Settings choices for slots and speed. Zero slots means the default.
+type transferLimits struct {
+	slots, uploadKiB, downloadKiB int
+}
+
+func applyLimits(manager *transfer.Manager, limits transferLimits) {
+	if limits.slots > 0 {
+		_ = manager.SetSlots(limits.slots)
+	}
+	_ = manager.SetLimits(limits.uploadKiB, limits.downloadKiB)
+}
+
 func (server *Server) roomManager(root *share.Root) *transfer.Manager {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
 	manager := transfer.New(root)
 	manager.SetDownloadRoot(server.downloadRoot)
+	applyLimits(manager, server.limits)
 	server.manager = manager
 	return manager
 }

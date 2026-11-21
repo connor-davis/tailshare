@@ -14,12 +14,15 @@ export function HomeBoard({
   busy,
   onCreate,
   onJoin,
+  onReopen,
   onOpenRoom,
 }: {
   session: SessionState
   busy: boolean
   onCreate: () => void
   onJoin: (code: string) => void
+  /** Hosts a saved room again under its old code. */
+  onReopen: (room: { name: string; code: string }) => void
   onOpenRoom: () => void
 }) {
   const rooms = useRecentRooms()
@@ -116,6 +119,14 @@ export function HomeBoard({
                       onClick={() => onJoin(room.code)}
                     >
                       Rejoin
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={!idle || busy}
+                      aria-label={`Reopen ${room.name}`}
+                      onClick={() => onReopen(room)}
+                    >
+                      Reopen
                     </Button>
                     <Button
                       variant="ghost"

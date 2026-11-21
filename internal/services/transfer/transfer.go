@@ -51,14 +51,20 @@ type Transfer struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 	// Speed is bytes per second for this attempt, averaged since it started.
 	Speed float64 `json:"speed"`
+	// Attempt counts automatic retries so far. It is zero for a first try.
+	Attempt int `json:"attempt"`
+	// RetryAt is when the next automatic retry starts. It is the zero time when none is planned.
+	RetryAt time.Time `json:"retryAt"`
 }
 
 // Event is a state change or throttled progress update.
 type Event struct {
-	// Kind says what changed. The only value in this package is "update".
+	// Kind says what changed: "update" carries Transfer, "removed" carries IDs.
 	Kind string `json:"kind"`
-	// Transfer is the new snapshot. It is the only field this package sets on Event.
+	// Transfer is the new snapshot for an "update".
 	Transfer *Transfer `json:"transfer,omitempty"`
+	// IDs are the transfers a "removed" event dropped from the queue.
+	IDs []string `json:"ids,omitempty"`
 }
 
 var (

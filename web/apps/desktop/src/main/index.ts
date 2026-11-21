@@ -15,6 +15,7 @@ import updaterPackage from "electron-updater"
 import { CHANNELS } from "../shared/ipc-schema"
 import { resolveSidecarPath } from "./config"
 import { createDownloads } from "./downloads"
+import { createLimits } from "./limits"
 import { checkHealth } from "./health"
 import {
   registerDownloadsIpc,
@@ -110,7 +111,6 @@ async function main() {
     downloads: app.getPath("downloads"),
   })
   let mainToken = newToken()
-  // ponytail: stored "ask" uses the folder too until per-file dialogs return.
   const downloads = createDownloads({
     configure: async () =>
       callMainApi(
@@ -123,6 +123,16 @@ async function main() {
       if (window && !window.isDestroyed())
         window.webContents.send(CHANNELS.downloadsStatus, status)
     },
+  })
+  const limits = createLimits({
+    settings: () => settings.get(),
+    send: async (body) =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/transfers/limits",
+        body
+      ),
   })
   const runtime = ManagedRuntime.make(
     sidecarLayer({
@@ -144,9 +154,15 @@ async function main() {
 
   // Every start, first or after a crash, gives the sidecar the save folder.
   sidecar.onStatus((status) => {
-    if (status === "ready") void downloads.apply()
+    if (status === "ready") {
+      void downloads.apply()
+      void limits.apply()
+    }
   })
-  if (sidecar.status() === "ready") void downloads.apply()
+  if (sidecar.status() === "ready") {
+    void downloads.apply()
+    void limits.apply()
+  }
 
   closeToTray = settings.get().closeToTray
   // Forcing light or dark here flips prefers-color-scheme in the page too.
@@ -223,6 +239,28 @@ async function main() {
         : await dialog.showOpenDialog(options)
       return result.canceled ? null : result.filePaths
     },
+    saveMode: () => settings.get().saveMode,
+    pickSaveFile: async (name) => {
+      const options = { defaultPath: name }
+      const result = window
+        ? await dialog.showSaveDialog(window, options)
+        : await dialog.showSaveDialog(options)
+      return result.canceled ? null : (result.filePath ?? null)
+    },
+    saveToFolder: async ({ source, name }) =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/transfers",
+        { direction: "download", source, destination: name }
+      ),
+    saveInto: async (request) =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/transfers/save",
+        request
+      ),
     addFiles: async (paths) => {
       const info = await runtime.runPromise(sidecar.connectionInfo)
       return (await callMainApi(info, mainToken, "/api/room/files", {
@@ -250,6 +288,12 @@ async function main() {
   settings.onChange((next, previous) => {
     closeToTray = next.closeToTray
     if (next.saveFolder !== previous.saveFolder) void downloads.apply()
+    if (
+      next.transfersAtOnce !== previous.transfersAtOnce ||
+      next.uploadLimitKiB !== previous.uploadLimitKiB ||
+      next.downloadLimitKiB !== previous.downloadLimitKiB
+    )
+      void limits.apply()
     if (next.updateChannel !== previous.updateChannel)
       updater.setChannel(next.updateChannel)
     if (next.startWithWindows !== previous.startWithWindows)

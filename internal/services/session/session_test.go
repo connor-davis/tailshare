@@ -229,3 +229,23 @@ func assertRemoteCode(t *testing.T, err error, code string) {
 		t.Fatalf("error=%v, want %s", err, code)
 	}
 }
+
+func TestExpiresAtLastsUntilJoinOrClose(t *testing.T) {
+	options := localSettings(t)
+	host, code := startHost(t, options)
+	expires, ok := host.ExpiresAt()
+	if !ok || time.Until(expires) < 9*time.Minute || time.Until(expires) > 10*time.Minute {
+		t.Fatalf("expiry %v %v", expires, ok)
+	}
+
+	connectJoiner(t, host, code, options)
+	if _, ok := host.ExpiresAt(); ok {
+		t.Fatal("expiry kept after a join")
+	}
+
+	other, _ := startHost(t, localSettings(t))
+	_ = other.Close()
+	if _, ok := other.ExpiresAt(); ok {
+		t.Fatal("expiry kept after close")
+	}
+}

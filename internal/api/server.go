@@ -61,6 +61,7 @@ type Server struct {
 	manager       *transfer.Manager
 	downloadRoot  *share.Root
 	downloadRoots []*share.Root
+	limits        transferLimits
 	transfers     Transfers
 	transferDone  chan struct{}
 	ending        chan struct{}
@@ -184,6 +185,9 @@ func (server *Server) routes() {
 
 	api.Get("/transfers", server.listTransfers)
 	api.Post("/transfers", server.startTransfer)
+	api.Post("/transfers/clear", server.clearTransfers)
+	api.Post("/transfers/save", server.mainOnly, server.saveTransfer)
+	api.Put("/transfers/limits", server.mainOnly, server.putTransferLimits)
 	api.Post("/transfers/:id/pause", server.pauseTransfer)
 	api.Post("/transfers/:id/resume", server.resumeTransfer)
 	api.Delete("/transfers/:id", server.cancelTransfer)
