@@ -3,6 +3,7 @@ package transfer
 import (
 	"context"
 	"errors"
+	"io"
 	"time"
 
 	"github.com/connor-davis/tailshare/internal/services/peer"
@@ -73,15 +74,16 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 	}
 
 	manager.mu.Lock()
-	offset, size, hash := item.view.Offset, item.view.Size, item.hash
+	offset, size, hash, sum := item.view.Offset, item.view.Size, item.hash, item.prefix
 	manager.mu.Unlock()
-	err = receiveTo(
-		manager.receiverRoot(item),
-		item.local,
-		offset,
-		size,
-		progressReader{conn, manager, item},
-	)
+	var source io.Reader = progressReader{conn, manager, item}
+	if sum != nil {
+		source = io.TeeReader(source, sum)
+	}
+	err = receiveTo(manager.receiverRoot(item), item.local, offset, size, source)
+	if err != nil {
+		manager.saveCheckpoint(item)
+	}
 	if err == nil {
 		err = verifyPartialContext(item.ctx, manager.receiverRoot(item), item.local, hash)
 	}
@@ -222,6 +224,7 @@ func (manager *Manager) finish(item *job, err error) {
 	if item.view.State == Canceled && !item.sender {
 		_ = manager.receiverRoot(item).RemovePartial(item.local)
 	}
+	manager.planRetryLocked(item, err)
 	item.cancel()
 	manager.emitLocked(item)
 	item.working = false

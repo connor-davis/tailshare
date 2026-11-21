@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	maxActive            = 2
+	defaultSlots         = 2
+	maxSlots             = 8
 	maxFileSize    int64 = 1 << 40
 	streamTimeout        = 30 * time.Second
 	headerTimeout        = 10 * time.Second
@@ -28,6 +29,9 @@ const (
 type job struct {
 	root    *share.Root
 	working bool
+	attempt int
+	retry   *time.Timer
+	prefix  *prefixSum
 	view    Transfer
 	local   string
 	hash    string
@@ -71,6 +75,10 @@ type Manager struct {
 	offerWindow     time.Time
 	offerCount      int
 	freeSpace       func(*share.Root) (int64, error)
+	slots           int
+	upload          limiter
+	download        limiter
+	retryDelays     []time.Duration
 }
 
 // New prepares handlers before peer.Start. The caller owns the shared folder.
@@ -79,6 +87,8 @@ func New(root *share.Root) *Manager {
 	return &Manager{
 		root:         root,
 		freeSpace:    (*share.Root).FreeSpace,
+		slots:        defaultSlots,
+		retryDelays:  []time.Duration{2 * time.Second, 8 * time.Second, 30 * time.Second},
 		downloadRoot: root,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -129,15 +139,28 @@ func (manager *Manager) Attach(ctx context.Context, tunnel Tunnel, conversation 
 
 // Upload queues a shared local file for delivery to the peer path.
 func (manager *Manager) Upload(ctx context.Context, local, remote string) (Transfer, error) {
-	return manager.enqueue(ctx, local, remote, peer.DirectionUpload)
+	return manager.enqueue(ctx, local, remote, peer.DirectionUpload, nil)
 }
 
 // Download queues a peer file into the currently configured downloads root.
 func (manager *Manager) Download(ctx context.Context, remote, local string) (Transfer, error) {
-	return manager.enqueue(ctx, local, remote, peer.DirectionDownload)
+	return manager.enqueue(ctx, local, remote, peer.DirectionDownload, nil)
 }
 
-func (manager *Manager) enqueue(ctx context.Context, local, remote string, direction peer.Direction) (Transfer, error) {
+// DownloadInto queues a peer file into one chosen folder instead of the configured
+// downloads root. The caller keeps that root open until the transfer is forgotten.
+func (manager *Manager) DownloadInto(
+	ctx context.Context, remote, local string, root *share.Root,
+) (Transfer, error) {
+	if root == nil {
+		return Transfer{}, share.ErrBadPath
+	}
+	return manager.enqueue(ctx, local, remote, peer.DirectionDownload, root)
+}
+
+func (manager *Manager) enqueue(
+	ctx context.Context, local, remote string, direction peer.Direction, into *share.Root,
+) (Transfer, error) {
 	if ctx.Err() != nil {
 		return Transfer{}, errDropped
 	}
@@ -155,22 +178,30 @@ func (manager *Manager) enqueue(ctx context.Context, local, remote string, direc
 	if manager.closed {
 		return Transfer{}, errDropped
 	}
+	destination := manager.downloadRoot
+	if into != nil {
+		destination = into
+	}
 	if direction == peer.DirectionDownload {
-		if manager.downloadRoot == nil {
+		if destination == nil {
 			return Transfer{}, errors.New("Choose a downloads folder first.")
 		}
-		if manager.renameDownloads {
+		if manager.renameDownloads || into != nil {
 			if strings.ContainsAny(local, "/\\") {
 				return Transfer{}, share.ErrBadPath
 			}
 			var err error
-			local, err = manager.downloadRoot.AvailableName(local, manager.downloadBusyLocked)
+			busy := func(name string) bool { return manager.downloadBusyLocked(destination, name) }
+			local, err = destination.AvailableName(local, busy)
 			if err != nil {
 				return Transfer{}, err
 			}
 		}
 	}
 	item := manager.newJobLocked(rand.Text(), local, remote, direction, true)
+	if into != nil && direction == peer.DirectionDownload {
+		item.root = into
+	}
 	manager.scheduleLocked()
 	return item.view, nil
 }
@@ -218,7 +249,7 @@ func (manager *Manager) scheduleLocked() {
 		return
 	}
 	for _, id := range manager.order {
-		if manager.slotsLocked() >= maxActive {
+		if manager.slotsLocked() >= manager.slots {
 			return
 		}
 		item := manager.jobs[id]
@@ -269,6 +300,10 @@ func (manager *Manager) stop(id string, state State, notify bool) error {
 		return errUnknown
 	}
 	wasActive := item.working
+	if item.retry != nil {
+		item.retry.Stop()
+		item.retry, item.view.RetryAt = nil, time.Time{}
+	}
 	if state == Canceled && !wasActive && !item.sender &&
 		!manager.destinationBusyLocked(item.local, item) {
 		_ = manager.receiverRoot(item).RemovePartial(item.local)
@@ -308,7 +343,11 @@ func (manager *Manager) Resume(id string) (Transfer, error) {
 		return Transfer{}, errDropped
 	}
 
-	// ponytail: retries are manual; a later policy can retry transient errors automatically.
+	if previous.retry != nil {
+		previous.retry.Stop()
+		previous.retry, previous.view.RetryAt = nil, time.Time{}
+		manager.emitLocked(previous)
+	}
 	item := manager.newJobLocked(
 		rand.Text(), previous.local, previous.view.PeerPath, previous.view.Direction, true,
 	)
@@ -330,6 +369,10 @@ func (manager *Manager) Close() error {
 	var waiting []chan struct{}
 	for _, item := range manager.jobs {
 		item.cancel()
+		if item.retry != nil {
+			item.retry.Stop()
+			item.retry, item.view.RetryAt = nil, time.Time{}
+		}
 		if item.conn != nil {
 			_ = item.conn.Close()
 		}

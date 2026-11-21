@@ -42,13 +42,19 @@ type TransferItem struct {
 	State string `json:"state"`
 	// Error is empty unless the transfer failed. It is a plain sentence.
 	Error string `json:"error,omitempty"`
+	// Attempt counts automatic retries so far. It is left out for a first try.
+	Attempt int `json:"attempt,omitempty"`
+	// RetryAt is when the next automatic retry starts, in RFC 3339. It is left out when no
+	// retry is planned.
+	RetryAt string `json:"retryAt,omitempty"`
 }
 
-// TransferEvent says a transfer moved or changed. Type is "transfer.progress"
-// or "transfer.state".
+// TransferEvent says a transfer moved or changed. Type is "transfer.progress",
+// "transfer.state" or "transfer.removed". A removed event carries IDs and no Item.
 type TransferEvent struct {
 	Type string       `json:"type"`
 	Item TransferItem `json:"item"`
+	IDs  []string     `json:"ids,omitempty"`
 }
 
 // Transfers is what the API needs from the transfer manager. Errors
@@ -57,12 +63,16 @@ type TransferEvent struct {
 type Transfers interface {
 	// Enqueue adds a transfer and returns it.
 	Enqueue(ctx context.Context, request TransferRequest) (TransferItem, error)
+	// EnqueueInto adds a download that saves into one chosen folder.
+	EnqueueInto(ctx context.Context, request TransferRequest, root *share.Root) (TransferItem, error)
 	// Pause stops a transfer so it can resume later.
 	Pause(ctx context.Context, id string) (TransferItem, error)
 	// Resume continues a paused transfer.
 	Resume(ctx context.Context, id string) (TransferItem, error)
 	// Cancel stops a transfer for good.
 	Cancel(ctx context.Context, id string) (TransferItem, error)
+	// Clear forgets finished transfers and returns their IDs. Partial files stay.
+	Clear(ctx context.Context) ([]string, error)
 	// List returns every transfer, oldest first.
 	List() []TransferItem
 	// Subscribe returns events until the stop function is called.
@@ -94,6 +104,10 @@ func (server *Server) forwardTransfers(events <-chan TransferEvent, stop func())
 			server.mu.Lock()
 			server.pruneDownloadRootsLocked()
 			server.mu.Unlock()
+			if event.Type == "transfer.removed" {
+				server.hub.publish(event.Type, fiber.Map{"ids": event.IDs})
+				continue
+			}
 			server.hub.publish(event.Type, event.Item)
 		case <-server.ctx.Done():
 			return
@@ -129,6 +143,55 @@ func (server *Server) listTransfers(c fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"items": items})
+}
+
+func (server *Server) clearTransfers(c fiber.Ctx) error {
+	transfers, err := server.currentTransfers()
+	if err != nil {
+		return err
+	}
+
+	ids, err := transfers.Clear(server.ctx)
+	if err != nil {
+		return err
+	}
+	if ids == nil {
+		ids = []string{}
+	}
+
+	return c.JSON(fiber.Map{"removed": ids})
+}
+
+// putTransferLimits applies the Settings screen's speed and slot choices. Main sends them
+// again after every sidecar start, so they are kept for the next session too.
+func (server *Server) putTransferLimits(c fiber.Ctx) error {
+	var in struct {
+		TransfersAtOnce  int `json:"transfersAtOnce"`
+		UploadLimitKiB   int `json:"uploadLimitKiB"`
+		DownloadLimitKiB int `json:"downloadLimitKiB"`
+	}
+	if json.Unmarshal(c.Body(), &in) != nil {
+		return apperr.BadRequest("The request could not be understood.")
+	}
+	if in.TransfersAtOnce < 1 || in.TransfersAtOnce > 8 {
+		return apperr.BadRequest("Choose between 1 and 8 transfers at once.")
+	}
+	if in.UploadLimitKiB < 0 || in.UploadLimitKiB > 1048576 ||
+		in.DownloadLimitKiB < 0 || in.DownloadLimitKiB > 1048576 {
+		return apperr.BadRequest("Choose a speed limit of 0 or more.")
+	}
+
+	server.mu.Lock()
+	limits := transferLimits{in.TransfersAtOnce, in.UploadLimitKiB, in.DownloadLimitKiB}
+	server.limits = limits
+	manager := server.manager
+	server.mu.Unlock()
+
+	if manager != nil {
+		applyLimits(manager, limits)
+	}
+
+	return c.JSON(fiber.Map{"ok": true})
 }
 
 func (server *Server) startTransfer(c fiber.Ctx) error {

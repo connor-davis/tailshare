@@ -156,6 +156,25 @@ describe("applyEvent", () => {
     expect(list?.[0].bytes).toBe(50)
   })
 
+  it("drops the rows a removed event names", () => {
+    const client = new QueryClient()
+    applyEvent(client, { seq: 1, type: "transfer.state", data: item() })
+    applyEvent(client, {
+      seq: 2,
+      type: "transfer.state",
+      data: item({ id: "t2" }),
+    })
+
+    applyEvent(client, {
+      seq: 3,
+      type: "transfer.removed",
+      data: { ids: ["t1"] },
+    })
+
+    const list = client.getQueryData<TransferView[]>(keys.transfers)
+    expect(list?.map((row) => row.id)).toEqual(["t2"])
+  })
+
   it("ignores unknown types", () => {
     const client = new QueryClient()
 
@@ -248,39 +267,5 @@ describe("chat memory bound", () => {
   it("caps a merged history too", () => {
     expect(mergeChat(many(150), many(300).slice(100))).toHaveLength(CHAT_LIMIT)
     expect(mergeChat(many(300))[0]!.id).toBe("m100")
-  })
-})
-
-describe("screen events", () => {
-  it("seeds screens from snapshots, replaces live metadata, and clears it on leave", () => {
-    const client = new QueryClient()
-    const screens = {
-      mine: [],
-      others: [
-        {
-          id: "a",
-          ownerId: "m",
-          ownerName: "Hana",
-          codec: "video/webm;codecs=vp8",
-          viewers: 0,
-        },
-      ],
-      unsupported: ["Old build"],
-    }
-    applyEvent(client, {
-      seq: 1,
-      type: "snapshot",
-      data: { session: connected, transfers: [], screens },
-    })
-    expect(client.getQueryData(keys.screens)).toEqual(screens)
-    const changed = { ...screens, others: [], unsupported: [] }
-    applyEvent(client, { seq: 2, type: "screen.changed", data: changed })
-    expect(client.getQueryData(keys.screens)).toEqual(changed)
-    applyEvent(client, {
-      seq: 3,
-      type: "session.state",
-      data: { state: "idle" },
-    })
-    expect(client.getQueryData(keys.screens)).toBeUndefined()
   })
 })

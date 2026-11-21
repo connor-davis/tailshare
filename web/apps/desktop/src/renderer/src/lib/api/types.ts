@@ -33,6 +33,8 @@ export interface SessionState {
   code?: string
   /** The host's name for the room, shown to every member. */
   roomName?: string
+  /** When the share code stops working. Gone once someone joins. */
+  expiresAt?: string
   /** The other computer. Present only while connected. */
   peer?: PeerInfo
   /** One person waiting for local approval. */
@@ -63,6 +65,10 @@ export interface TransferItem {
   state: TransferState
   /** Plain sentence, set when the transfer failed. */
   error?: string
+  /** Retries so far. Zero or missing for a first try. */
+  attempt?: number
+  /** When the next retry starts, as a time string. */
+  retryAt?: string
 }
 
 /** A transfer plus the speed the renderer measured from progress events. */
@@ -143,10 +149,8 @@ export interface Snapshot {
   session: SessionState
   /** Every transfer, oldest first. */
   transfers: TransferItem[]
-  /** Shared apps. Missing when the sidecar is older than the screen. */
+  /** Shared apps. Missing when the sidecar is older than apps. */
   forwards?: ForwardState
-  /** Active screen shares, when supported by the sidecar. */
-  screens?: ScreenState
 }
 
 /** The one shape of every live message. */
@@ -157,20 +161,4 @@ export interface LiveEvent {
   type: string
   /** The payload; its shape depends on `type`. */
   data: unknown
-}
-
-/** One member's view-only screen recording. */
-export interface ScreenItem {
-  id: string
-  codec: string
-  ownerId: string
-  ownerName: string
-  viewers: number
-}
-
-/** Memory-only room screen-sharing state, updated by the live socket. */
-export interface ScreenState {
-  mine: ScreenItem[]
-  others: ScreenItem[]
-  unsupported: string[]
 }

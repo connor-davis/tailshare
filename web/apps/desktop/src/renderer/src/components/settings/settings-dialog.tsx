@@ -69,9 +69,9 @@ function SettingsBody() {
     <div className="flex min-h-0 flex-1">
       <nav
         aria-label="Settings sections"
-        className="flex w-44 shrink-0 flex-col gap-1 border-r p-3"
+        className="spaces-rail flex w-28 shrink-0 flex-col gap-1 border-r p-2 sm:w-44 sm:p-3"
       >
-        <DialogTitle className="px-2 pt-1 pb-3 text-base font-semibold">
+        <DialogTitle className="mb-2 border-b border-primary px-2 pt-1 pb-3 text-base font-semibold">
           Settings
         </DialogTitle>
         {SECTIONS.map(({ id, label }) => (
@@ -91,7 +91,7 @@ function SettingsBody() {
       </nav>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-4 p-6 pr-12">
+        <div className="flex flex-col gap-4 p-4 pr-10 sm:p-6 sm:pr-12">
           <DialogDescription>
             Speed limits, your display name and transfers at once take effect
             from the next update. Tailshare saves them now.

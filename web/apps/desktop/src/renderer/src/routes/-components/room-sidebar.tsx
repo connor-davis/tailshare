@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import {
   HistoryIcon,
+  LayoutGridIcon,
   LogInIcon,
   PlusIcon,
+  RotateCcwIcon,
   SearchIcon,
   SettingsIcon,
   XIcon,
@@ -25,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { SessionState } from "@/lib/api/types"
+import { formatCode } from "@/lib/code-input"
 import { formatAgo } from "@/lib/format"
 import { JoinDialog } from "./join-dialog"
 import { NameEditor } from "./name-editor"
@@ -74,7 +77,20 @@ export function RoomSidebar({
   onNewRoom,
   onJoin,
   onRejoin,
+  onReopen,
+  compact = false,
+  homeActive = false,
+  onHome,
+  onOpenRoom,
 }: {
+  /** Marks Home as the selected surface. */
+  homeActive?: boolean
+  /** Uses the narrow black rail inside the Spaces shell. */
+  compact?: boolean
+  /** Opens the home board without leaving the room. */
+  onHome?: () => void
+  /** Returns to the current room. */
+  onOpenRoom?: () => void
   /** The current session. */
   session: SessionState
   /** True while a host or join is running, so no second one starts. */
@@ -85,6 +101,8 @@ export function RoomSidebar({
   onJoin: (code: string) => void
   /** Joins a recent room again by its bare code. */
   onRejoin: (code: string) => void
+  /** Hosts a recent room again under its old code. */
+  onReopen: (room: { name: string; code: string }) => void
 }) {
   const rooms = useRecentRooms()
   const openSettings = useOpenSettings()
@@ -115,18 +133,28 @@ export function RoomSidebar({
     return () => window.removeEventListener("keydown", onKey)
   }, [])
   const canStart = idle && !busy
-  // ponytail: a rejoin only joins. Reopening a room as its host when nobody
-  // answers is later work; it needs a host-by-code call in the sidecar.
 
   return (
     <aside
       aria-label="Rooms"
-      className="flex h-full min-h-0 flex-col bg-card/85"
+      className={`spaces-rail flex h-full min-h-0 flex-col ${compact ? "spaces-rail-compact" : ""}`}
     >
       <DragBar className="gap-2 pl-3 text-xs font-medium">
         <img src={logo} alt="" className="size-4" />
         Tailshare
       </DragBar>
+      {onHome ? (
+        <Button
+          className="mx-auto my-2 size-11"
+          variant={homeActive ? "default" : "outline"}
+          aria-current={homeActive ? "page" : undefined}
+          size="icon"
+          aria-label="Home"
+          onClick={onHome}
+        >
+          <LayoutGridIcon aria-hidden />
+        </Button>
+      ) : null}
       {/* T3 shape: search fills the row, the two actions sit beside it. */}
       <div className="flex items-center gap-1.5 px-2 pt-1">
         <div className="relative min-w-0 flex-1">
@@ -201,18 +229,35 @@ export function RoomSidebar({
               className="flex flex-col gap-1"
             >
               <Label id="open-room">Rooms</Label>
-              <p className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary">
-                <Dot live />
-                <span className="min-w-0 flex-1 truncate">
-                  <span className="sr-only">Open now: </span>
-                  {live}
-                </span>
-                {session.members?.length ? (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {session.members.length}
-                  </span>
-                ) : null}
-              </p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-current={!homeActive ? "page" : undefined}
+                    aria-label={`Open ${live}, ${session.role === "host" ? "host" : "joined"}, current room`}
+                    onClick={onOpenRoom}
+                    className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
+                  >
+                    <span aria-hidden className="rail-initial">
+                      {Array.from(live)[0]}
+                    </span>
+                    <Dot live />
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className="sr-only">Open now: </span>
+                      {live}
+                    </span>
+                    {session.members?.length ? (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {session.members.length}
+                      </span>
+                    ) : null}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {live} · {session.role === "host" ? "Host" : "Joined"} · Open
+                  now
+                </TooltipContent>
+              </Tooltip>
             </section>
           ) : null}
           <section
@@ -249,24 +294,48 @@ export function RoomSidebar({
                   >
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={!canStart}
-                          aria-label={`Rejoin ${room.name}`}
-                          onClick={() => onRejoin(room.code)}
+                        <span
+                          tabIndex={canStart ? undefined : 0}
+                          className="flex h-full min-w-0 flex-1"
                         >
-                          <Dot live={false} />
-                          <span className="min-w-0 flex-1 truncate">
-                            {room.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground tabular-nums group-focus-within:hidden group-hover:hidden">
-                            {formatAgo(room.lastSeen)}
-                          </span>
-                        </button>
+                          <button
+                            type="button"
+                            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!canStart}
+                            aria-label={`Rejoin ${room.name}, recent room`}
+                            onClick={() => onRejoin(room.code)}
+                          >
+                            <span aria-hidden className="rail-initial">
+                              {Array.from(room.name)[0]}
+                            </span>
+                            <Dot live={false} />
+                            <span className="min-w-0 flex-1 truncate">
+                              {room.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground tabular-nums group-focus-within:hidden group-hover:hidden">
+                              {formatAgo(room.lastSeen)}
+                            </span>
+                          </button>
+                        </span>
                       </TooltipTrigger>
-                      <TooltipContent>{room.name}</TooltipContent>
+                      <TooltipContent>
+                        {room.name} · Recent · {formatCode(room.code)} · Last
+                        seen {formatAgo(room.lastSeen)}.{" "}
+                        {!idle
+                          ? "Leave this room first to rejoin another."
+                          : ""}
+                      </TooltipContent>
                     </Tooltip>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      className="absolute right-7 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label={`Reopen ${room.name}`}
+                      disabled={!canStart}
+                      onClick={() => onReopen(room)}
+                    >
+                      <RotateCcwIcon aria-hidden />
+                    </Button>
                     <Button
                       size="icon-xs"
                       variant="ghost"

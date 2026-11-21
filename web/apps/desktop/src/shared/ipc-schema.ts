@@ -4,8 +4,6 @@ import { JOIN_CODE, SIDECAR_STATUSES } from "./bridge"
 /** IPC channel names. Main and preload both read them from here. */
 export const CHANNELS = {
   connectionInfo: "tailshare:connection-info",
-  screenSources: "tailshare:screen-sources",
-  pickScreenSource: "tailshare:pick-screen-source",
   chooseFolder: "tailshare:choose-folder",
   addFiles: "tailshare:add-files",
   addDroppedFiles: "tailshare:add-dropped-files",
@@ -33,6 +31,7 @@ export const CHANNELS = {
   setCurrentRoom: "tailshare:set-current-room",
   getDownloadsStatus: "tailshare:get-downloads-status",
   downloadsStatus: "tailshare:downloads-status",
+  startDownload: "tailshare:start-download",
 } as const
 
 /** Our own bridge methods take no arguments, so any extra one is refused. */
@@ -113,6 +112,15 @@ export const SidecarStatusSchema = Schema.Literals(SIDECAR_STATUSES)
 export const ChosenFolderSchema = Schema.NullOr(
   Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096))
 )
+
+/** A file in the room to save, and the name to offer in the Save dialog. */
+export const StartDownloadSchema = Schema.Struct({
+  source: Schema.String.check(Schema.isBetweenLength(1, 4096)),
+  name: Schema.String.check(
+    Schema.isBetweenLength(1, 255),
+    Schema.isPattern(/^[^\\/]+$/)
+  ),
+})
 
 /** Paths resolved by preload or the native picker, capped to one batch. */
 export const AddedPathsSchema = Schema.Array(AbsolutePath).check(

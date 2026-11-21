@@ -1,31 +1,22 @@
-import { useEffect, useState } from "react"
-import { announce } from "@/components/status-region"
-import { Badge } from "@/components/ui/badge"
+import { useState, type ReactNode } from "react"
+import { Maximize2Icon, Minimize2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { apiFetch } from "@/lib/api/client"
-import { useScreens } from "@/lib/api/screens"
-import { createScreenRecorder } from "@/lib/media/screen-recorder"
-import { ScreenPanel } from "./screen-panel"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { PeerInfo } from "@/lib/api/types"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import type { PeerInfo, SessionState } from "@/lib/api/types"
 import { AppsPanel } from "./apps-panel"
-import { usePanelLayout, usePanelOpen } from "./panel-layout"
+import { MembersPanel } from "./members-panel"
 import { RoomChat } from "./room-chat"
+import { RoomFiles } from "./room-files"
 import { RoomHeader } from "./room-header"
 import { TransfersPanel } from "./transfers-panel"
 
-/**
- * The middle of the app while connected: header, the chat with its composer, and
- * the transfers panel at the bottom. Fills its panel and scrolls inside. The
- * transfers panel never collapses by dragging; its button hides it down to
- * the header, and that choice is saved.
- */
+type Tile = "Files" | "People" | "Chat" | "Transfers" | "Apps"
+
+/** The five-tile room board keeps each owner mounted while a tile is expanded. */
 export function RoomView({
+  session,
   peer,
   roomName,
   host,
@@ -33,8 +24,10 @@ export function RoomView({
   leaving,
   code,
   roomCode,
-  startedAt,
+  expiresAt,
 }: {
+  /** Live membership and approval state. */
+  session: SessionState
   /** True when this computer is the host. */
   host?: boolean
   /** The other computer; missing while the host waits for someone. */
@@ -49,32 +42,51 @@ export function RoomView({
   code?: string
   /** The room's own code, host or joiner, for Open folder. */
   roomCode?: string
-  /** Epoch milliseconds the room opened, for the code countdown. */
-  startedAt?: number | null
+  /** When the code stops working, from the sidecar. */
+  expiresAt?: string | null
 }) {
-  const screens = useScreens()
-  const [captureError, setCaptureError] = useState<string>()
-  const [busy, setBusy] = useState(false)
-  const [capture] = useState(() =>
-    createScreenRecorder(() => {
-      setCaptureError(
-        "Could not share your screen. Check the selected window and try again."
-      )
-    })
-  )
-  useEffect(() => () => capture.stop(), [capture])
-  const mine = screens.data?.mine[0]
-  const sharingId = mine?.id
-  useEffect(() => {
-    if (!sharingId) return
-    announce("You are sharing your screen.")
-    return () => announce("Screen sharing stopped.")
-  }, [sharingId])
+  const [expanded, setExpanded] = useState<Tile | null>(null)
+  const connected = peer !== undefined
 
-  const [transfersOpen, toggleTransfers] = usePanelOpen("transfers")
-  const layout = usePanelLayout(
-    "room-main",
-    transfersOpen ? ["chat", "transfers"] : ["chat"]
+  const tile = (name: Tile, children: ReactNode) => (
+    <Card
+      key={name}
+      hidden={!!expanded && expanded !== name}
+      aria-label={`${name} tile`}
+      className={`spaces-tile spaces-tile-${name.toLowerCase()} gap-0 overflow-hidden py-0 ${expanded && expanded !== name ? "hidden" : ""}`}
+    >
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+        <span aria-hidden className="size-2.5 shrink-0 bg-primary" />
+        <h2 className="mr-auto text-xs font-extrabold tracking-widest uppercase">
+          {name}
+        </h2>
+        {name === "People" && session.role === "host" && session.join ? (
+          <Badge
+            role="status"
+            variant="secondary"
+            className="whitespace-normal"
+          >
+            Someone wants to join
+          </Badge>
+        ) : null}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={
+            expanded === name ? "Return to room board" : `Expand ${name}`
+          }
+          aria-expanded={expanded === name}
+          onClick={() => setExpanded(expanded === name ? null : name)}
+        >
+          {expanded === name ? (
+            <Minimize2Icon aria-hidden />
+          ) : (
+            <Maximize2Icon aria-hidden />
+          )}
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1">{children}</div>
+    </Card>
   )
 
   return (
@@ -87,110 +99,36 @@ export function RoomView({
         leaving={leaving}
         code={code}
         roomCode={roomCode}
-        startedAt={startedAt}
+        expiresAt={expiresAt}
       />
-      {mine && (
+      {/* People may be below the fold or hidden by another expanded tile. */}
+      {session.role === "host" && session.join && expanded !== "People" ? (
         <div
           role="status"
-          className="flex items-center justify-between gap-3 border-b bg-primary/10 px-4 py-2 text-sm"
+          className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2"
         >
-          <span>
-            You are sharing your screen · {mine.viewers}{" "}
-            {mine.viewers === 1 ? "viewer" : "viewers"}
-          </span>
+          <p className="mr-auto">Someone wants to join.</p>
           <Button
-            size="sm"
             variant="outline"
             onClick={() => {
-              capture.stop()
-              void apiFetch(`/api/screen/${mine.id}`, {
-                method: "DELETE",
-              }).catch(() =>
-                setCaptureError(
-                  "Could not stop sharing. Leave the room to stop."
-                )
-              )
+              setExpanded("People")
             }}
           >
-            Stop sharing
+            Review join request
           </Button>
         </div>
-      )}
-      <div className="min-h-0 flex-1">
-        <ResizablePanelGroup
-          key={transfersOpen ? "split" : "chat-only"}
-          id="room-main"
-          orientation="vertical"
-          {...layout}
+      ) : null}
+      <ScrollArea className="min-h-0 flex-1">
+        <div
+          className={`spaces-board ${expanded ? "spaces-board-expanded" : ""}`}
         >
-          <ResizablePanel id="chat" minSize={160}>
-            <Tabs defaultValue="chat" className="h-full min-h-0 gap-0">
-              <TabsList variant="line" className="px-2">
-                <TabsTrigger value="chat">Chat</TabsTrigger>
-                <TabsTrigger value="apps">Apps</TabsTrigger>
-                <TabsTrigger value="screen">
-                  Screen <Badge variant="outline">Experimental</Badge>
-                </TabsTrigger>
-              </TabsList>
-              {/* forceMount keeps the chat alive (and scrolled) on the Apps tab. */}
-              <TabsContent
-                value="chat"
-                forceMount
-                className="min-h-0 flex-1 data-[state=inactive]:hidden"
-              >
-                <RoomChat connected={peer !== undefined} />
-              </TabsContent>
-              <TabsContent
-                value="screen"
-                forceMount
-                className="min-h-0 flex-1 data-[state=inactive]:hidden"
-              >
-                <ScreenPanel
-                  state={screens.data}
-                  loading={screens.isPending}
-                  error={
-                    captureError ??
-                    (screens.error
-                      ? "Could not load screen shares. Rejoin the room to try again."
-                      : undefined)
-                  }
-                  busy={busy}
-                  onShare={async (id) => {
-                    setBusy(true)
-                    setCaptureError(undefined)
-                    try {
-                      await capture.start(id)
-                    } finally {
-                      setBusy(false)
-                    }
-                  }}
-                />
-              </TabsContent>
-              <TabsContent value="apps" className="min-h-0 flex-1">
-                <AppsPanel connected={peer !== undefined} />
-              </TabsContent>
-            </Tabs>
-          </ResizablePanel>
-          {transfersOpen ? (
-            <>
-              <ResizableHandle />
-              <ResizablePanel
-                id="transfers"
-                defaultSize={180}
-                minSize={120}
-                maxSize="70%"
-              >
-                <TransfersPanel collapsed={false} onToggle={toggleTransfers} />
-              </ResizablePanel>
-            </>
-          ) : null}
-        </ResizablePanelGroup>
-      </div>
-      {transfersOpen ? null : (
-        <div className="h-10 shrink-0">
-          <TransfersPanel collapsed onToggle={toggleTransfers} />
+          {tile("Files", <RoomFiles connected={connected} />)}
+          {tile("People", <MembersPanel session={session} embedded />)}
+          {tile("Chat", <RoomChat connected={connected} />)}
+          {tile("Transfers", <TransfersPanel />)}
+          {tile("Apps", <AppsPanel connected={connected} />)}
         </div>
-      )}
+      </ScrollArea>
     </div>
   )
 }

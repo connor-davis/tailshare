@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -16,9 +17,8 @@ import { Route } from "../index"
 const mocks = vi.hoisted(() => ({
   hostMutate: vi.fn(),
   joinMutate: vi.fn(),
-  panels: {} as Record<string, Record<string, unknown>>,
 }))
-const { hostMutate, joinMutate, panels } = mocks
+const { hostMutate, joinMutate } = mocks
 let session: SessionState | undefined = { state: "idle" }
 let joinLink: (code: string) => void = () => {}
 
@@ -35,17 +35,21 @@ vi.mock("@/lib/api/session", () => {
     useJoin: action(mocks.joinMutate),
     useLeave: action(vi.fn()),
     useRemoveMember: action(vi.fn()),
+    useAllowJoin: action(vi.fn()),
+    useDenyJoin: action(vi.fn()),
   }
 })
+vi.mock("@/lib/api/forwards", () => ({
+  useForwards: () => ({ data: [], isLoading: false }),
+  useShareApp: () => ({ mutate: vi.fn(), isPending: false }),
+  useStopApp: () => ({ mutate: vi.fn(), isPending: false }),
+  useOpenApp: () => ({ mutate: vi.fn(), isPending: false }),
+  useCloseApp: () => ({ mutate: vi.fn(), isPending: false }),
+}))
 vi.mock("@/lib/api/transfers", () => ({
   useTransfers: () => ({ data: [] }),
+  useClearTransfers: () => ({ mutate: vi.fn(), isPending: false }),
   useStartTransfer: () => ({ mutate: vi.fn(), isPending: false, error: null }),
-}))
-vi.mock("@/lib/api/screens", () => ({
-  useScreens: () => ({
-    data: { mine: [], others: [], unsupported: [] },
-    isPending: false,
-  }),
 }))
 vi.mock("@/lib/api/chat", () => ({
   useChat: () => ({ data: [] }),
@@ -62,23 +66,11 @@ vi.mock("@/components/update-button", () => ({
   UpdateButton: () => <p>update slot</p>,
 }))
 vi.mock("./room-sidebar", () => ({
-  RoomSidebar: () => <aside aria-label="Rooms" />,
-}))
-// Plain boxes that remember their props, so the test can read min and max.
-vi.mock("@/components/ui/resizable", () => ({
-  ResizablePanelGroup: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+  RoomSidebar: ({ onHome }: { onHome: () => void }) => (
+    <aside aria-label="Rooms">
+      <button onClick={onHome}>Home</button>
+    </aside>
   ),
-  ResizableHandle: () => <hr />,
-  ResizablePanel: ({
-    id,
-    children,
-    ...rest
-  }: { id: string; children: ReactNode } & Record<string, unknown>) => {
-    mocks.panels[id] = rest
-
-    return <section data-panel={id}>{children}</section>
-  },
 }))
 
 const openRoomFolder = vi.fn(async () => {})
@@ -95,6 +87,8 @@ beforeEach(() => {
 
       return () => {}
     },
+    getRecentRooms: async () => [],
+    onRecentRoomsChanged: () => () => {},
     touchRecentRoom: async () => {},
     openRoomFolder,
     getCurrentRoom,
@@ -119,7 +113,7 @@ function shell() {
 }
 
 describe("shell", () => {
-  it("shows the empty state, an update slot and an empty Members column when idle", () => {
+  it("shows the home board and an update slot when idle", () => {
     shell()
 
     expect(
@@ -127,8 +121,8 @@ describe("shell", () => {
     ).toBeTruthy()
     expect(screen.getByLabelText("Join with a code or link")).toBeTruthy()
     expect(screen.getByText("update slot")).toBeTruthy()
-    expect(screen.getByText("Nobody here yet")).toBeTruthy()
-    expect(screen.getByRole("complementary", { name: "Members" })).toBeTruthy()
+    expect(screen.getByRole("region", { name: "Your rooms" })).toBeTruthy()
+    expect(screen.queryByRole("complementary", { name: "Members" })).toBeNull()
   })
 
   it("asks for a room name, then creates the room with it", async () => {
@@ -168,11 +162,11 @@ describe("shell", () => {
     expect(screen.getByRole("button", { name: "Copy code" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Copy link" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Open folder" })).toBeTruthy()
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Chat",
-      "Apps",
-      "Screen Experimental",
-    ])
+    for (const name of ["Files", "People", "Chat", "Transfers", "Apps"]) {
+      expect(
+        screen.getByRole("button", { name: `Expand ${name}` })
+      ).toBeTruthy()
+    }
     expect(screen.getByText("You (host)")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
     expect(
@@ -224,26 +218,42 @@ describe("shell", () => {
     expect(screen.getByRole("region", { name: "Transfers" })).toBeTruthy()
     expect(screen.getByText("Host")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Leave" })).toBeTruthy()
-    // Chat on top, transfers below it, both in the room column.
-    expect(panels.chat).toBeTruthy()
-    expect(panels.transfers.maxSize).toBe("70%")
-    expect(panels.transfers.collapsible).toBeFalsy()
+    expect(screen.getByRole("button", { name: "Expand Chat" })).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Expand Transfers" })
+    ).toBeTruthy()
   })
 
-  it("collapses the transfers panel to its header and remembers it", () => {
+  it("ignores retired transfer visibility and uses only tile expansion", () => {
+    window.localStorage.setItem("tailshare.layout.transfers.open", "false")
     session = {
       state: "connected",
       role: "joiner",
       peer: { displayName: "Pat" },
     }
     shell()
-
-    fireEvent.click(screen.getByRole("button", { name: "Collapse" }))
-
+    expect(screen.queryByRole("button", { name: "Collapse" })).toBeNull()
+    expect(screen.getByRole("region", { name: "Transfers" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Expand Transfers" }))
+    expect(screen.getByRole("region", { name: "Transfers" })).toBeTruthy()
     expect(window.localStorage.getItem("tailshare.layout.transfers.open")).toBe(
       "false"
     )
-    expect(screen.getByRole("button", { name: "Expand" })).toBeTruthy()
+  })
+
+  it("keeps the room draft while visiting Home and returning", () => {
+    session = { state: "connected", role: "host", peer: { displayName: "Pat" } }
+    shell()
+    const draft = screen.getByLabelText("Message") as HTMLTextAreaElement
+    fireEvent.change(draft, { target: { value: "Keep my draft" } })
+    fireEvent.click(screen.getByRole("button", { name: "Home" }))
+    expect(
+      screen.getByRole("heading", { name: "Share files with a friend" })
+    ).toBeTruthy()
+    expect(screen.queryByRole("log", { name: "Chat messages" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Open room" }))
+    expect(screen.getByLabelText("Message")).toBe(draft)
+    expect(draft.value).toBe("Keep my draft")
   })
 
   it("joins when a tailshare link arrives", async () => {
@@ -282,22 +292,29 @@ describe("shell", () => {
     expect(joinMutate).not.toHaveBeenCalled()
   })
 
-  it("shows a waiting join request on the toggle while Members is hidden", () => {
+  it("keeps People and approval visible despite retired member visibility", () => {
     window.localStorage.setItem("tailshare.layout.members.open", "false")
     session = {
       state: "hosting",
       role: "host",
       code: "7K3Q9PXM",
       join: { id: 1, displayName: "Pat" },
-    } as SessionState
+    }
     shell()
-
+    const people = screen.getByLabelText("People tile")
+    expect(within(people).getByRole("status").textContent).toBe(
+      "Someone wants to join"
+    )
+    expect(within(people).getByRole("button", { name: "Allow" })).toBeTruthy()
+    expect(within(people).getByRole("button", { name: "Deny" })).toBeTruthy()
     expect(
-      screen.getByRole("button", {
-        name: "Show or hide members, someone wants to join",
-      })
-    ).toBeTruthy()
-    expect(screen.queryByRole("complementary", { name: "Members" })).toBeNull()
+      screen.queryByRole("button", { name: /Show or hide members/ })
+    ).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Home" }))
+    expect(screen.getByRole("button", { name: "Allow" })).toBeTruthy()
+    expect(window.localStorage.getItem("tailshare.layout.members.open")).toBe(
+      "false"
+    )
   })
 
   it("gets the room folder and share code back after a page reload", async () => {
@@ -328,59 +345,32 @@ describe("shell", () => {
     await waitFor(() => expect(setCurrentRoom).toHaveBeenLastCalledWith(null))
   })
 
-  it("never lets a drag collapse a column, and sets limits", () => {
-    shell()
-
-    for (const id of ["rooms", "members"]) {
-      // The sidebar mock above is not a panel; only content and members are.
-      if (!panels[id]) continue
-      expect(panels[id].collapsible).toBeFalsy()
-      expect(panels[id].minSize).toBe(200)
-    }
-    expect(panels.members.maxSize).toBe("40%")
-    expect(panels.rooms.maxSize).toBe("50%")
-  })
-
-  it("hides and shows the columns with their toggles, and remembers it", () => {
+  it("remembers only the rail toggle and keeps People in the board", () => {
+    session = { state: "hosting", role: "host", code: "7K3Q9PXM" }
     const view = shell()
-
     fireEvent.click(screen.getByRole("button", { name: "Show or hide rooms" }))
     expect(screen.queryByRole("complementary", { name: "Rooms" })).toBeNull()
-
-    fireEvent.click(screen.getByRole("button", { name: "Show or hide rooms" }))
-    expect(screen.getByRole("complementary", { name: "Rooms" })).toBeTruthy()
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Show or hide members" })
-    )
-    expect(screen.queryByRole("complementary", { name: "Members" })).toBeNull()
-    expect(window.localStorage.getItem("tailshare.layout.members.open")).toBe(
+    expect(screen.getByRole("complementary", { name: "Members" })).toBeTruthy()
+    expect(window.localStorage.getItem("tailshare.layout.rooms.open")).toBe(
       "false"
     )
-
-    // The saved choice survives a fresh start.
     view.unmount()
     shell()
-    expect(screen.queryByRole("complementary", { name: "Members" })).toBeNull()
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Show or hide members" })
-    )
-    expect(screen.getByRole("complementary", { name: "Members" })).toBeTruthy()
+    expect(screen.queryByRole("complementary", { name: "Rooms" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Show or hide rooms" }))
+    expect(screen.getByRole("complementary", { name: "Rooms" })).toBeTruthy()
   })
 
   it("keeps the 138 px caption corner empty on the rightmost bar", () => {
     shell()
     const bars = screen.getAllByRole("banner")
 
-    // Members is open and rightmost, the middle bar is not.
+    // Only the app toolbar reserves the native caption corner.
     expect(
       bars.filter((bar) => bar.className.includes("pr-[138px]"))
     ).toHaveLength(1)
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Show or hide members" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "Show or hide rooms" }))
     expect(
       screen
         .getAllByRole("banner")

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -167,6 +168,9 @@ func TestDownloadPinsRootThroughResume(t *testing.T) {
 	if err := receiveTo(manager.receiverRoot(item), item.local, 0, 3, bytes.NewBufferString("abc")); err != nil {
 		t.Fatal(err)
 	}
+	if err := item.root.SavePartialPrefix(item.local, 3, checksum([]byte("abc"))); err != nil {
+		t.Fatal(err)
+	}
 	if err := manager.Pause(queued.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -195,4 +199,71 @@ func TestDownloadPinsRootThroughResume(t *testing.T) {
 	assertFile(t, firstDir, "report.pdf", []byte("abcdef"))
 	assertMissing(t, roomDir, "report.pdf")
 	assertMissing(t, secondDir, "report.pdf")
+}
+
+// resumeAfter stops a download with three bytes on disk and returns the next attempt.
+func resumeAfter(t *testing.T, checkpoint bool, damage func(path string)) (*Manager, *job) {
+	t.Helper()
+	manager, dir := idle(t)
+	queued, err := manager.Download(t.Context(), "remote", "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := manager.jobs[queued.ID]
+	item.view.Size, item.hash = 6, checksum([]byte("abcdef"))
+	if err := manager.prepareReceiver(item); err != nil {
+		t.Fatal(err)
+	}
+	source := io.TeeReader(bytes.NewBufferString("abc"), item.prefix)
+	if err := receiveTo(item.root, "local", 0, 6, source); !errors.Is(err, errDropped) {
+		t.Fatalf("expected a drop: %v", err)
+	}
+	if checkpoint {
+		manager.saveCheckpoint(item)
+	}
+	damage(filepath.Join(dir, "local"+share.PartialSuffix))
+
+	if err := manager.Pause(queued.ID); err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := manager.Resume(queued.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := manager.jobs[resumed.ID]
+	next.view.Size, next.hash = 6, item.hash
+	return manager, next
+}
+
+func TestResumeChecksPartialPrefix(t *testing.T) {
+	untouched := func(string) {}
+	flip := func(path string) {
+		if err := os.WriteFile(path, []byte("abX"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("intact partial resumes", func(t *testing.T) {
+		manager, next := resumeAfter(t, true, untouched)
+		if err := manager.prepareReceiver(next); err != nil || next.view.Offset != 3 {
+			t.Fatalf("offset %d, %v", next.view.Offset, err)
+		}
+	})
+
+	t.Run("flipped byte starts again from zero", func(t *testing.T) {
+		manager, next := resumeAfter(t, true, flip)
+		if err := manager.prepareReceiver(next); err != nil || next.view.Offset != 0 {
+			t.Fatalf("offset %d, %v", next.view.Offset, err)
+		}
+		if size, _ := next.root.PartialSize("local"); size != 0 {
+			t.Fatalf("corrupt partial kept: %d bytes", size)
+		}
+	})
+
+	t.Run("no checkpoint starts again from zero", func(t *testing.T) {
+		manager, next := resumeAfter(t, false, untouched)
+		if err := manager.prepareReceiver(next); err != nil || next.view.Offset != 0 {
+			t.Fatalf("offset %d, %v", next.view.Offset, err)
+		}
+	})
 }

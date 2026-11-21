@@ -53,6 +53,7 @@ type Session struct {
 	server     *tailcat.Server
 	listener   net.Listener
 	timer      *time.Timer
+	expiresAt  time.Time
 	closed     bool
 	done       chan struct{}
 	changes    chan struct{}
@@ -223,6 +224,7 @@ func (session *Session) Close() error {
 
 	session.closed = true
 	session.code = ""
+	session.expiresAt = time.Time{}
 	close(session.done)
 	session.cancel()
 	if session.timer != nil {

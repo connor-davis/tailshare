@@ -18,7 +18,6 @@ import (
 	"github.com/connor-davis/tailshare/internal/platform/config"
 	"github.com/connor-davis/tailshare/internal/services/forward"
 	"github.com/connor-davis/tailshare/internal/services/peer"
-	"github.com/connor-davis/tailshare/internal/services/screen"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/connor-davis/tailshare/internal/services/transfer"
@@ -62,11 +61,11 @@ type Server struct {
 	manager       *transfer.Manager
 	downloadRoot  *share.Root
 	downloadRoots []*share.Root
+	limits        transferLimits
 	transfers     Transfers
 	transferDone  chan struct{}
 	ending        chan struct{}
 	forwards      *forward.Forwards
-	screens       *screen.Screens
 }
 
 // New builds the API and owns a transfer manager for each connected session.
@@ -178,12 +177,6 @@ func (server *Server) routes() {
 	api.Get("/chat", server.getChat)
 	api.Post("/chat", server.postChat)
 
-	api.Get("/screen", server.listScreens)
-	api.Post("/screen", server.startScreen)
-	api.Delete("/screen/:id", server.stopScreen)
-	api.Get("/screen/ingest/:id", server.screenSocket(true))
-	api.Get("/screen/watch/:id", server.screenSocket(false))
-
 	api.Get("/forwards", server.listForwards)
 	api.Post("/forwards", server.shareForward)
 	api.Delete("/forwards/:id", server.stopForward)
@@ -192,6 +185,9 @@ func (server *Server) routes() {
 
 	api.Get("/transfers", server.listTransfers)
 	api.Post("/transfers", server.startTransfer)
+	api.Post("/transfers/clear", server.clearTransfers)
+	api.Post("/transfers/save", server.mainOnly, server.saveTransfer)
+	api.Put("/transfers/limits", server.mainOnly, server.putTransferLimits)
 	api.Post("/transfers/:id/pause", server.pauseTransfer)
 	api.Post("/transfers/:id/resume", server.resumeTransfer)
 	api.Delete("/transfers/:id", server.cancelTransfer)

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { useTransferAction } from "@/lib/api/transfers"
@@ -19,20 +20,34 @@ export function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
+// Seconds until the sidecar tries again, counted on the screen once a second.
+function useRetrySeconds(retryAt?: string): number | null {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!retryAt) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+
+    return () => clearInterval(timer)
+  }, [retryAt])
+
+  if (!retryAt) return null
+  const end = Date.parse(retryAt)
+
+  return Number.isNaN(end) ? null : Math.max(0, Math.ceil((end - now) / 1000))
+}
+
 /** One transfer: name, progress, speed, state word and the buttons it needs. */
 export function TransferRow({
   item,
-  onClear,
 }: {
   /** The transfer to show. */
   item: TransferView
-  /** Hides this row. It only affects this screen. */
-  onClear: (id: string) => void
 }) {
+  const retrySeconds = useRetrySeconds(item.retryAt)
   const action = useTransferAction()
   const name = baseName(item.source)
   const running = ["queued", "starting", "running"].includes(item.state)
-  const finished = ["done", "canceled", "failed"].includes(item.state)
   const done = percent(item.bytes, item.size)
   const act = (choice: "pause" | "resume" | "cancel") =>
     action.mutate({ id: item.id, action: choice })
@@ -69,7 +84,7 @@ export function TransferRow({
               Resume
             </Button>
           ) : null}
-          {item.state === "failed" ? (
+          {item.state === "failed" && retrySeconds === null ? (
             <Button size="sm" variant="outline" onClick={() => act("resume")}>
               Retry
             </Button>
@@ -79,13 +94,13 @@ export function TransferRow({
               Cancel
             </Button>
           ) : null}
-          {finished ? (
-            <Button size="sm" variant="ghost" onClick={() => onClear(item.id)}>
-              Clear
-            </Button>
-          ) : null}
         </span>
       </div>
+      {retrySeconds !== null ? (
+        <p className="pl-23 text-xs text-muted-foreground">
+          Retrying in {retrySeconds} s (try {(item.attempt ?? 0) + 1})
+        </p>
+      ) : null}
       {item.error ? (
         <p className="pl-23 text-xs text-destructive">Failed: {item.error}</p>
       ) : null}

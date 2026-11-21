@@ -79,8 +79,9 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Local room and peer folder listing | `internal/api/files.go` |
 | Canonical room root and per-session manager creation | `internal/api/rooms.go` |
 | Main-only header guard, consented file import and downloads root configuration | `internal/api/room_files.go` |
+| Main-only save into a Save-dialog folder (`POST /api/transfers/save`) | `internal/api/save_transfer.go` |
 | Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
-| Transfer routes, the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
+| Transfer routes, clear (`POST /api/transfers/clear`), main-only limits (`PUT /api/transfers/limits`), the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
 | Manager adapter, direction/path mapping, state/progress events and subscription recovery | `internal/api/transfer_manager.go` (`managedTransfers`), `internal/api/session.go` (manager lifetime) |
 | One event hub, bounded client queues, snapshot-first WebSocket (also `forward.changed`) | `internal/api/live.go` (`hub`, `Event`, `Snapshot`) |
 | Shared-app routes, state and live change hook | `internal/api/forwards.go` |
@@ -141,15 +142,19 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
 | Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
 | Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
-| Window drag strip on top of each column (no window-wide title bar; 138 px kept free for the native buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
+| Window drag strips for the black rail and app toolbar (138 px kept free for native caption buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
 | Update available button and dialog with per-version dismissal, shown in the main top bar | `src/renderer/src/components/update-button.tsx`, `update-button.test.tsx` beside it |
+| Spaces home hero and saved-room cards; real current membership seats | `src/renderer/src/routes/-components/home-board.tsx`, `empty-state.tsx` |
+| Spaces five-tile board, expand/return state and People header join notice | `src/renderer/src/routes/-components/room-view.tsx` |
+| Session attachment file collection, file picker/drop and existing download cards | `src/renderer/src/routes/-components/room-files.tsx` |
 | Shell pieces: main top bar, empty state, join form and dialog, new-room name dialog, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `new-room-dialog`, `share-code`, `code-countdown`, `name-editor`) |
 | Update event subscription and initial-read race guard, shared by Settings and the update button | `src/renderer/src/components/use-update-status.ts` |
 | Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and the update dialog | `src/renderer/src/components/update-release.tsx` |
 | `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |
 | Recent rooms store: `recent-rooms.json` in userData, max 20, 30-day prune, atomic write, change listeners | `src/main/recent-rooms.ts`, `src/main/recent-rooms.test.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
-| Room file IPC, canonical folder opening and main-only HTTP calls | `src/main/room-ipc.ts` (`registerRoomIpc`, `roomFolder`, `callMainApi`) |
+| Room file IPC (a big drop is cut into 100-path calls), the `startDownload` Save dialog ("Ask every time"), canonical folder opening and main-only HTTP calls | `src/main/room-ipc.ts` (`registerRoomIpc`, `roomFolder`, `callMainApi`) |
+| Transfer count and speed caps sent to the sidecar after ready and on change | `src/main/limits.ts` (`createLimits`), `limits.test.ts` |
 | Real sidecar process (spawn, both tokens, room storage env, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
 | Health check call | `src/main/health.ts` |
@@ -163,7 +168,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
 | Query client and hash router | `src/renderer/src/main.tsx` |
 | Root outlet, live socket start, sidecar banner, announcements | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/components/sidecar-banner.tsx`, `src/renderer/src/components/status-region.tsx` |
-| App shell: rooms sidebar (New room, Join, search), room (header with Open folder, chat column, transfers panel at the bottom), members column; panel sizes saved per computer | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` (`room-sidebar`, `room-view`, `room-header`, `room-chat`, `members-panel`, `transfers-panel`, `panel-layout.ts`, `recent-rooms.ts`) |
+| Spaces shell: black room rail (New room, Join, search), home board, room board and heading; rail visibility saved; retired member/transfer and size preferences ignored | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` (`room-sidebar`, `room-view`, `room-header`, `room-chat`, `members-panel`, `transfers-panel`, `panel-layout.ts`, `recent-rooms.ts`) |
 | Local join prompt, pending/error state and Allow/Deny actions | `src/renderer/src/routes/-components/join-request.tsx`, `join-request.test.tsx` beside it |
 | Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
 | Byte, speed, time and date text | `src/renderer/src/lib/format.ts` |
@@ -184,13 +189,15 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Job | Owner |
 | --- | --- |
 | Transfer states, snapshots, events and ID validation | `internal/services/transfer/transfer.go` (`State`, `Transfer`, `Event`) |
-| Queue, two shared slots, pause, cancel, resume and lifetime | `internal/services/transfer/manager.go` (`Manager`, `New`, `Attach`, `Done`) |
+| Queue, shared slots (`SetSlots`), pause, cancel, resume and lifetime | `internal/services/transfer/manager.go` (`Manager`, `New`, `Attach`, `Done`) |
+| Automatic retry, slot count and clearing finished rows | `internal/services/transfer/retry.go` (`planRetryLocked`, `SetSlots`, `Forget`) |
+| Upload and download speed caps | `internal/services/transfer/limit.go` (`SetLimits`) |
 | Offer and download-resume checks, duplicate offer refusal | `internal/services/transfer/offer.go` |
 | Data streams, bounded ID header, duplicate waiter refusal | `internal/services/transfer/stream.go` |
 | Negotiation, transfer execution and receiver verdicts | `internal/services/transfer/run.go` |
 | Source hashing and exact-size sending | `internal/services/transfer/send.go` |
 | Download destination configuration, root pinning and reserved names | `internal/services/transfer/downloads.go`, `manager.go` |
-| Partial receive, full checksum and commit | `internal/services/transfer/receive.go` |
+| Partial receive, prefix checkpoint check on resume, full checksum and commit | `internal/services/transfer/receive.go` (`checkPrefix`, `saveCheckpoint`), `internal/services/share/partial_policy.go` (`SavePartialPrefix`, `PartialPrefix`) |
 | Throttled progress, average speed and subscriptions | `internal/services/transfer/progress.go` (`Subscribe`) |
 | Real-session upload/download, pause, disconnect, cancel and queue tests | `internal/services/transfer/transfer_test.go` |
 | Path, partial, duplicate ID, waiter and resume guards | `internal/services/transfer/guard_test.go` |
@@ -212,17 +219,3 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Cancellable source/partial hashes and size-scaled download offer deadline | `internal/services/transfer/send.go`, `receive.go`, `run.go` |
 | Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |
 | Backend audit regressions, offline network abuse checks and actual Windows short alias | `internal/services/{share,peer,mesh,session,transfer}/audit*_test.go`, `internal/api/audit_test.go` |
-
-## Screen sharing
-
-| Job | Owner |
-| --- | --- |
-| One recording per member, optional room list/announce methods, late joins, viewer counts, bounded epochs and lifecycle | `internal/services/screen/screen.go` |
-| Session stream kind 2, bounded frame reads/writes, authenticated viewer open/serve and independent slow-viewer disconnect | `internal/services/screen/stream.go` |
-| Screen controls, dedicated token-authenticated binary ingest/watch sockets and live metadata hook | `internal/api/screen.go`; registration and lifetime in `server.go`, `session.go`, snapshots in `live.go` |
-| Local-relay three-member fanout, byte order, late joins, stalled viewer isolation, stop/leave, unknown IDs and token tests | `internal/api/screen_test.go`; frame/epoch/queue bounds in `internal/services/screen/screen_test.go` |
-| Opaque source choices, expiry, one-use main-frame video grants and sender-checked IPC | `web/apps/desktop/src/main/screen-capture.ts`, `screen-capture.test.ts`; wiring in `main/index.ts` |
-| Capture choice bridge types, validation and narrow preload channels | `web/apps/desktop/src/shared/{bridge,ipc-schema}.ts`, `src/preload/index.ts`, `preload.test.ts` |
-| Screen tab, source picker, viewer video/fullscreen and visible persistent Stop sharing bar | `web/apps/desktop/src/renderer/src/routes/-components/{screen-panel,room-view}.tsx`, `screen-panel.test.tsx` |
-| Local screen metadata/query and binary connection client; live reducer | `web/apps/desktop/src/renderer/src/lib/api/screens.ts`, `types.ts`, `keys.ts`; `lib/live/apply.ts`, `apply.test.ts` |
-| Bounded MediaRecorder capture epochs, ordered MediaSource playback, trim/live-edge and cleanup | `web/apps/desktop/src/renderer/src/lib/media/{screen-recorder,screen-player}.ts` and adjacent tests |

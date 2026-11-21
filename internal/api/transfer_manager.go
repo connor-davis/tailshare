@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"time"
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
 	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/connor-davis/tailshare/internal/services/transfer"
 )
 
@@ -26,9 +28,15 @@ func transferItem(item transfer.Transfer) TransferItem {
 		source, destination = item.PeerPath, item.LocalPath
 	}
 
+	retryAt := ""
+	if !item.RetryAt.IsZero() {
+		retryAt = item.RetryAt.UTC().Format(time.RFC3339)
+	}
+
 	return TransferItem{
 		ID: item.ID, Direction: string(item.Direction), Source: source, Destination: destination,
 		Size: item.Size, Bytes: item.Bytes, State: string(item.State), Error: item.Reason,
+		Attempt: item.Attempt, RetryAt: retryAt,
 	}
 }
 
@@ -41,6 +49,13 @@ func (adapter *managedTransfers) Enqueue(ctx context.Context, request TransferRe
 		item, err = adapter.manager.Download(ctx, request.Source, request.Destination)
 	}
 
+	return transferItem(item), err
+}
+
+func (adapter *managedTransfers) EnqueueInto(
+	ctx context.Context, request TransferRequest, root *share.Root,
+) (TransferItem, error) {
+	item, err := adapter.manager.DownloadInto(ctx, request.Source, request.Destination, root)
 	return transferItem(item), err
 }
 
@@ -83,6 +98,10 @@ func (adapter *managedTransfers) Cancel(_ context.Context, id string) (TransferI
 	}
 
 	return adapter.find(id)
+}
+
+func (adapter *managedTransfers) Clear(context.Context) ([]string, error) {
+	return adapter.manager.Forget(), nil
 }
 
 func (adapter *managedTransfers) List() []TransferItem {
@@ -135,6 +154,17 @@ func (adapter *managedTransfers) Subscribe() (<-chan TransferEvent, func()) {
 				case event, open := <-subscription.Events:
 					if !open {
 						break consume
+					}
+					if event.Kind == "removed" {
+						for _, id := range event.IDs {
+							delete(states, id)
+						}
+						select {
+						case events <- TransferEvent{Type: "transfer.removed", IDs: event.IDs}:
+						case <-ctx.Done():
+							return
+						}
+						continue
 					}
 					if event.Transfer != nil && !send(*event.Transfer, false) {
 						return

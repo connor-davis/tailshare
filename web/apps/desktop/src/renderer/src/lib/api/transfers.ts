@@ -31,17 +31,23 @@ function addIfNew(client: QueryClient, item: TransferItem): void {
   if (!list.some((entry) => entry.id === item.id)) upsertTransfer(client, item)
 }
 
-/** Ask the sidecar to move one file. The live socket reports its progress. */
+/**
+ * Starts a download. Main decides the place: a Save dialog for "Ask every time",
+ * the save folder otherwise. Resolves to null when the person cancels. The
+ * live socket reports progress.
+ */
 export function useStartTransfer() {
   const client = useQueryClient()
 
   return useMutation({
-    mutationFn: (request: TransferRequest) =>
-      apiFetch<TransferItem>("/api/transfers", {
-        method: "POST",
-        body: request,
-      }),
-    onSuccess: (item) => addIfNew(client, item),
+    mutationFn: async (request: TransferRequest) =>
+      (await window.tailshare.startDownload({
+        source: request.source,
+        name: request.destination,
+      })) as TransferItem | null,
+    onSuccess: (item) => {
+      if (item) addIfNew(client, item)
+    },
   })
 }
 
@@ -63,5 +69,22 @@ export function useTransferAction() {
             { method: "POST" }
           ),
     onSuccess: (item) => addIfNew(client, item),
+  })
+}
+
+/** Clears finished rows on the sidecar. Running and paused work stays. */
+export function useClearTransfers() {
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ removed: string[] }>("/api/transfers/clear", {
+        method: "POST",
+      }),
+    // The socket also sends "transfer.removed"; this covers a slow socket.
+    onSuccess: ({ removed }) =>
+      client.setQueryData<TransferView[]>(keys.transfers, (list = []) =>
+        list.filter((entry) => !removed.includes(entry.id))
+      ),
   })
 }

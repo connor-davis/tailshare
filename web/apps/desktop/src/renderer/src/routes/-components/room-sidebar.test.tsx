@@ -55,6 +55,7 @@ function show(session: SessionState) {
   const onNewRoom = vi.fn()
   const onJoin = vi.fn()
   const onRejoin = vi.fn()
+  const onReopen = vi.fn()
   render(
     <TooltipProvider>
       <RoomSidebar
@@ -63,11 +64,12 @@ function show(session: SessionState) {
         onNewRoom={onNewRoom}
         onJoin={onJoin}
         onRejoin={onRejoin}
+        onReopen={onReopen}
       />
     </TooltipProvider>
   )
 
-  return { onNewRoom, onJoin, onRejoin }
+  return { onNewRoom, onJoin, onRejoin, onReopen }
 }
 
 describe("RoomSidebar", () => {
@@ -124,11 +126,24 @@ describe("RoomSidebar", () => {
     expect(onJoin).toHaveBeenCalledWith("7K3Q9PXM")
   })
 
+  it("reopens a recent room as its host", async () => {
+    const { onReopen } = show(idle)
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Reopen Pat's room" })
+    )
+    expect(onReopen).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Pat's room", code: "7K3Q9PXM" })
+    )
+  })
+
   it("rejoins a recent room from its row, and forgets it", async () => {
     const { onRejoin } = show(idle)
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Rejoin Pat's room" })
+      await screen.findByRole("button", {
+        name: "Rejoin Pat's room, recent room",
+      })
     )
     expect(onRejoin).toHaveBeenCalledWith("7K3Q9PXM")
 
@@ -147,20 +162,22 @@ describe("RoomSidebar", () => {
 
   it("filters recent rooms by name or code as you type", async () => {
     show(idle)
-    await screen.findByRole("button", { name: "Rejoin Pat's room" })
+    await screen.findByRole("button", {
+      name: "Rejoin Pat's room, recent room",
+    })
 
     fireEvent.change(screen.getByLabelText("Search rooms"), {
       target: { value: "7k3q" },
     })
     expect(
-      screen.getByRole("button", { name: "Rejoin Pat's room" })
+      screen.getByRole("button", { name: "Rejoin Pat's room, recent room" })
     ).toBeTruthy()
 
     fireEvent.change(screen.getByLabelText("Search rooms"), {
       target: { value: "zzz" },
     })
     expect(
-      screen.queryByRole("button", { name: "Rejoin Pat's room" })
+      screen.queryByRole("button", { name: "Rejoin Pat's room, recent room" })
     ).toBeNull()
     expect(screen.getByText("No rooms match")).toBeTruthy()
   })
@@ -247,4 +264,34 @@ describe("RoomSidebar", () => {
       /Could not save that/
     )
   })
+})
+
+it("names the current room and shows its host status in a tooltip", async () => {
+  show({
+    state: "hosting",
+    role: "host",
+    roomName: "Studio room",
+    code: "7K3Q9PXM",
+  })
+  const current = screen.getByRole("button", {
+    name: "Open Studio room, host, current room",
+  })
+  expect(current.getAttribute("aria-current")).toBe("page")
+  fireEvent.focus(current)
+  expect((await screen.findByRole("tooltip")).textContent).toContain(
+    "Studio room · Host · Open now"
+  )
+})
+
+it("lets keyboard users read a disabled recent room and why rejoin is unavailable", async () => {
+  show(connected)
+  const rejoin = await screen.findByRole("button", {
+    name: "Rejoin Pat's room, recent room",
+  })
+  expect(rejoin.hasAttribute("disabled")).toBe(true)
+  expect(rejoin.parentElement?.getAttribute("tabindex")).toBe("0")
+  fireEvent.focus(rejoin.parentElement!)
+  const tooltip = await screen.findByRole("tooltip")
+  expect(tooltip.textContent).toContain("Pat's room · Recent")
+  expect(tooltip.textContent).toContain("Leave this room first")
 })

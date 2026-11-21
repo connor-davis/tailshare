@@ -23,9 +23,9 @@ func (manager *Manager) receiverRoot(item *job) *share.Root {
 	return manager.root
 }
 
-func (manager *Manager) downloadBusyLocked(local string) bool {
+func (manager *Manager) downloadBusyLocked(root *share.Root, local string) bool {
 	for _, item := range manager.jobs {
-		if !item.sender && item.root == manager.downloadRoot &&
+		if !item.sender && item.root == root &&
 			item.view.State != Canceled && strings.EqualFold(item.local, local) {
 			return true
 		}

@@ -20,7 +20,7 @@ export function RoomHeader({
   leaving,
   code,
   roomCode,
-  startedAt = null,
+  expiresAt = null,
 }: {
   /** True when this computer is the host, so Leave ends the room for all. */
   host?: boolean
@@ -36,8 +36,8 @@ export function RoomHeader({
   code?: string
   /** The room's own code, host or joiner, for finding its folder. */
   roomCode?: string
-  /** Epoch milliseconds the room opened, for the code countdown. */
-  startedAt?: number | null
+  /** When the code stops working, from the sidecar. */
+  expiresAt?: string | null
 }) {
   const live = useLiveStatus()
   const [folderError, setFolderError] = useState(false)
@@ -50,17 +50,20 @@ export function RoomHeader({
   }, [live])
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-card px-3">
+    <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b bg-card px-3 py-2">
       {peer ? (
-        <p className="min-w-0 flex-1 truncate">
-          <span className="font-medium" title={roomName ?? peer.displayName}>
+        <p className="min-w-40 flex-1 truncate">
+          <span
+            className="text-xl font-semibold"
+            title={roomName ?? peer.displayName}
+          >
             {roomName ?? peer.displayName}
           </span>
         </p>
       ) : (
-        <p className="min-w-0 flex-1 truncate">
+        <p className="min-w-40 flex-1 truncate">
           {roomName ? (
-            <span className="font-medium" title={roomName}>
+            <span className="text-xl font-semibold" title={roomName}>
               {roomName}
               <span className="font-normal text-muted-foreground">
                 {" "}
@@ -68,11 +71,13 @@ export function RoomHeader({
               </span>
             </span>
           ) : (
-            <span className="font-medium">Waiting for someone to join…</span>
+            <span className="text-xl font-semibold">
+              Waiting for someone to join…
+            </span>
           )}
           <span className="text-sm text-muted-foreground">
             {" "}
-            · <CodeCountdown startedAt={startedAt} />
+            · <CodeCountdown expiresAt={expiresAt} />
           </span>
         </p>
       )}
