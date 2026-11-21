@@ -27,6 +27,11 @@ export function JoinRequest({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="break-words">{join.displayName}</p>
+        {join.fingerprint ? (
+          <p className="text-xs text-muted-foreground">
+            Fingerprint <span className="font-mono">{join.fingerprint}</span>
+          </p>
+        ) : null}
         <p className="text-muted-foreground">
           Let this computer into the room?
         </p>

@@ -66,6 +66,15 @@ export function useAllowJoin() {
   )
 }
 
+/** Remove one member from the room. Only the host can; the sidecar says so otherwise. */
+export function useRemoveMember() {
+  return useSessionCall<string>((id) =>
+    apiFetch<SessionState>(`/api/session/members/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    })
+  )
+}
+
 /** Refuse the current join request. */
 export function useDenyJoin() {
   return useSessionCall<number>((id) =>

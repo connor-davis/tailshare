@@ -57,7 +57,7 @@ function Dot({ live }: { live: boolean }) {
       aria-hidden
       className={
         live
-          ? "size-2 shrink-0 rounded-full bg-green-500"
+          ? "size-2 shrink-0 rounded-full bg-success"
           : "size-2 shrink-0 rounded-full bg-muted-foreground/40"
       }
     />
@@ -203,7 +203,10 @@ export function RoomSidebar({
               <Label id="open-room">Rooms</Label>
               <p className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary">
                 <Dot live />
-                <span className="min-w-0 flex-1 truncate">{live}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="sr-only">Open now: </span>
+                  {live}
+                </span>
                 {session.members?.length ? (
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {session.members.length}

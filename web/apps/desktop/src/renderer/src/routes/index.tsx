@@ -197,6 +197,7 @@ function Shell() {
       <RoomView
         peer={session.peer}
         roomName={session.roomName}
+        host={session.role === "host"}
         leaving={leave.isPending}
         code={
           session.role === "host"

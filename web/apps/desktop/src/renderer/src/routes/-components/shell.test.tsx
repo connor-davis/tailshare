@@ -34,6 +34,7 @@ vi.mock("@/lib/api/session", () => {
     useHost: action(mocks.hostMutate),
     useJoin: action(mocks.joinMutate),
     useLeave: action(vi.fn()),
+    useRemoveMember: action(vi.fn()),
   }
 })
 vi.mock("@/lib/api/transfers", () => ({
