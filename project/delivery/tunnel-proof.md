@@ -27,7 +27,13 @@ Script: `mystuff/proof/screen-proof.mjs`. Result: PASS.
 - Real capture and playback were also checked in Electron (canvas recording
   through MediaSource across three epochs, desktop tests).
 
-## Still to record
+## Two PCs (owner, 2026-11-21)
 
-- The same two checks on two physical PCs on different networks, with real
-  screen capture. The owner runs this on the nightly; results get added here.
+The owner installed stable v0.1.2 (`Tailshare-Setup-0.1.2.exe`) on two physical
+PCs, joined one room by code and reported both checks passed:
+
+- A local web server shared from one PC through the Apps tab opened on the
+  other PC.
+- A live screen share (real capture) showed on the other PC.
+
+Reported by the owner in the session; no logs were captured on the PCs.
