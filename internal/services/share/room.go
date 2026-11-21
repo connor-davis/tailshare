@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"time"
 )
 
 // OpenRoom creates or reopens a child folder without following links outside rooms.
@@ -27,5 +28,10 @@ func OpenRoom(rooms, name string) (*Root, error) {
 	if err != nil {
 		return nil, ErrDenied
 	}
-	return &Root{root: root, name: name}, nil
+	shared := &Root{root: root, name: name}
+	if err := shared.prunePartials(time.Now().Add(-7 * 24 * time.Hour)); err != nil {
+		_ = shared.Close()
+		return nil, err
+	}
+	return shared, nil
 }

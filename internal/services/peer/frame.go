@@ -67,8 +67,8 @@ func readFrame(reader io.Reader) ([]byte, error) {
 		return nil, errFrameSize
 	}
 
-	payload := make([]byte, size)
-	if _, err := io.ReadFull(reader, payload); err != nil {
+	var payload bytes.Buffer
+	if _, err := io.CopyN(&payload, reader, int64(size)); err != nil {
 		if errors.Is(err, io.EOF) {
 			err = io.ErrUnexpectedEOF
 		}
@@ -76,5 +76,5 @@ func readFrame(reader io.Reader) ([]byte, error) {
 		return nil, err
 	}
 
-	return payload, nil
+	return payload.Bytes(), nil
 }

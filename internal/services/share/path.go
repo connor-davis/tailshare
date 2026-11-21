@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 	"unicode"
 )
@@ -47,12 +49,13 @@ func Localize(wire string) (string, error) {
 
 	// Lexical rules first: they are stricter than any one operating system.
 	// A colon covers drive letters (C:, C:\) and NTFS alternate streams (a:b).
-	if strings.ContainsAny(wire, "\\:\x00") || !fs.ValidPath(wire) {
+	if len(wire) > 4096 || strings.ContainsAny(wire, "\\:\x00") || !fs.ValidPath(wire) {
 		return "", ErrBadPath
 	}
 
 	for part := range strings.SplitSeq(wire, "/") {
-		if part == "." || part == ".." || hasControl(part) || isReserved(part) ||
+		if len(part) > 255 || shortAlias(part) || part == "." || part == ".." ||
+			hasControl(part) || isReserved(part) ||
 			strings.HasSuffix(strings.ToLower(strings.TrimRight(part, ". ")), PartialSuffix) {
 			return "", ErrBadPath
 		}
@@ -81,3 +84,19 @@ func isReserved(part string) bool {
 
 	return reserved[strings.ToUpper(strings.TrimRight(name, " "))]
 }
+
+// shortAlias reports a Windows 8.3 short name such as PROGRA~1 or FOO~12.TXT.
+// Such a name can reach a file whose long name is hidden (a partial), so it is
+// refused; longer names that merely contain "~2" stay allowed.
+func shortAlias(part string) bool {
+	if runtime.GOOS != "windows" {
+		return false
+	}
+
+	// An 8.3 base is at most eight characters, the ~N tail included.
+	base, _, _ := strings.Cut(part, ".")
+
+	return len(base) <= 8 && shortAliasPattern.MatchString(part)
+}
+
+var shortAliasPattern = regexp.MustCompile(`^[^.~]{1,7}~[0-9]{1,6}(\.[^.]{0,3})?$`)

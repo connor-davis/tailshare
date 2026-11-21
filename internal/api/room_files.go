@@ -65,6 +65,19 @@ func (server *Server) putDownloads(c fiber.Ctx) error {
 	if err := os.MkdirAll(in.Folder, 0o700); err != nil {
 		return apperr.BadRequest("Could not create the downloads folder.")
 	}
+	server.mu.Lock()
+	for _, existing := range server.downloadRoots {
+		if existing.SameFolder(in.Folder) {
+			server.downloadRoot = existing
+			if server.manager != nil {
+				server.manager.SetDownloadRoot(existing)
+			}
+			server.pruneDownloadRootsLocked()
+			server.mu.Unlock()
+			return c.JSON(fiber.Map{"ok": true})
+		}
+	}
+	server.mu.Unlock()
 	root, err := share.Open(in.Folder)
 	if err != nil {
 		return apperr.BadRequest("Could not open the downloads folder.")
@@ -77,11 +90,39 @@ func (server *Server) putDownloads(c fiber.Ctx) error {
 		return errNotConnected()
 	}
 
-	// Old roots stay open for paused transfers; shutdown closes them after workers stop.
-	server.downloadRoots = append(server.downloadRoots, root)
+	for _, existing := range server.downloadRoots {
+		if existing.SameFolder(in.Folder) {
+			_ = root.Close()
+			root = existing
+			break
+		}
+	}
+	// Resumable jobs pin old roots until their manager is released.
+	known := false
+	for _, existing := range server.downloadRoots {
+		if existing == root {
+			known = true
+		}
+	}
+	if !known {
+		server.downloadRoots = append(server.downloadRoots, root)
+	}
 	server.downloadRoot = root
 	if server.manager != nil {
 		server.manager.SetDownloadRoot(root)
 	}
+	server.pruneDownloadRootsLocked()
 	return c.JSON(fiber.Map{"ok": true})
+}
+
+func (server *Server) pruneDownloadRootsLocked() {
+	roots := server.downloadRoots[:0]
+	for _, root := range server.downloadRoots {
+		if root == server.downloadRoot || (server.manager != nil && server.manager.PinsRoot(root)) {
+			roots = append(roots, root)
+		} else {
+			_ = root.Close()
+		}
+	}
+	server.downloadRoots = roots
 }

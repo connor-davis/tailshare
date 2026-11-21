@@ -26,6 +26,10 @@ export const CHANNELS = {
   touchRecentRoom: "tailshare:touch-recent-room",
   removeRecentRoom: "tailshare:remove-recent-room",
   recentRoomsChanged: "tailshare:recent-rooms-changed",
+  getCurrentRoom: "tailshare:get-current-room",
+  setCurrentRoom: "tailshare:set-current-room",
+  getDownloadsStatus: "tailshare:get-downloads-status",
+  downloadsStatus: "tailshare:downloads-status",
 } as const
 
 /** Our own bridge methods take no arguments, so any extra one is refused. */
@@ -66,6 +70,17 @@ export const WindowStateSchema = Schema.Struct({
 
 /** A room code: 8 uppercase Crockford characters, no dash. */
 export const JoinCodeSchema = Schema.String.check(Schema.isPattern(JOIN_CODE))
+
+/** The open room, or `null` when none is. The name may be empty. */
+export const CurrentRoomSchema = Schema.NullOr(
+  Schema.Struct({
+    name: Schema.String.check(Schema.isMaxLength(64)),
+    code: JoinCodeSchema,
+  })
+)
+
+/** Whether downloads have a working folder. */
+export const DownloadsStatusSchema = Schema.Struct({ ok: Schema.Boolean })
 
 /** One saved room. The name is 1 to 64 characters, the time is in ms. */
 export const RecentRoomSchema = Schema.Struct({

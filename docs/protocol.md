@@ -14,8 +14,13 @@ mesh address. The 30-second join-line deadline is cleared before hello.
 
 Both sides then say hello. `share.roster` waits for local Allow or Deny.
 The prompt expires after 60 seconds with `join_denied`; the whole join call
-has 90 seconds. Allow starts a separate 30-second preparation window and stops
-the unused-code expiry. `share.links` prepares all members before the joiner
+has 90 seconds. Allow starts a separate 30-second preparation window. Only a
+registered mesh control stream stops the unused-code expiry. At most four
+bootstrap streams are held at once. Deny backs off that authenticated client
+key and claimed mesh identity for 60 seconds; the bounded deny table holds
+at most 256 keys. Refusals close after a 100 ms grace for their reply.
+The local pending-join JSON includes `fingerprint`, the first twelve hex
+characters of SHA-256 of the authenticated client public-key string. `share.links` prepares all members before the joiner
 dials independently keyed mesh links. The admission stream then closes.
 
 Every **mesh** Tailcat stream starts with one byte: `C` for control, `D` for
@@ -24,7 +29,9 @@ the source key before reading exactly one prefix byte, with a 5-second read
 deadline that is cleared afterwards. Bad prefixes and unknown sources close.
 `C` is followed by control frames; `D` by the existing 26-byte transfer ID and
 file data. Each member has a separate incoming data queue capped at 8 streams;
-an excess stream closes. Only the link dialer opens data streams.
+an excess stream closes. Prefix reads run independently, with at most twelve
+incoming streams per member and one pending control stream per member.
+Only the link dialer opens data streams.
 
 ## Two kinds of stream
 
@@ -41,7 +48,7 @@ A frame is a 4-byte big-endian length, then that many bytes of JSON.
 
 - A length of 0, or over 1 MiB (`1 << 20`), is an error.
 - The length is checked before any memory is set aside, so a peer cannot make
-  us allocate more than 1 MiB.
+  us allocate more than 1 MiB. Bodies grow incrementally as bytes arrive.
 - The header and the body go out in one `Write`, so half a frame is never sent.
 
 Owner: `internal/services/peer/frame.go`.
@@ -89,7 +96,7 @@ Until hello is done, any other request gets `not_ready`.
 | `stat` | request | One file or folder (`path`). |
 | `chat` | request | One chat message. |
 | `transfer.offer` | request | Offers a file in one direction. |
-| `transfer.cancel` | request | Stops a transfer. |
+| `transfer.cancel` | event | Stops a transfer. |
 | `transfer.resume` | request | Asks to continue from an offset. |
 | `transfer.complete` | event | The file arrived and was verified. |
 | `transfer.failed` | event | The transfer stopped early. |
@@ -136,7 +143,7 @@ details before local approval. Ordinary mesh peers get only `share.admit`.
 | Method | Params | Result |
 | --- | --- | --- |
 | `share.roster` | Omitted or `{}` | `{members:[{id,displayName,address,joinOrder}]}`, including the approved joiner. |
-| `share.links` | `{links:[{id,linkKey}]}` | `{}` after every existing member has prepared its expected key. |
+| `share.links` | `{links:[{id,linkKey}]}` | `{removed?:[id]}` after preparing reachable members; removed links must be closed and skipped. |
 | `share.admit` | `{joinerId,joinerName,joinerAddress,joinOrder,linkKey}` | `{}` after recording the member and allowing the key. |
 | `share.leave` | `{}` | Event; no reply. Its sender is the authenticated member on the link. |
 
@@ -147,7 +154,9 @@ details before local approval. Ordinary mesh peers get only `share.admit`.
 - Share payloads, including roster results, are at most 16 KiB. Each address
   is at most 4 KiB. Unknown request fields, missing required values, duplicate
   IDs/orders, and reused keys get `bad_request`. A received roster must
-  include the receiver exactly once, with its own address and name intact.
+  include the receiver exactly once with its own address intact. Duplicate
+  display names (ignoring case and surrounding whitespace) are suffixed on
+  admission with the joiner's mesh-key fingerprint, within 64 characters.
 - `share.links` names exactly the existing roster, with a different fresh
   node key for each target. A server identity cannot double as a dialing
   key. Offered keys are not reused, even after an admission fails or a
@@ -156,7 +165,10 @@ details before local approval. Ordinary mesh peers get only `share.admit`.
   Its identity comes from the authenticated link, never from JSON. A joiner
   cannot install itself twice or choose an order older than a known member.
 - The admitter waits for every `share.admit` reply before answering
-  `share.links`. A failed member preparation returns `join_failed`. A prepared
+  `share.links`. A member that refuses preparation or lacks a control stream
+  is removed and its link closed; other preparations continue. The optional
+  `removed` reply field lets the joiner discard those links. Older version-2
+  joiners ignore that field and may need to retry after such a removal. A prepared
   member that never opens a link is forgotten after 30 seconds. One locally
   approved admission may prepare at a time (`busy` for a second); its slot
   expires after 30 seconds. The session layer owns the separate Allow prompt.
@@ -179,7 +191,8 @@ Owners: `internal/services/peer/share.go` (wire types),
 - `chat` carries an `id` and `text` (and the sender's `sentAt`).
 - Optional `attachment` is `{ "name": "file.pdf", "path": "docs/file.pdf", "size": 123 }`.
   `path` is relative to the sender's room and passes `share.Localize`; `name`
-  is its base name and `size` is nonnegative. The sender stats its own room file
+  is its base name (at most 255 bytes), `path` is at most 4096 bytes, and
+  `size` is between zero and 1 TiB. The sender stats its own room file
   to fill metadata. Invalid remote attachments reject the whole message with
   `bad_request` and are never recorded. Empty text is allowed only with an attachment.
   JSON decoding ignores unknown fields, so this adds no protocol version. Older
@@ -225,3 +238,33 @@ offerer sends the file. The receiver of the offer flips it with its own
 `initiator` flag to learn whether it sends or receives (`newJobLocked` in
 `internal/services/transfer/manager.go`). `path` in the offer is a slash path
 on the computer that receives it.
+
+## Resource limits and local member removal
+
+Every peer path is at most 4096 bytes with components at most 255 bytes.
+Windows also refuses components containing `~` followed by a digit, blocking
+8.3 aliases of private partials. Directory listings are cached for two seconds
+(up to 128 directories), invalidated when directory modification time changes.
+
+Transfer methods accept only the control conversation attached to the local
+transfer manager. Offers on that conversation are capped at four per second.
+Refused offers leave no retained queue entry; terminal history keeps at most
+200 jobs. Downloads allow hash preparation at one second per MiB plus the
+30-second negotiation window. Source and verification hashing check cancellation
+at least every MiB. Stream and receiver-verdict waits remain thirty seconds.
+
+Upload admission and download preparation reserve 64 MiB of free disk space,
+including remaining active receive sizes. Private partial metadata records
+sender mesh identity, SHA-256 and size; resumption requires an exact match.
+Unowned nonempty legacy partials are refused. A restarted session has new mesh
+identities and cannot claim an old identity's partial. Rooms cap private partial
+entries at 200 and partial bytes and reserved sizes plus the proposed file at 1 TiB. Room open
+prunes private files older than seven days without following directory links.
+Explicit sender upload failures cancel the receiver and remove its partial;
+pause and transport loss retain it. Verified partials survive publication errors.
+
+`DELETE /api/session/members/:id` is a local authenticated API action for the
+lowest surviving join-order member only. It refuses self-removal and closes
+the removed member's control, incoming streams and outgoing link. There is no
+peer kick method. Local member JSON includes optional `fingerprint` (twelve hex
+characters derived from the mesh public-key string). Protocol version stays 2.

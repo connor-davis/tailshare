@@ -511,6 +511,45 @@ describe("room file IPC", () => {
     ).rejects.toThrow("Could not open the room folder.")
   })
 
+  it("keeps the current room in main for a reloaded page", async () => {
+    const { registerRoomIpc } = await import("./room-ipc")
+    const handlers = new Map<string, Handler>()
+    registerRoomIpc(
+      {
+        handle: (channel, handler) => handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      {
+        roomsDir: "C:/rooms",
+        pickFiles: async () => null,
+        addFiles: async () => ({ added: [], skipped: [] }),
+        openPath: async () => "",
+      }
+    )
+    const call = (channel: string, sender: boolean, args: unknown[]) =>
+      handlers.get(channel)!(sender, args)
+    const room = { name: "Movie night", code: "7K3Q9PXM" }
+
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toBeNull()
+    await call(CHANNELS.setCurrentRoom, true, [room])
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toEqual(room)
+
+    for (const bad of [
+      { ...room, code: "nope" },
+      { name: 1, code: room.code },
+    ]) {
+      await expect(call(CHANNELS.setCurrentRoom, true, [bad])).rejects.toThrow(
+        "could not read that request"
+      )
+    }
+    await expect(call(CHANNELS.setCurrentRoom, false, [room])).rejects.toThrow()
+    await expect(call(CHANNELS.getCurrentRoom, false, [])).rejects.toThrow()
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toEqual(room)
+
+    await call(CHANNELS.setCurrentRoom, true, [null])
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toBeNull()
+  })
+
   it("sends both tokens only from main", async () => {
     const { callMainApi } = await import("./room-ipc")
     const fetcher = vi.fn(async () => ({

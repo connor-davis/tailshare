@@ -43,7 +43,7 @@ func TestCommitRefusesExisting(t *testing.T) {
 	if err := verifyAndCommit(root, "file", checksum(data)); !errors.Is(err, share.ErrExists) {
 		t.Fatalf("commit: %v", err)
 	}
-	assertMissing(t, dir, "file"+share.PartialSuffix)
+	assertFile(t, dir, "file"+share.PartialSuffix, data)
 }
 
 func TestCommitNeverReplacesExisting(t *testing.T) {
@@ -161,6 +161,9 @@ func TestDownloadPinsRootThroughResume(t *testing.T) {
 		t.Fatal(err)
 	}
 	item := manager.jobs[queued.ID]
+	if err := item.root.ClaimPartial(item.local, "local", "", 6); err != nil {
+		t.Fatal(err)
+	}
 	if err := receiveTo(manager.receiverRoot(item), item.local, 0, 3, bytes.NewBufferString("abc")); err != nil {
 		t.Fatal(err)
 	}

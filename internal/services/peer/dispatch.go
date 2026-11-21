@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -101,7 +102,7 @@ func (peer *Peer) serve(message envelope) (any, error) {
 	}
 
 	if handler, ok := peer.options.Handlers[message.Method]; ok {
-		return handler(peer.ctx, message.Params)
+		return handler(context.WithValue(peer.ctx, conversationKey{}, peer), message.Params)
 	}
 
 	return nil, &RemoteError{

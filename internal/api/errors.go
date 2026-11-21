@@ -128,7 +128,7 @@ func connectError(err error) *apperr.Error {
 		return errUnreachable()
 	}
 
-	return apperr.Unavailable(err.Error())
+	return errUnreachable()
 }
 
 // errNotConnected is the answer to a request that needs a joined session.

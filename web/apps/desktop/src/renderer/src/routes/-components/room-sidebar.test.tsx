@@ -99,6 +99,19 @@ describe("RoomSidebar", () => {
     expect(screen.queryByText("Pat's room")).toBeNull()
   })
 
+  it("says so when a recent room cannot be forgotten", async () => {
+    removeRecentRoom.mockRejectedValueOnce(new Error("disk"))
+    show(idle)
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Forget Pat's room" })
+    )
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Could not forget that room. Try again."
+    )
+  })
+
   it("opens the Join dialog and joins with a pasted link", () => {
     const { onJoin } = show(idle)
 

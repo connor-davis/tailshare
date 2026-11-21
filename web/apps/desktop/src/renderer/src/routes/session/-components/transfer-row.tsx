@@ -39,11 +39,11 @@ export function TransferRow({
 
   return (
     <li className="flex flex-col gap-1 border-b px-3 py-2">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="w-20 shrink-0 text-xs text-muted-foreground">
           {item.direction === "upload" ? "Upload" : "Download"}
         </span>
-        <span className="min-w-0 flex-1 truncate" title={item.source}>
+        <span className="min-w-32 flex-1 basis-40 truncate" title={item.source}>
           {name}
         </span>
         <Progress
@@ -58,7 +58,7 @@ export function TransferRow({
         <span className="w-20 shrink-0 text-xs font-medium">
           {STATE_WORDS[item.state]}
         </span>
-        <span className="flex shrink-0 gap-1">
+        <span className="ml-auto flex shrink-0 gap-1">
           {running ? (
             <Button size="sm" variant="outline" onClick={() => act("pause")}>
               Pause

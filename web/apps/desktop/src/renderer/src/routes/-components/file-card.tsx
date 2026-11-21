@@ -4,6 +4,7 @@ import { DownloadIcon, FileIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTransfers, useStartTransfer } from "@/lib/api/transfers"
 import type { ChatAttachment } from "@/lib/api/types"
+import { useDownloadsOk } from "@/components/use-downloads-status"
 import { formatBytes, formatSpeed, percent } from "@/lib/format"
 
 /**
@@ -22,6 +23,7 @@ export function FileCard({
 }) {
   const { data: transfers = [] } = useTransfers()
   const start = useStartTransfer()
+  const downloadsOk = useDownloadsOk()
   // The id is exact; matching by name breaks when the same file is fetched twice.
   const [transferId, setTransferId] = useState<string | null>(null)
   const transfer = transfers.find((item) => item.id === transferId)
@@ -79,7 +81,7 @@ export function FileCard({
           <Button
             size="sm"
             variant="outline"
-            disabled={start.isPending}
+            disabled={start.isPending || !downloadsOk}
             aria-label={`${note ? "Download again" : "Download"} ${attachment.name}`}
             onClick={download}
           >

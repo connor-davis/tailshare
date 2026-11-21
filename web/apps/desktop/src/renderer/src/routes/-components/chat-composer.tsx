@@ -29,8 +29,13 @@ export function ChatComposer({
   const submit = () => {
     if (!connected || value === "" || send.isPending) return
 
-    // The text stays in the box until the send worked.
-    send.mutate({ text: value }, { onSuccess: () => setText("") })
+    // The text stays in the box until the send worked. Clear it only if it is
+    // still what was sent: anything typed meanwhile is a new draft.
+    const sent = text
+    send.mutate(
+      { text: value },
+      { onSuccess: () => setText((now) => (now === sent ? "" : now)) }
+    )
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

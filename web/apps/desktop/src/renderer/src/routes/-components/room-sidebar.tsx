@@ -91,6 +91,7 @@ export function RoomSidebar({
   const [joining, setJoining] = useState(false)
   const idle = session.state === "idle"
   const [query, setQuery] = useState("")
+  const [forgetError, setForgetError] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const needle = query.trim().toLowerCase()
   const matches = (name: string, code?: string) =>
@@ -268,9 +269,12 @@ export function RoomSidebar({
                       variant="ghost"
                       className="absolute right-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
                       aria-label={`Forget ${room.name}`}
-                      onClick={() =>
-                        void window.tailshare.removeRecentRoom(room.code)
-                      }
+                      onClick={() => {
+                        setForgetError(false)
+                        window.tailshare
+                          .removeRecentRoom(room.code)
+                          .catch(() => setForgetError(true))
+                      }}
                     >
                       <XIcon aria-hidden />
                     </Button>
@@ -278,6 +282,11 @@ export function RoomSidebar({
                 ))}
               </ul>
             )}
+            {forgetError ? (
+              <p role="alert" className="px-2 text-xs text-destructive">
+                Could not forget that room. Try again.
+              </p>
+            ) : null}
           </section>
         </div>
       </ScrollArea>

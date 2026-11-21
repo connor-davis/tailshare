@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query"
 import { upsertTransfer } from "../live/apply"
 import { apiFetch } from "./client"
 import { keys } from "./keys"
@@ -19,6 +24,13 @@ export function useTransfers() {
   })
 }
 
+// A reply only adds a transfer the socket has not announced yet. If the socket
+// already told us about it, that news is newer than this answer.
+function addIfNew(client: QueryClient, item: TransferItem): void {
+  const list = client.getQueryData<TransferView[]>(keys.transfers) ?? []
+  if (!list.some((entry) => entry.id === item.id)) upsertTransfer(client, item)
+}
+
 /** Ask the sidecar to move one file. The live socket reports its progress. */
 export function useStartTransfer() {
   const client = useQueryClient()
@@ -29,7 +41,7 @@ export function useStartTransfer() {
         method: "POST",
         body: request,
       }),
-    onSuccess: (item) => upsertTransfer(client, item),
+    onSuccess: (item) => addIfNew(client, item),
   })
 }
 
@@ -50,6 +62,6 @@ export function useTransferAction() {
             `/api/transfers/${encodeURIComponent(id)}/${action}`,
             { method: "POST" }
           ),
-    onSuccess: (item) => upsertTransfer(client, item),
+    onSuccess: (item) => addIfNew(client, item),
   })
 }

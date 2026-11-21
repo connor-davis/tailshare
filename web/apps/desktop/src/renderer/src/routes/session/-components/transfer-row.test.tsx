@@ -58,3 +58,13 @@ describe("TransferRow", () => {
     expect(screen.getByText(/42%/)).toBeTruthy()
   })
 })
+
+describe("TransferRow on a narrow room", () => {
+  it("wraps its columns so the actions stay reachable", () => {
+    show("running")
+
+    const line = screen.getByText("cat.png").parentElement!
+    expect(line.className).toContain("flex-wrap")
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy()
+  })
+})

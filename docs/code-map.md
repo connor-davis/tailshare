@@ -61,8 +61,8 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Regular-file import, atomic no-replace copy and collision names | `internal/services/share/import.go` (`Import`, `AvailableName`, `NumberedName`); `import_windows.go`, `import_other.go` (link and junction checks) |
 | Open the shared folder once (`os.Root`), list, stat, close | `internal/services/share/share.go` (`Open`, `Root`) |
 | Peer path rules (slash paths, no `..`, drives, streams, device names) | `internal/services/share/path.go` (`Localize`) |
-| Partial-file access, regular-file checks and no-replace hard-link publication | `internal/services/share/partial.go` (`PartialSize`, `OpenPartial`, `ReadPartial`, `Commit`, `RemovePartial`) |
-| Private partial suffix, peer-path refusal and listing filter | `internal/services/share/path.go` (`PartialSuffix`), `internal/services/share/share.go` (`List`) |
+| Partial-file access, regular-file checks and no-replace link or reserved-name rename publication | `internal/services/share/partial.go` (`PartialSize`, `OpenPartial`, `ReadPartial`, `Commit`, `RemovePartial`) |
+| Private partial suffix, bounded peer paths, Windows alias refusal and listing filter | `internal/services/share/path.go` (`PartialSuffix`), `internal/services/share/share.go` (`List`) |
 | Confined read and exclusive-create for downloads and uploads | `internal/services/share/files.go` (`OpenRead`, `Create`) |
 | Path table, escape, link and junction tests | `internal/services/share/*_test.go` |
 
@@ -150,6 +150,8 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Real sidecar process (spawn, both tokens, room storage env, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
 | Health check call | `src/main/health.ts` |
+| Save folder applied after ready; a bad folder turns downloads off, never the engine (status get/push) | `src/main/downloads.ts`, `src/renderer/src/components/use-downloads-status.ts`, `src/renderer/src/routes/-components/downloads-alert.tsx` |
+| Current room kept in main so a reloaded page finds its code (`getCurrentRoom`/`setCurrentRoom`) | `src/main/room-ipc.ts` |
 | Sidecar binary path (dev `bin/`, packaged resources) | `src/main/config.ts` |
 | IPC handlers: sender check, schema checks, folder dialog, recent rooms get/touch/remove | `src/main/ipc.ts` |
 | IPC channel names and payload schemas | `src/shared/ipc-schema.ts` |
@@ -188,3 +190,20 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Real-session upload/download, pause, disconnect, cancel and queue tests | `internal/services/transfer/transfer_test.go` |
 | Path, partial, duplicate ID, waiter and resume guards | `internal/services/transfer/guard_test.go` |
 | Checksum, no-replace commit, byte cap and progress tests | `internal/services/transfer/receive_test.go`, `internal/services/transfer/progress_test.go` |
+
+## Backend audit guards
+
+| Job | Owner |
+| --- | --- |
+| Partial sender/hash/size ownership, partial quota and seven-day room cleanup | `internal/services/share/partial_policy.go` |
+| Available disk bytes for the current user | `internal/services/share/space_windows.go`, `space_other.go` (`FreeSpace`) |
+| Two-second directory listing cache and download-folder identity | `internal/services/share/share.go` (`List`, `SameFolder`) |
+| Incremental frame body reads and authenticated handler conversation | `internal/services/peer/frame.go`, `peer.go`, `dispatch.go` (`Conversation`, `MemberID`) |
+| Stable short public-key label and optional removed-members admission response | `internal/services/peer/share.go` (`Fingerprint`, `ShareLinksResult`) |
+| Concurrent bounded prefix routing and one pending control per member | `internal/services/mesh/link.go` (`Accept`, `routeStream`) |
+| Join stream cap, deny backoff, pending fingerprint and expiry after a linked member | `internal/services/session/host.go`, `admission.go`, `mesh.go` |
+| Admitter-only member removal route and replacement transfer manager | `internal/api/session_members.go`; `internal/services/session/mesh.go` (`RemoveMember`, `SetHandlers`) |
+| Attached-conversation transfer authorization, offer rate and refusal cleanup | `internal/services/transfer/offer.go` |
+| Cancellable source/partial hashes and size-scaled download offer deadline | `internal/services/transfer/send.go`, `receive.go`, `run.go` |
+| Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |
+| Backend audit regressions, offline network abuse checks and actual Windows short alias | `internal/services/{share,peer,mesh,session,transfer}/audit*_test.go`, `internal/api/audit_test.go` |

@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"time"
@@ -35,7 +36,19 @@ func (session *Session) acceptMesh() {
 }
 
 func (session *Session) startControl(ctx context.Context, id string, conn net.Conn) (*peer.Peer, error) {
-	handlers, err := mergeHandlers(session.mesh.Handlers(id), session.settings.options.Handlers)
+	session.mu.Lock()
+	extra := make(map[string]peer.Handler, len(session.settings.options.Handlers))
+	for method := range session.settings.options.Handlers {
+		extra[method] = func(ctx context.Context, raw json.RawMessage) (any, error) {
+			session.mu.Lock()
+			handler := session.settings.options.Handlers[method]
+			session.mu.Unlock()
+			return handler(ctx, raw)
+		}
+	}
+	session.mu.Unlock()
+
+	handlers, err := mergeHandlers(session.mesh.Handlers(id), extra)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -43,7 +56,8 @@ func (session *Session) startControl(ctx context.Context, id string, conn net.Co
 	bounded, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	control, err := peer.Start(bounded, conn, peer.Options{
-		DisplayName: session.settings.name, RoomName: session.RoomName(), Share: session.settings.options.Root, Handlers: handlers,
+		MemberID: id, DisplayName: session.settings.name, RoomName: session.RoomName(),
+		Share: session.settings.options.Root, Handlers: handlers,
 	})
 	if err != nil {
 		return nil, err
@@ -62,6 +76,9 @@ func (session *Session) startControl(ctx context.Context, id string, conn net.Co
 	}
 	subscription := control.Subscribe()
 	session.controls[id] = control
+	if session.timer != nil {
+		session.timer.Stop()
+	}
 	session.changedLocked()
 	session.mu.Unlock()
 	go session.watchMember(id, control, subscription)
@@ -103,6 +120,12 @@ func (session *Session) dropMember(id string, control *peer.Peer, clean bool) {
 	}
 	roster := session.mesh.Roster().Members
 	wasAdmitter := len(roster) != 0 && roster[0].ID == id
+	present := false
+	for _, member := range roster {
+		if member.ID == id {
+			present = true
+		}
+	}
 	_ = session.mesh.Remove(id)
 	delete(session.controls, id)
 	remaining := len(session.mesh.Roster().Members)
@@ -111,7 +134,7 @@ func (session *Session) dropMember(id string, control *peer.Peer, clean bool) {
 	session.mu.Unlock()
 	_ = control.Close()
 
-	if remaining == 1 {
+	if remaining == 1 && present {
 		_ = session.Close()
 		return
 	}
@@ -146,5 +169,44 @@ func (session *Session) dialAll(ctx context.Context, links map[string]*mesh.Link
 			return err
 		}
 	}
+	return nil
+}
+
+// RemoveMember lets only the current admitter remove another member and its links.
+func (session *Session) RemoveMember(id string) error {
+	session.mu.Lock()
+	if session.closed || !session.mesh.IsAdmitter() || id == session.mesh.Self().ID {
+		session.mu.Unlock()
+		return &peer.RemoteError{Code: peer.CodeNotAdmitter, Message: "Only the first member can remove someone."}
+	}
+	if err := session.mesh.Remove(id); err != nil {
+		session.mu.Unlock()
+		return err
+	}
+	control := session.controls[id]
+	delete(session.controls, id)
+	session.changedLocked()
+	session.mu.Unlock()
+	if control != nil {
+		_ = control.Close()
+	}
+	return nil
+}
+
+// SetHandlers replaces existing application handlers on current and future controls.
+// Method names stay fixed so replacement cannot acquire mesh admission authority.
+func (session *Session) SetHandlers(handlers map[string]peer.Handler) error {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.closed || len(handlers) != len(session.settings.options.Handlers) {
+		return net.ErrClosed
+	}
+	for method, handler := range handlers {
+		if handler == nil || session.settings.options.Handlers[method] == nil {
+			return errors.New("Only existing application handlers can be replaced.")
+		}
+	}
+	copied, _ := mergeHandlers(nil, handlers)
+	session.settings.options.Handlers = copied
 	return nil
 }

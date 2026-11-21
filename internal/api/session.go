@@ -56,6 +56,7 @@ type SessionState struct {
 // and keys never leave the sidecar.
 type MemberInfo struct {
 	ID          string `json:"id"`
+	Fingerprint string `json:"fingerprint,omitempty"`
 	DisplayName string `json:"displayName"`
 	// Host is true for the computer that admitted everyone else.
 	Host bool `json:"host,omitempty"`
@@ -96,7 +97,7 @@ func (server *Server) stateLocked() SessionState {
 		selfID := server.sess.SelfID()
 		for index, member := range server.sess.Members() {
 			state.Members = append(state.Members, MemberInfo{
-				ID: member.ID, DisplayName: member.DisplayName,
+				ID: member.ID, DisplayName: member.DisplayName, Fingerprint: peer.Fingerprint(member.ID),
 				Host: index == 0, You: member.ID == selfID,
 			})
 		}
@@ -344,24 +345,17 @@ func (server *Server) connect(
 	}()
 
 	server.peer = other
-	server.code = ""
 	server.phase = phaseConnected
 	server.mu.Unlock()
 
 	server.publishSession()
 
 	chatEvents := other.Subscribe()
-	go func() {
-		for event := range chatEvents.Events {
-			if event.Kind == peer.EventChat {
-				server.hub.publish("chat.message", event.Chat)
-			}
-		}
-	}()
+	go server.forwardChat(other, chatEvents)
 
 	go func() {
 		<-other.Done()
-		server.end(sess)
+		server.replacePeer(sess, other, manager)
 	}()
 }
 
@@ -444,6 +438,7 @@ func (server *Server) endCurrent(expected *session.Session) {
 		server.root = nil
 	}
 	server.manager = nil
+	server.pruneDownloadRootsLocked()
 	server.ending = nil
 	close(ending)
 	server.mu.Unlock()
@@ -463,7 +458,7 @@ func displayName(chosen string) string {
 		return "Tailshare"
 	}
 
-	return name[:min(len(name), 64)]
+	return truncateName(name)
 }
 
 // roomName is the room's name: the host's pick when it is usable, otherwise
@@ -486,4 +481,37 @@ func usableName(chosen string) (string, bool) {
 		!strings.ContainsFunc(chosen, unicode.IsControl)
 
 	return chosen, ok
+}
+
+func truncateName(name string) string {
+	runes := []rune(name)
+	return string(runes[:min(len(runes), 64)])
+}
+
+func (server *Server) forwardChat(other *peer.Peer, subscription *peer.Subscription) {
+	defer func() { subscription.Close() }()
+	var last int64
+	for {
+		for event := range subscription.Events {
+			if event.Kind == peer.EventChat && event.Chat.Seq > last {
+				last = event.Chat.Seq
+				server.hub.publish("chat.message", event.Chat)
+			}
+		}
+		select {
+		case <-other.Done():
+			return
+		case <-server.ctx.Done():
+			return
+		default:
+		}
+		subscription.Close()
+		subscription = other.Subscribe()
+		for _, message := range subscription.Snapshot {
+			if message.Seq > last {
+				last = message.Seq
+				server.hub.publish("chat.message", message)
+			}
+		}
+	}
 }

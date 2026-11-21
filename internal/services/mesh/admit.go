@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,6 +60,13 @@ func (mesh *Mesh) BeginAdmission(joiner peer.ShareMember) (*Admission, error) {
 	public, _ := publicKey(joiner.ID)
 	if mesh.keyUsedLocked(public) {
 		return nil, invalid()
+	}
+	for _, member := range mesh.members {
+		if strings.EqualFold(strings.TrimSpace(member.DisplayName), strings.TrimSpace(joiner.DisplayName)) {
+			name := []rune(strings.TrimSpace(joiner.DisplayName))
+			joiner.DisplayName = string(name[:min(len(name), 49)]) + " (" + peer.Fingerprint(joiner.ID) + ")"
+			break
+		}
 	}
 	proposed := mesh.rosterLocked()
 	proposed.Members = append(proposed.Members, joiner)
@@ -165,6 +173,7 @@ func (admission *Admission) handleLinks(ctx context.Context, raw json.RawMessage
 	bounded, cancel := context.WithDeadline(ctx, admission.deadline)
 	defer cancel()
 
+	removed := []string{}
 	// Every remote must allow its key before the joiner is told to dial.
 	// A partially prepared member expires if the joiner never opens that link.
 	for _, member := range admission.roster.Members {
@@ -174,9 +183,14 @@ func (admission *Admission) handleLinks(ctx context.Context, raw json.RawMessage
 		control := controls[member.ID]
 		payload := admission.payload(keys[member.ID])
 		if control == nil || control.Call(bounded, peer.MethodShareAdmit, payload, nil) != nil {
-			admission.closeLocked()
-			return nil, failure()
+			_ = mesh.Remove(member.ID)
+			removed = append(removed, member.ID)
 		}
+	}
+	if len(removed) != 0 {
+		mesh.mu.Lock()
+		admission.roster = mesh.rosterLocked()
+		mesh.mu.Unlock()
 	}
 
 	mesh.mu.Lock()
@@ -191,7 +205,7 @@ func (admission *Admission) handleLinks(ctx context.Context, raw json.RawMessage
 	if err != nil {
 		return nil, failure()
 	}
-	return struct{}{}, nil
+	return peer.ShareLinksResult{Removed: removed}, nil
 }
 
 func (admission *Admission) currentLocked() bool {

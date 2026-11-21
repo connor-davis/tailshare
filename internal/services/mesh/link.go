@@ -110,30 +110,30 @@ func (mesh *Mesh) Dial(ctx context.Context, id string, link *Link) (net.Conn, er
 // Accept returns only streams whose authenticated source is still expected.
 // No claimed member ID or peer payload participates in this check.
 func (mesh *Mesh) Accept() (string, net.Conn, error) {
+	mesh.acceptOnce.Do(func() { go mesh.acceptLoop() })
+	select {
+	case result := <-mesh.accepted:
+		return result.id, result.conn, nil
+	case <-mesh.acceptDone:
+		return "", nil, net.ErrClosed
+	}
+}
+
+type controlStream struct {
+	id   string
+	conn net.Conn
+}
+
+func (mesh *Mesh) acceptLoop() {
+	defer close(mesh.acceptDone)
 	for {
 		conn, err := mesh.listener.Accept()
 		if err != nil {
-			return "", nil, err
+			return
 		}
 		mesh.mu.Lock()
 		id := mesh.identityLocked(conn.RemoteAddr())
-		mesh.mu.Unlock()
-		if id == "" {
-			_ = conn.Close()
-			continue
-		}
-
-		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		var prefix [1]byte
-		_, err = io.ReadFull(conn, prefix[:])
-		_ = conn.SetReadDeadline(time.Time{})
-		if err != nil || (prefix[0] != 'C' && prefix[0] != 'D') {
-			_ = conn.Close()
-			continue
-		}
-
-		mesh.mu.Lock()
-		if mesh.identityLocked(conn.RemoteAddr()) != id {
+		if id == "" || len(mesh.incoming[id]) >= 12 {
 			mesh.mu.Unlock()
 			_ = conn.Close()
 			continue
@@ -142,25 +142,50 @@ func (mesh *Mesh) Accept() (string, net.Conn, error) {
 			mesh.incoming[id] = make(map[net.Conn]struct{})
 		}
 		mesh.incoming[id][conn] = struct{}{}
-		stream := &acceptedStream{Conn: conn, mesh: mesh, id: id}
-		if prefix[0] == 'C' {
-			// Only one control stream may bind a member's identity.
-			if mesh.controls[id] != nil {
-				mesh.mu.Unlock()
-				_ = stream.Close()
-				continue
-			}
-			mesh.mu.Unlock()
-			return id, stream, nil
-		}
-		tunnel := mesh.tunnelLocked(id)
-		select {
-		case tunnel.incoming <- stream:
-			mesh.mu.Unlock()
-		default:
+		mesh.mu.Unlock()
+		go mesh.routeStream(id, conn)
+	}
+}
+
+func (mesh *Mesh) routeStream(id string, conn net.Conn) {
+	stream := &acceptedStream{Conn: conn, mesh: mesh, id: id}
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var prefix [1]byte
+	_, err := io.ReadFull(conn, prefix[:])
+	_ = conn.SetReadDeadline(time.Time{})
+	if err != nil || (prefix[0] != 'C' && prefix[0] != 'D') {
+		_ = stream.Close()
+		return
+	}
+
+	mesh.mu.Lock()
+	if mesh.identityLocked(conn.RemoteAddr()) != id {
+		mesh.mu.Unlock()
+		_ = stream.Close()
+		return
+	}
+	if prefix[0] == 'C' {
+		if mesh.controls[id] != nil || mesh.pendingControls[id] != nil {
 			mesh.mu.Unlock()
 			_ = stream.Close()
+			return
 		}
+		mesh.pendingControls[id] = conn
+		mesh.mu.Unlock()
+		select {
+		case mesh.accepted <- controlStream{id, stream}:
+		case <-mesh.acceptDone:
+			_ = stream.Close()
+		}
+		return
+	}
+	tunnel := mesh.tunnelLocked(id)
+	select {
+	case tunnel.incoming <- stream:
+		mesh.mu.Unlock()
+	default:
+		mesh.mu.Unlock()
+		_ = stream.Close()
 	}
 }
 
@@ -198,6 +223,9 @@ func (stream *acceptedStream) Close() error {
 	err := stream.Conn.Close()
 	stream.mesh.mu.Lock()
 	delete(stream.mesh.incoming[stream.id], stream.Conn)
+	if stream.mesh.pendingControls[stream.id] == stream.Conn {
+		delete(stream.mesh.pendingControls, stream.id)
+	}
 	stream.mesh.mu.Unlock()
 	return err
 }

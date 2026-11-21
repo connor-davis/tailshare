@@ -93,7 +93,12 @@ func chatError(other *peer.Peer, err error) error {
 		return errUnreachable()
 	}
 
-	return apperr.BadRequest(err.Error())
+	switch err.Error() {
+	case "Attach one file at a time.", "That attachment is not valid.", "Type a message first.",
+		"That message is too long. Keep it under 8 KB.", "That message has characters that cannot be sent.":
+		return apperr.BadRequest(err.Error())
+	}
+	return errUnreachable()
 }
 
 func (server *Server) getChat(c fiber.Ctx) error {

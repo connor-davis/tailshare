@@ -228,9 +228,14 @@ func TestLinksMustMatchRoster(t *testing.T) {
 	}
 	_, err = handler(t.Context(), json.RawMessage(strings.Repeat("x", peer.MaxSharePayload+1)))
 	wantCode(t, err, peer.CodeBadRequest)
-	// No peer is registered for Second, so a valid set must fail closed.
+	// An unreachable member is removed so the new joiner can proceed.
 	_, err = handler(t.Context(), raw(peer.ShareLinks{Links: good}))
-	wantCode(t, err, peer.CodeJoinFailed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mesh.Roster().Members[1].ID == second.ID {
+		t.Fatal("unreachable member retained")
+	}
 	if len(mesh.Roster().Members) != 2 {
 		t.Fatal("failed admission kept the joiner")
 	}
@@ -307,7 +312,9 @@ func TestFailedAdmissionConsumesOrderAndKeys(t *testing.T) {
 		{ID: second.ID, LinkKey: key.NewNode().Public().String()},
 	}
 	_, err = first.Handlers()[peer.MethodShareLinks](t.Context(), raw(peer.ShareLinks{Links: keys}))
-	wantCode(t, err, peer.CodeJoinFailed)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = mesh.BeginAdmission(first.joiner)
 	wantCode(t, err, peer.CodeBadRequest)
 	retry, err := mesh.BeginAdmission(member("Retry", 0))

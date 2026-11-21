@@ -59,12 +59,20 @@ const transfer = (over: Partial<TransferView> = {}): TransferView => ({
   ...over,
 })
 
+let downloadsOk = true
+
 beforeEach(() => {
+  downloadsOk = true
   vi.clearAllMocks()
   mocks.messages = []
   mocks.transfers = []
   mocks.sendAsync.mockResolvedValue({})
-  vi.stubGlobal("tailshare", { addFiles, addDroppedFiles })
+  vi.stubGlobal("tailshare", {
+    addFiles,
+    addDroppedFiles,
+    getDownloadsStatus: async () => ({ ok: downloadsOk }),
+    onDownloadsStatus: () => () => {},
+  })
 })
 afterEach(() => {
   cleanup()
@@ -245,6 +253,22 @@ describe("file cards", () => {
     expect(mocks.startMutate).toHaveBeenCalledWith(
       { direction: "download", source: "plan.pdf", destination: "plan.pdf" },
       expect.anything()
+    )
+  })
+
+  it("turns Download off while the save folder does not work", async () => {
+    downloadsOk = false
+    mocks.messages = [message({ attachment })]
+    render(<RoomChat />)
+
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Download plan.pdf",
+          }) as HTMLButtonElement
+        ).disabled
+      ).toBe(true)
     )
   })
 

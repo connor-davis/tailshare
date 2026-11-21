@@ -1,6 +1,7 @@
 package transfer
 
 import (
+	"context"
 	"errors"
 	"io"
 
@@ -20,11 +21,30 @@ func (manager *Manager) prepareReceiver(item *job) error {
 	manager.mu.Lock()
 	size := item.view.Size
 	manager.mu.Unlock()
-	if offset > size {
-		if err := manager.receiverRoot(item).RemovePartial(item.local); err != nil {
-			return err
+	available, err := manager.freeSpace(manager.receiverRoot(item))
+	if err != nil {
+		return share.ErrDenied
+	}
+	manager.mu.Lock()
+	needed := max(0, size-offset)
+	for _, other := range manager.jobs {
+		if other != item && other.working && !other.sender {
+			needed += max(0, other.view.Size-other.view.Bytes)
 		}
-		offset = 0
+	}
+	manager.mu.Unlock()
+	if available < 64<<20 || needed > available-(64<<20) {
+		return errors.New("There is not enough free space for this file.")
+	}
+	owner := "local"
+	if manager.peer != nil {
+		owner = manager.peer.MemberID()
+	}
+	if err := manager.receiverRoot(item).ClaimPartial(item.local, owner, item.hash, size); err != nil {
+		return err
+	}
+	if offset > size {
+		return share.ErrDenied
 	}
 	// ponytail: resume trusts the prefix size; add a prefix hash to transfer.resume later.
 	manager.mu.Lock()
@@ -37,7 +57,6 @@ func receiveTo(root *share.Root, name string, offset, size int64, source io.Read
 	if offset < 0 || size < offset || size > maxFileSize {
 		return errInvalid
 	}
-	// ponytail: disk space is checked by writes; add a free-space preflight later.
 	file, err := root.OpenPartial(name, offset)
 	if err != nil {
 		return err
@@ -54,11 +73,15 @@ func receiveTo(root *share.Root, name string, offset, size int64, source io.Read
 }
 
 func verifyPartial(root *share.Root, name, expected string) error {
+	return verifyPartialContext(context.Background(), root, name, expected)
+}
+
+func verifyPartialContext(ctx context.Context, root *share.Root, name, expected string) error {
 	file, err := root.ReadPartial(name)
 	if err != nil {
 		return err
 	}
-	hash, _, readError := hashFile(file)
+	hash, _, readError := hashFileContext(ctx, file)
 	closeError := file.Close()
 	if readError != nil || closeError != nil {
 		return errors.New("The file could not be checked.")
@@ -75,7 +98,6 @@ func verifyAndCommit(root *share.Root, name, expected string) error {
 		return err
 	}
 	if err := root.Commit(name); err != nil {
-		_ = root.RemovePartial(name)
 		return err
 	}
 	return nil
