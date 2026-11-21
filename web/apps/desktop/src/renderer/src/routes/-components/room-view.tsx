@@ -28,12 +28,15 @@ import { TransfersPanel } from "./transfers-panel"
 export function RoomView({
   peer,
   roomName,
+  host,
   onLeave,
   leaving,
   code,
   roomCode,
   startedAt,
 }: {
+  /** True when this computer is the host. */
+  host?: boolean
   /** The other computer; missing while the host waits for someone. */
   peer?: PeerInfo
   /** The host's name for the room, for the header. */
@@ -79,6 +82,7 @@ export function RoomView({
       <RoomHeader
         peer={peer}
         roomName={roomName}
+        host={host}
         onLeave={onLeave}
         leaving={leaving}
         code={code}

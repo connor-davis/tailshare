@@ -21,18 +21,56 @@ afterEach(() => {
   openRoomFolder.mockReset()
 })
 
-function show() {
+function show(
+  props: { host?: boolean; peer?: boolean; onLeave?: () => void } = {}
+) {
   render(
     <TooltipProvider>
       <RoomHeader
-        peer={{ displayName: "Pat" }}
-        onLeave={() => {}}
+        peer={props.peer === false ? undefined : { displayName: "Pat" }}
+        host={props.host}
+        onLeave={props.onLeave ?? (() => {})}
         leaving={false}
         roomCode="7K3Q9PXM"
       />
     </TooltipProvider>
   )
 }
+
+describe("RoomHeader Leave", () => {
+  it("asks the host before ending the room for everyone", () => {
+    const onLeave = vi.fn()
+    show({ host: true, onLeave })
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave" }))
+    expect(screen.getByText("End this room for everyone?")).toBeTruthy()
+    expect(onLeave).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "End room" }))
+    expect(onLeave).toHaveBeenCalledOnce()
+  })
+
+  it("asks a joiner with simpler words, and Cancel leaves nothing", () => {
+    const onLeave = vi.fn()
+    show({ onLeave })
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave" }))
+    expect(screen.getByText("Leave this room?")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(onLeave).not.toHaveBeenCalled()
+    expect(screen.queryByText("Leave this room?")).toBeNull()
+  })
+
+  it("cancels a room nobody has joined without asking", () => {
+    const onLeave = vi.fn()
+    show({ host: true, peer: false, onLeave })
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(onLeave).toHaveBeenCalledOnce()
+  })
+})
 
 describe("RoomHeader Open folder", () => {
   it("says so when the folder cannot be opened, and clears on retry", async () => {

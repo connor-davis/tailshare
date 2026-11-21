@@ -19,6 +19,8 @@ export interface SessionMember {
   host?: boolean
   /** True for this computer. */
   you?: boolean
+  /** Short code (12 hex characters) that tells two same-named computers apart. */
+  fingerprint?: string
 }
 
 /** The session as the sidecar reports it (`GET /api/session`). */
@@ -34,7 +36,7 @@ export interface SessionState {
   /** The other computer. Present only while connected. */
   peer?: PeerInfo
   /** One person waiting for local approval. */
-  join?: { id: number; displayName: string }
+  join?: { id: number; displayName: string; fingerprint?: string }
   /** Everyone in the room, host first. Present while hosting or connected. */
   members?: SessionMember[]
 }

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import { applyEvent } from "../live/apply"
 import { apiFetch } from "./client"
 import { keys } from "./keys"
-import { useHost } from "./session"
+import { useHost, useRemoveMember } from "./session"
 import type { SessionState } from "./types"
 
 vi.mock("./client", () => ({ apiFetch: vi.fn() }))
@@ -32,6 +32,25 @@ describe("session calls", () => {
     await act(async () => reply({ state: "hosting", role: "host" }))
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
+    expect(client.getQueryData<SessionState>(keys.session)?.state).toBe(
+      "connected"
+    )
+  })
+
+  it("removes a member with an escaped id and stores the answer", async () => {
+    const client = new QueryClient()
+    vi.mocked(apiFetch).mockResolvedValue({ state: "connected" })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useRemoveMember(), { wrapper })
+
+    act(() => result.current.mutate("a/b c"))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiFetch).toHaveBeenCalledWith("/api/session/members/a%2Fb%20c", {
+      method: "DELETE",
+    })
     expect(client.getQueryData<SessionState>(keys.session)?.state).toBe(
       "connected"
     )
