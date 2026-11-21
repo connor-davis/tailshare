@@ -40,6 +40,7 @@ type PendingJoin struct {
 	ID uint64 `json:"id"`
 	// DisplayName comes from hello, at most 64 characters.
 	DisplayName string `json:"displayName"`
+	Fingerprint string `json:"fingerprint,omitempty"`
 }
 
 // Session owns membership, control peers and the code server for one share.
@@ -60,6 +61,7 @@ type Session struct {
 	bootstraps map[net.Conn]struct{}
 	gate       *joinGate
 	nextJoin   uint64
+	deniedKeys map[string]time.Time
 	roomName   string
 }
 
@@ -94,7 +96,7 @@ func newSession(ctx context.Context, options settings, code codes.Code) (*Sessio
 	session := &Session{
 		mesh: network, done: make(chan struct{}), changes: make(chan struct{}, 1),
 		ctx: lifetime, cancel: cancel, settings: options, code: code, roomName: options.options.RoomName,
-		controls: make(map[string]*peer.Peer), bootstraps: make(map[net.Conn]struct{}),
+		deniedKeys: make(map[string]time.Time), controls: make(map[string]*peer.Peer), bootstraps: make(map[net.Conn]struct{}),
 	}
 	go session.acceptMesh()
 	go func() {
@@ -160,7 +162,13 @@ func (session *Session) Control(id string) (*peer.Peer, bool) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	control, ok := session.controls[id]
-	return control, ok && !session.closed
+	present := false
+	for _, member := range session.mesh.Roster().Members {
+		if member.ID == id {
+			present = true
+		}
+	}
+	return control, ok && present && !session.closed
 }
 
 // Tunnel returns a member's data stream tunnel.

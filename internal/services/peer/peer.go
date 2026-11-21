@@ -47,6 +47,9 @@ type Options struct {
 	// DisplayName is how this computer introduces itself. It is required.
 	DisplayName string
 
+	// MemberID is the authenticated mesh identity supplied by session.
+	MemberID string
+
 	// RoomName is the room's name as the host chose it. Empty means none.
 	RoomName string
 
@@ -377,3 +380,14 @@ func marshalOptional(value any) (json.RawMessage, error) {
 func badRequest() *RemoteError {
 	return &RemoteError{Code: CodeBadRequest, Message: "The request could not be understood."}
 }
+
+type conversationKey struct{}
+
+// Conversation returns the authenticated conversation invoking a handler.
+func Conversation(ctx context.Context) *Peer {
+	conversation, _ := ctx.Value(conversationKey{}).(*Peer)
+	return conversation
+}
+
+// MemberID returns the mesh identity authenticated by session, never a claimed name.
+func (peer *Peer) MemberID() string { return peer.options.MemberID }

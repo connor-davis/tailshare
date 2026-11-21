@@ -3,12 +3,17 @@ import {
   CHANNELS,
   ChosenFolderSchema,
   ConnectionInfoSchema,
+  DownloadsStatusSchema,
   NoArgs,
   RecentRoomsSchema,
   SettingsSchema,
   WindowStateSchema,
 } from "../shared/ipc-schema"
-import { isReleaseLink, type WindowState } from "../shared/bridge"
+import {
+  isReleaseLink,
+  type DownloadsStatus,
+  type WindowState,
+} from "../shared/bridge"
 import type { RecentRoomsStore } from "./recent-rooms"
 import type { SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
@@ -131,6 +136,17 @@ export function registerWindowIpc(host: IpcHost, controls: WindowControls) {
   host.handle(CHANNELS.getWindowState, async (senderOk, args) => {
     await Effect.runPromise(guard(senderOk, args))
     return Effect.runPromise(check(WindowStateSchema, controls.state()))
+  })
+}
+
+/** Registers the downloads status request behind the same window and tuple guards. */
+export function registerDownloadsIpc(
+  host: IpcHost,
+  status: () => DownloadsStatus
+) {
+  host.handle(CHANNELS.getDownloadsStatus, async (senderOk, args) => {
+    await Effect.runPromise(guard(senderOk, args))
+    return Effect.runPromise(check(DownloadsStatusSchema, status()))
   })
 }
 

@@ -32,3 +32,19 @@ func (manager *Manager) downloadBusyLocked(local string) bool {
 	}
 	return false
 }
+
+// PinsRoot reports whether a root is still needed by active or resumable work.
+func (manager *Manager) PinsRoot(root *share.Root) bool {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if manager.downloadRoot == root {
+		return true
+	}
+	for _, item := range manager.jobs {
+		if item.root == root && (item.working || item.view.State == Queued ||
+			item.view.State == Paused || item.view.State == Failed) {
+			return true
+		}
+	}
+	return false
+}

@@ -1,10 +1,13 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 import {
   SIDECAR_STATUSES,
+  isDownloadsStatus,
   isJoinCode,
   isRecentRooms,
   isUpdateStatus,
   isWindowState,
+  type CurrentRoom,
+  type DownloadsStatus,
   type RecentRoom,
   type Settings,
   type SettingsPatch,
@@ -70,6 +73,18 @@ const bridge: TailshareBridge = Object.freeze({
     }
     ipcRenderer.on("tailshare:recent-rooms-changed", handler)
     return () => void ipcRenderer.off("tailshare:recent-rooms-changed", handler)
+  },
+  getCurrentRoom: () => ipcRenderer.invoke("tailshare:get-current-room"),
+  setCurrentRoom: (room: CurrentRoom | null) =>
+    ipcRenderer.invoke("tailshare:set-current-room", room),
+  getDownloadsStatus: () =>
+    ipcRenderer.invoke("tailshare:get-downloads-status"),
+  onDownloadsStatus: (listener: (status: DownloadsStatus) => void) => {
+    const handler = (_event: unknown, status: unknown) => {
+      if (isDownloadsStatus(status)) listener(status)
+    }
+    ipcRenderer.on("tailshare:downloads-status", handler)
+    return () => void ipcRenderer.off("tailshare:downloads-status", handler)
   },
   getConnectionInfo: () => ipcRenderer.invoke("tailshare:connection-info"),
   chooseFolder: () => ipcRenderer.invoke("tailshare:choose-folder"),

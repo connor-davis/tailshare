@@ -91,6 +91,9 @@ func (server *Server) forwardTransfers(events <-chan TransferEvent, stop func())
 				return
 			}
 
+			server.mu.Lock()
+			server.pruneDownloadRootsLocked()
+			server.mu.Unlock()
 			server.hub.publish(event.Type, event.Item)
 		case <-server.ctx.Done():
 			return
@@ -146,8 +149,7 @@ func (server *Server) startTransfer(c fiber.Ctx) error {
 		return apperr.BadRequest("Say which file to move and where to put it.")
 	}
 
-	if in.Direction == DirectionDownload && strings.ContainsAny(in.Destination, "/\\") ||
-		(in.Direction == DirectionDownload && strings.Contains(in.Destination, "..")) {
+	if in.Direction == DirectionDownload && strings.ContainsAny(in.Destination, "/\\") {
 		return share.ErrBadPath
 	}
 	item, err := transfers.Enqueue(server.ctx, in)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"strings"
 )
 
 func (shared *Root) partialName(wire string) (string, error) {
@@ -96,18 +97,37 @@ func (shared *Root) Commit(wire string) error {
 	}
 
 	local, _ := Localize(wire)
-	if err := shared.root.Link(partial, local); err != nil {
+	link := shared.root.Link
+	if shared.link != nil {
+		link = shared.link
+	}
+	if err := link(partial, local); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return ErrExists
 		}
 
-		return errors.New("The file could not be saved. This folder must support hard links.")
+		// Reserve the final name exclusively before using rename on volumes without links.
+		// Other Tailshare workers see the reservation and cannot replace this name.
+		target, createError := shared.root.OpenFile(local, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if createError != nil {
+			return mapError(createError)
+		}
+		if closeError := target.Close(); closeError != nil {
+			return ErrDenied
+		}
+		if renameError := shared.root.Rename(partial, local); renameError != nil {
+			_ = shared.root.Remove(local)
+			return ErrDenied
+		}
+		_ = shared.root.Remove(local + ".meta" + PartialSuffix)
+		return nil
 	}
 
 	if err := shared.root.Remove(partial); err != nil {
 		return mapError(err)
 	}
 
+	_ = shared.root.Remove(local + ".meta" + PartialSuffix)
 	return nil
 }
 
@@ -118,6 +138,7 @@ func (shared *Root) RemovePartial(wire string) error {
 		return err
 	}
 
+	_ = shared.root.Remove(strings.TrimSuffix(local, PartialSuffix) + ".meta" + PartialSuffix)
 	err = shared.root.Remove(local)
 	if err == nil || errors.Is(err, fs.ErrNotExist) {
 		return nil

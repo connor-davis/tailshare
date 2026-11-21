@@ -14,6 +14,11 @@ import {
 describe("windowOptions", () => {
   const options = windowOptions("/app/preload/index.cjs")
 
+  it("keeps the window big enough for all three columns and the transfers", () => {
+    expect(options.minWidth).toBeGreaterThanOrEqual(800)
+    expect(options.minHeight).toBeGreaterThanOrEqual(600)
+  })
+
   it("turns isolation and the sandbox on and Node off", () => {
     expect(options.webPreferences).toEqual({
       preload: "/app/preload/index.cjs",

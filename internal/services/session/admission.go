@@ -16,6 +16,7 @@ type joinGate struct {
 	ready     chan struct{}
 	decision  chan struct{}
 	member    peer.ShareMember
+	requester string
 	pending   PendingJoin
 	decided   bool
 	err       error
@@ -38,9 +39,6 @@ func (session *Session) Allow(id uint64) error {
 
 	admission, err := session.mesh.BeginAdmission(gate.member)
 	gate.admission = admission
-	if err == nil && session.timer != nil {
-		session.timer.Stop()
-	}
 
 	session.decideLocked(gate, err)
 	return err
@@ -55,6 +53,16 @@ func (session *Session) Deny(id uint64) error {
 		return errors.New("That join request is no longer waiting.")
 	}
 
+	if session.deniedKeys == nil {
+		session.deniedKeys = make(map[string]time.Time)
+	}
+	for key, until := range session.deniedKeys {
+		if time.Now().After(until) {
+			delete(session.deniedKeys, key)
+		}
+	}
+	session.deniedKeys[gate.member.ID] = time.Now().Add(60 * time.Second)
+	session.deniedKeys[gate.requester] = time.Now().Add(60 * time.Second)
 	session.decideLocked(gate, denied())
 	return nil
 }
@@ -111,7 +119,14 @@ func (session *Session) admitStream(server *tailcat.Server, conn net.Conn) {
 		return
 	}
 
-	gate := &joinGate{member: member, ready: make(chan struct{}), decision: make(chan struct{})}
+	public, authenticated := peerKey(server, conn.RemoteAddr())
+	if !authenticated {
+		return
+	}
+	gate := &joinGate{
+		requester: public.String(), member: member,
+		ready: make(chan struct{}), decision: make(chan struct{}),
+	}
 	handlers := map[string]peer.Handler{
 		peer.MethodShareRoster: session.gateHandler(gate, peer.MethodShareRoster),
 		peer.MethodShareLinks:  session.gateHandler(gate, peer.MethodShareLinks),
@@ -128,6 +143,11 @@ func (session *Session) admitStream(server *tailcat.Server, conn net.Conn) {
 	gate.member.DisplayName = control.Remote().DisplayName
 
 	session.mu.Lock()
+	for key, until := range session.deniedKeys {
+		if time.Now().After(until) {
+			delete(session.deniedKeys, key)
+		}
+	}
 	switch {
 	case session.closed || !session.mesh.IsAdmitter():
 		session.decideLocked(gate, &peer.RemoteError{
@@ -137,13 +157,18 @@ func (session *Session) admitStream(server *tailcat.Server, conn net.Conn) {
 		session.decideLocked(gate, &peer.RemoteError{
 			Code: peer.CodeShareFull, Message: "This share already has eight people.",
 		})
-	case session.gate != nil:
+	case session.gate != nil || len(session.deniedKeys) >= 254 ||
+		time.Now().Before(session.deniedKeys[member.ID]) ||
+		time.Now().Before(session.deniedKeys[gate.requester]):
 		session.decideLocked(gate, &peer.RemoteError{
 			Code: peer.CodeBusy, Message: "Someone else is joining. Try again shortly.",
 		})
 	default:
 		session.nextJoin++
-		gate.pending = PendingJoin{ID: session.nextJoin, DisplayName: gate.member.DisplayName}
+		gate.pending = PendingJoin{
+			ID: session.nextJoin, DisplayName: gate.member.DisplayName,
+			Fingerprint: peer.Fingerprint(gate.requester),
+		}
 		session.gate = gate
 
 		window := session.settings.allowWindow
@@ -159,13 +184,37 @@ func (session *Session) admitStream(server *tailcat.Server, conn net.Conn) {
 		session.changedLocked()
 	}
 	close(gate.ready)
+	refused := gate.decided && gate.err != nil
 	session.mu.Unlock()
+	if refused {
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-control.Done():
+		case <-session.done:
+		case <-timer.C:
+		}
+		return
+	}
 
 	// A client that never sends another request cannot hold a code stream forever.
 	select {
 	case <-gate.decision:
 	case <-control.Done():
 	case <-session.done:
+	}
+	session.mu.Lock()
+	refused = gate.err != nil
+	session.mu.Unlock()
+	if refused {
+		timer := time.NewTimer(100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-control.Done():
+		case <-session.done:
+		case <-timer.C:
+		}
+		return
 	}
 	backstop := time.NewTimer(mesh.AdmissionTimeout)
 	defer backstop.Stop()

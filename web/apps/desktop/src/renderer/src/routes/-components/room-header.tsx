@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { announce } from "@/components/status-region"
 import { FolderOpenIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -36,6 +36,7 @@ export function RoomHeader({
   startedAt?: number | null
 }) {
   const live = useLiveStatus()
+  const [folderError, setFolderError] = useState(false)
   const reconnecting = live === "reconnecting"
 
   useEffect(() => {
@@ -76,10 +77,20 @@ export function RoomHeader({
           {reconnecting ? "Reconnecting…" : "Connected"}
         </p>
       ) : null}
+      {folderError ? (
+        <p role="alert" className="text-sm text-destructive">
+          Could not open the room folder. Try again.
+        </p>
+      ) : null}
       {roomCode ? (
         <Button
           variant="outline"
-          onClick={() => void window.tailshare.openRoomFolder(roomCode)}
+          onClick={() => {
+            setFolderError(false)
+            window.tailshare
+              .openRoomFolder(roomCode)
+              .catch(() => setFolderError(true))
+          }}
         >
           <FolderOpenIcon aria-hidden data-icon="inline-start" />
           Open folder

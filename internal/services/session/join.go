@@ -109,8 +109,19 @@ func join(ctx context.Context, input string, options settings) (*Session, error)
 		)
 	}
 
-	if err := control.Call(ctx, peer.MethodShareLinks, payload, nil); err != nil {
+	var result peer.ShareLinksResult
+	if err := control.Call(ctx, peer.MethodShareLinks, payload, &result); err != nil {
 		return nil, err
+	}
+	for _, id := range result.Removed {
+		if id == roster.Members[0].ID || id == session.SelfID() {
+			return nil, errors.New("The share roster is not valid.")
+		}
+		_ = session.mesh.Remove(id)
+		if link := links[id]; link != nil {
+			_ = link.Close()
+			delete(links, id)
+		}
 	}
 	_ = control.Close()
 

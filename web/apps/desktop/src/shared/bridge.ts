@@ -137,6 +137,42 @@ export function isRecentRooms(value: unknown): value is RecentRoom[] {
   )
 }
 
+/** The room this window is in, kept by main so a reloaded page can find it. */
+export interface CurrentRoom {
+  /** The room's own name; empty when the sidecar gave none. Up to 64 characters. */
+  readonly name: string
+  /** The bare code. A secret: it joins the room. */
+  readonly code: string
+}
+
+/** Checks a current room without loading Effect in the sandboxed preload. */
+export function isCurrentRoom(value: unknown): value is CurrentRoom {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "code" in value &&
+    isJoinCode(value.code)
+  )
+}
+
+/** Whether received files have a folder to land in. */
+export interface DownloadsStatus {
+  /** False when the save folder could not be used; downloads stay off. */
+  readonly ok: boolean
+}
+
+/** Checks a downloads status without loading Effect in the sandboxed preload. */
+export function isDownloadsStatus(value: unknown): value is DownloadsStatus {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "ok" in value &&
+    typeof value.ok === "boolean"
+  )
+}
+
 /** Where the local API listens and the secret that opens it. */
 export interface ConnectionInfo {
   /** Loopback origin such as `http://127.0.0.1:51234`, with no path. */
@@ -200,6 +236,16 @@ export interface TailshareBridge {
   /** Calls `listener` with the whole list after each change. */
   readonly onRecentRoomsChanged: (
     listener: (rooms: RecentRoom[]) => void
+  ) => () => void
+  /** Reads the room kept by main, or `null`. Survives a page reload. */
+  readonly getCurrentRoom: () => Promise<CurrentRoom | null>
+  /** Tells main which room is open, or `null` once it is over. */
+  readonly setCurrentRoom: (room: CurrentRoom | null) => Promise<void>
+  /** Reads whether the save folder works, including news sent before load. */
+  readonly getDownloadsStatus: () => Promise<DownloadsStatus>
+  /** Calls `listener` when the save folder starts or stops working. */
+  readonly onDownloadsStatus: (
+    listener: (status: DownloadsStatus) => void
   ) => () => void
   /**
    * Resolves once the sidecar passed its health check. Rejects with a plain

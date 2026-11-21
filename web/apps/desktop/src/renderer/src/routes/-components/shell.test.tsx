@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   panels: {} as Record<string, Record<string, unknown>>,
 }))
 const { hostMutate, joinMutate, panels } = mocks
-let session: SessionState = { state: "idle" }
+let session: SessionState | undefined = { state: "idle" }
 let joinLink: (code: string) => void = () => {}
 
 vi.mock("@/lib/api/session", () => {
@@ -75,6 +75,8 @@ vi.mock("@/components/ui/resizable", () => ({
 }))
 
 const openRoomFolder = vi.fn(async () => {})
+const getCurrentRoom = vi.fn(async () => null as unknown)
+const setCurrentRoom = vi.fn(async () => {})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -88,6 +90,10 @@ beforeEach(() => {
     },
     touchRecentRoom: async () => {},
     openRoomFolder,
+    getCurrentRoom,
+    setCurrentRoom,
+    getDownloadsStatus: async () => ({ ok: true }),
+    onDownloadsStatus: () => () => {},
   })
 })
 afterEach(() => {
@@ -237,6 +243,78 @@ describe("shell", () => {
     await waitFor(() =>
       expect(joinMutate).toHaveBeenCalledWith("7K3Q9PXM", expect.anything())
     )
+  })
+
+  it("holds a link that arrives before the session is known, then joins once", async () => {
+    session = undefined
+    const view = shell()
+
+    joinLink("7K3Q9PXM")
+    expect(joinMutate).not.toHaveBeenCalled()
+
+    session = { state: "idle" }
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+
+    await waitFor(() => expect(joinMutate).toHaveBeenCalledOnce())
+    expect(joinMutate).toHaveBeenCalledWith("7K3Q9PXM", expect.anything())
+  })
+
+  it("does not join a held link when a room is already open", () => {
+    session = undefined
+    const view = shell()
+    joinLink("7K3Q9PXM")
+
+    session = { state: "hosting", role: "host", code: "ABCD2345" }
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+
+    expect(joinMutate).not.toHaveBeenCalled()
+  })
+
+  it("shows a waiting join request on the toggle while Members is hidden", () => {
+    window.localStorage.setItem("tailshare.layout.members.open", "false")
+    session = {
+      state: "hosting",
+      role: "host",
+      code: "7K3Q9PXM",
+      join: { id: 1, displayName: "Pat" },
+    } as SessionState
+    shell()
+
+    expect(
+      screen.getByRole("button", {
+        name: "Show or hide members, someone wants to join",
+      })
+    ).toBeTruthy()
+    expect(screen.queryByRole("complementary", { name: "Members" })).toBeNull()
+  })
+
+  it("gets the room folder and share code back after a page reload", async () => {
+    getCurrentRoom.mockResolvedValue({ name: "Movie night", code: "7K3Q9PXM" })
+    session = { state: "connected", role: "host", peer: { displayName: "Pat" } }
+    shell()
+
+    const open = await screen.findByRole("button", { name: "Open folder" })
+    fireEvent.click(open)
+
+    expect(openRoomFolder).toHaveBeenCalledWith("7K3Q9PXM")
+    expect(screen.getByRole("button", { name: "Copy code" })).toBeTruthy()
+  })
+
+  it("tells main about the room it opens and when it ends", async () => {
+    session = { state: "hosting", role: "host", code: "7K3Q9PXM" }
+    const view = shell()
+
+    await waitFor(() =>
+      expect(setCurrentRoom).toHaveBeenCalledWith({
+        name: "",
+        code: "7K3Q9PXM",
+      })
+    )
+
+    session = { state: "idle" }
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+    await waitFor(() => expect(setCurrentRoom).toHaveBeenLastCalledWith(null))
   })
 
   it("never lets a drag collapse a column, and sets limits", () => {

@@ -1,10 +1,15 @@
 import { join } from "node:path"
 import { Effect } from "effect"
-import type { AddFilesResult, ConnectionInfo } from "../shared/bridge"
+import type {
+  AddFilesResult,
+  ConnectionInfo,
+  CurrentRoom,
+} from "../shared/bridge"
 import {
   AddedPathsSchema,
   AddFilesResultSchema,
   CHANNELS,
+  CurrentRoomSchema,
 } from "../shared/ipc-schema"
 import { check, type IpcHost } from "./ipc"
 
@@ -32,6 +37,8 @@ export function roomFolder(roomsDir: string, value: unknown): string {
 /** Registers consented file copying and code-only folder opening behind sender guards. */
 export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
   const refuse = () => new Error("Tailshare could not read that request.")
+  // Lives as long as main, so it outlasts a reload of the page.
+  let currentRoom: CurrentRoom | null = null
   const add = async (paths: unknown) => {
     try {
       const checked = await Effect.runPromise(check(AddedPathsSchema, paths))
@@ -51,6 +58,19 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
   host.handle(CHANNELS.addDroppedFiles, async (senderOk, args) => {
     if (!senderOk || args.length !== 1) throw refuse()
     return add(args[0])
+  })
+  host.handle(CHANNELS.getCurrentRoom, async (senderOk, args) => {
+    if (!senderOk || args.length !== 0) throw refuse()
+    return currentRoom
+  })
+  host.handle(CHANNELS.setCurrentRoom, async (senderOk, args) => {
+    if (!senderOk || args.length !== 1) throw refuse()
+    try {
+      currentRoom = await Effect.runPromise(check(CurrentRoomSchema, args[0]))
+    } catch {
+      // Schema errors can echo the code, which must stay in main.
+      throw refuse()
+    }
   })
   host.handle(CHANNELS.openRoomFolder, async (senderOk, args) => {
     if (!senderOk || args.length !== 1) throw refuse()

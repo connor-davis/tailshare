@@ -1,5 +1,10 @@
 package peer
 
+import (
+	"crypto/sha256"
+	"encoding/hex"
+)
+
 // MaxShareMembers counts everyone in the share, including its creator.
 const MaxShareMembers = 8
 
@@ -42,3 +47,14 @@ type ShareAdmit struct {
 
 // ShareLeave has no claimed identity: the authenticated link names its sender.
 type ShareLeave struct{}
+
+// ShareLinksResult optionally names members removed while preparing admission.
+type ShareLinksResult struct {
+	Removed []string `json:"removed,omitempty"`
+}
+
+// Fingerprint is a short stable label derived from an authenticated public key.
+func Fingerprint(id string) string {
+	digest := sha256.Sum256([]byte(id))
+	return hex.EncodeToString(digest[:6])
+}
