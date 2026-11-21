@@ -313,3 +313,56 @@ lowest surviving join-order member only. It refuses self-removal and closes
 the removed member's control, incoming streams and outgoing link. There is no
 peer kick method. Local member JSON includes optional `fingerprint` (twelve hex
 characters derived from the mesh public-key string). Protocol version stays 2.
+
+## Screen sharing (optional version-2 feature)
+
+Screen media uses session stream kind **2**, opened by a viewer through
+`Session.OpenStream`, including the existing nonce-bound reverse-open path.
+The header is exactly the active share's 16 lowercase hex ID. Only the
+current authenticated room member on that stream can watch. Unknown IDs,
+duplicate viewers from the same member and stopped shares close immediately.
+There is one active recording per member and at most seven remote viewers.
+
+- `screen.list` (omitted params) returns `{rev, share}`; `share` is `null` or
+  `{id, codec}`. `screen.announce` sends the same full state on each start or
+  stop and returns `{}`. Revisions increase; stale lists are ignored. Announce
+  requests are at most 4 KiB. Names and owner IDs are derived from the
+  authenticated roster, regardless of any extra fields in the payload.
+- Codecs are exactly `video/webm;codecs=vp8` or `video/webm;codecs=vp9`.
+  The renderer checks recording and MediaSource support, prefers VP8, requests
+  no audio, caps capture at 1920 by 1080 and 15 fps, and requests 2.5 Mbps.
+  MediaRecorder uses 250 ms timeslices and restarts every two seconds on the
+  same captured track. Each independent recording epoch begins with its WebM
+  initialization and a keyframe. This avoids joining midway through a GOP.
+- Each stream frame is a four-byte unsigned big-endian length followed by a
+  one-byte epoch flag and WebM bytes. Length includes the flag, ranges from
+  2 through 1 MiB, and is checked before allocation. Flag 1 starts an epoch;
+  flag 0 continues it. No other flags are accepted. The first frame must start
+  an epoch. No JSON or base64 is used for media.
+- The sharer retains only the current epoch (including its first/init chunk),
+  capped at 4 MiB and 32 messages. A viewer receives that epoch first and then
+  every new message in order, atomically with subscription. Each viewer has an
+  independent 32-message, 4 MiB queue plus at most one in-flight frame. Full
+  queues disconnect that viewer; three-second write deadlines also disconnect
+  stalled viewers. The producer never waits for a viewer to read.
+- The receiver serializes MediaSource appends, offsets each new epoch after
+  the previous epoch (resetting the WebM parser before offset changes), trims frames older than ten seconds and seeks near the
+  live edge when more than 1.5 seconds behind. Its pending append queue is
+  capped at 32 messages / 4 MiB; excess data ends that playback.
+- Stop, captured-track end, ingest loss, leave, removal and session end close
+  media streams. An unbound local share reservation expires after ten seconds;
+  ingest and media reads also time out after ten seconds without data.
+- Local controls: `GET /api/screen`, `POST /api/screen` with `{codec}`,
+  `DELETE /api/screen/:id`. Dedicated binary WebSockets are
+  `/api/screen/ingest/:id` and `/api/screen/watch/:id`. Both use the same Host,
+  Origin and exact `["tailshare.v1", token]` handshake as `/api/live`.
+  Ingest binary messages carry the epoch flag and chunk, without the stream's
+  four-byte length (WebSocket already frames them). Only one ingest may bind.
+- Live metadata event `screen.changed` and snapshot field `screens` carry
+  `{mine, others, unsupported}`. Items contain `id`, `codec`, `ownerId`,
+  `ownerName`, `viewers`; viewer count is local to the sharer. Old version-2
+  builds answer `unknown_method` to `screen.list` and are listed as unable to
+  watch/share screens. No version bump or mandatory hello change is needed.
+
+Owners: `internal/services/screen/`, `internal/api/screen.go`,
+`web/apps/desktop/src/renderer/src/lib/media/`.

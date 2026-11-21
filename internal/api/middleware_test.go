@@ -143,7 +143,7 @@ func TestOrigin(t *testing.T) {
 		return func(r *http.Request) { r.Header.Set("Origin", value) }
 	}
 
-	for _, ok := range []string{"null", "http://localhost:5173"} {
+	for _, ok := range []string{"null", "http://localhost:5173", "http://localhost:5174"} {
 		got := f.send("GET", "/api/health", nil, origin(ok))
 		got.expect(t, 200, "")
 
@@ -155,7 +155,7 @@ func TestOrigin(t *testing.T) {
 		}
 	}
 
-	for _, bad := range []string{"https://evil.example", "http://localhost:5174", "http://localhost:5173/", "http://127.0.0.1:5173", "*", "NULL"} {
+	for _, bad := range []string{"https://evil.example", "http://localhost:5175", "http://localhost:5173/", "http://127.0.0.1:5173", "*", "NULL"} {
 		got := f.send("GET", "/api/health", nil, origin(bad))
 		got.expect(t, 403, "forbidden")
 
@@ -186,7 +186,7 @@ func TestPreflight(t *testing.T) {
 		}
 	}
 
-	for _, ok := range []string{"null", "http://localhost:5173"} {
+	for _, ok := range []string{"null", "http://localhost:5173", "http://localhost:5174"} {
 		got := f.send("OPTIONS", "/api/folder", nil, preflight(ok))
 		got.expect(t, 204, "")
 

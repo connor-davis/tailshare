@@ -185,3 +185,11 @@ Add short notes here when something surprises you, under the closest group.
   `GOFLAGS=-p=1` so packages run one at a time.
 - Task ignores `dir:` on a single `cmd:` entry, so the command runs from
   the repo root. Write `cd web/apps/desktop && ...` instead.
+
+### Screen media
+
+- Chromium keeps unknown-size WebM clusters in PARSING_MEDIA_SEGMENT after
+  `updateend`. Before a fresh MediaRecorder epoch, call SourceBuffer.abort()
+  and then set timestampOffset to the previous buffered end. Without the
+  parser reset, Chromium throws InvalidStateError. Verified with real
+  Electron canvas recording and MSE playback across three epochs.
