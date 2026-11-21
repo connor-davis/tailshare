@@ -250,3 +250,37 @@ describe("chat memory bound", () => {
     expect(mergeChat(many(300))[0]!.id).toBe("m100")
   })
 })
+
+describe("screen events", () => {
+  it("seeds screens from snapshots, replaces live metadata, and clears it on leave", () => {
+    const client = new QueryClient()
+    const screens = {
+      mine: [],
+      others: [
+        {
+          id: "a",
+          ownerId: "m",
+          ownerName: "Hana",
+          codec: "video/webm;codecs=vp8",
+          viewers: 0,
+        },
+      ],
+      unsupported: ["Old build"],
+    }
+    applyEvent(client, {
+      seq: 1,
+      type: "snapshot",
+      data: { session: connected, transfers: [], screens },
+    })
+    expect(client.getQueryData(keys.screens)).toEqual(screens)
+    const changed = { ...screens, others: [], unsupported: [] }
+    applyEvent(client, { seq: 2, type: "screen.changed", data: changed })
+    expect(client.getQueryData(keys.screens)).toEqual(changed)
+    applyEvent(client, {
+      seq: 3,
+      type: "session.state",
+      data: { state: "idle" },
+    })
+    expect(client.getQueryData(keys.screens)).toBeUndefined()
+  })
+})

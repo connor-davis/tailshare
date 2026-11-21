@@ -143,6 +143,8 @@ export interface Snapshot {
   transfers: TransferItem[]
   /** Shared apps. Missing when the sidecar is older than the screen. */
   forwards?: ForwardState
+  /** Active screen shares, when supported by the sidecar. */
+  screens?: ScreenState
 }
 
 /** The one shape of every live message. */
@@ -153,4 +155,20 @@ export interface LiveEvent {
   type: string
   /** The payload; its shape depends on `type`. */
   data: unknown
+}
+
+/** One member's view-only screen recording. */
+export interface ScreenItem {
+  id: string
+  codec: string
+  ownerId: string
+  ownerName: string
+  viewers: number
+}
+
+/** Memory-only room screen-sharing state, updated by the live socket. */
+export interface ScreenState {
+  mine: ScreenItem[]
+  others: ScreenItem[]
+  unsupported: string[]
 }

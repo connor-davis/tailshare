@@ -282,7 +282,8 @@ drive it.
   bound port are accepted, so DNS rebinding cannot reach the API. Forwarded
   headers are never trusted.
 - **Origin check.** If a request carries an `Origin`, it must be exactly
-  `null` (the packaged app) or `http://localhost:5173` (the Vite dev server).
+  `null` (the packaged app), `http://localhost:5173` (the Vite dev server),
+  or `http://localhost:5174` (the second dev copy using `TAILSHARE_DEV_PORT=5174`).
   Anything else is refused. The allowed origin is echoed back, never `*`, and
   credentials are never allowed. A CORS preflight (`OPTIONS`) from an allowed
   origin is answered without the token, because browsers do not send it
@@ -319,3 +320,39 @@ The current local API still selects one control peer for browsing, chat and
 transfers. After that peer is removed while the mesh session survives, its
 manager closes and the API attaches a fresh manager to a surviving or newly
 joined member. Per-member API ownership is a later change.
+
+## View-only screen sharing
+
+Capture starts only after a person presses Share screen and chooses a screen
+or window from named thumbnails. Electron main enumerates native sources and
+returns random opaque choices, valid for thirty seconds. Selecting a choice
+consumes the list and permits one display-media request for ten seconds.
+Unknown, expired and reused choices are refused. The request must come from
+this window's main frame, request video and request no audio. Main grants only
+the picked source, with no system-picker fallback. Source IDs stay in main.
+IPC rejects other senders, subframes and extra arguments. Reload and destruction
+clear pending choices. Native OS capture permissions still apply.
+
+The room header keeps a visible You are sharing your screen bar with Stop
+sharing across every tab. The status region announces sharing. Stopping, the
+captured track ending, renderer loss or leaving closes ingest and all viewers.
+Viewing grants no keyboard, pointer, audio or remote-control channel.
+
+Only authenticated current room members can open a share's session stream.
+The share ID selects an existing local recording and cannot select a desktop
+source or start capture. Names come from the room roster. Leaving or removal
+closes that member's streams; session end clears everything. All members of
+the room may watch, so choose a window when other desktop content is private.
+
+Recordings, initialization data, thumbnails and viewer state stay in memory;
+nothing is saved or logged. A malicious viewer can still record what they see.
+There is no third-party media service or new relay: media travels only through
+the existing encrypted Tailcat member links (which may themselves use the
+existing Tailcat DERP transport relays). There are no public media URLs.
+
+Binary local sockets require the same per-launch token, Host and Origin checks
+as the live socket. Media never goes through the JSON hub. Chunk, epoch and
+per-viewer queue limits bound memory, and a stalled viewer is disconnected
+without slowing capture or other viewers. See [protocol.md](protocol.md) for
+framing, buffer and deadline limits. CSP adds only `media-src blob:`;
+`connect-src` keeps its existing self and loopback-only policy.

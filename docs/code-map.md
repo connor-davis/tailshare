@@ -212,3 +212,17 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Cancellable source/partial hashes and size-scaled download offer deadline | `internal/services/transfer/send.go`, `receive.go`, `run.go` |
 | Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |
 | Backend audit regressions, offline network abuse checks and actual Windows short alias | `internal/services/{share,peer,mesh,session,transfer}/audit*_test.go`, `internal/api/audit_test.go` |
+
+## Screen sharing
+
+| Job | Owner |
+| --- | --- |
+| One recording per member, optional room list/announce methods, late joins, viewer counts, bounded epochs and lifecycle | `internal/services/screen/screen.go` |
+| Session stream kind 2, bounded frame reads/writes, authenticated viewer open/serve and independent slow-viewer disconnect | `internal/services/screen/stream.go` |
+| Screen controls, dedicated token-authenticated binary ingest/watch sockets and live metadata hook | `internal/api/screen.go`; registration and lifetime in `server.go`, `session.go`, snapshots in `live.go` |
+| Local-relay three-member fanout, byte order, late joins, stalled viewer isolation, stop/leave, unknown IDs and token tests | `internal/api/screen_test.go`; frame/epoch/queue bounds in `internal/services/screen/screen_test.go` |
+| Opaque source choices, expiry, one-use main-frame video grants and sender-checked IPC | `web/apps/desktop/src/main/screen-capture.ts`, `screen-capture.test.ts`; wiring in `main/index.ts` |
+| Capture choice bridge types, validation and narrow preload channels | `web/apps/desktop/src/shared/{bridge,ipc-schema}.ts`, `src/preload/index.ts`, `preload.test.ts` |
+| Screen tab, source picker, viewer video/fullscreen and visible persistent Stop sharing bar | `web/apps/desktop/src/renderer/src/routes/-components/{screen-panel,room-view}.tsx`, `screen-panel.test.tsx` |
+| Local screen metadata/query and binary connection client; live reducer | `web/apps/desktop/src/renderer/src/lib/api/screens.ts`, `types.ts`, `keys.ts`; `lib/live/apply.ts`, `apply.test.ts` |
+| Bounded MediaRecorder capture epochs, ordered MediaSource playback, trim/live-edge and cleanup | `web/apps/desktop/src/renderer/src/lib/media/{screen-recorder,screen-player}.ts` and adjacent tests |

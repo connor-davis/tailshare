@@ -18,9 +18,10 @@ const (
 )
 
 // allowedOrigins are the only browser origins that may call the API: the
-// packaged app's page (Origin "null") and the Vite dev server. If the dev
-// port changes, change it here and in the desktop app together.
-var allowedOrigins = []string{"null", "http://localhost:5173"}
+// packaged app's page (Origin "null") and the Vite dev server. 5174 is the
+// second dev copy (TAILSHARE_DEV_PORT=5174). If a dev port changes, change it
+// here and in electron.vite.config.ts together. The token is still required.
+var allowedOrigins = []string{"null", "http://localhost:5173", "http://localhost:5174"}
 
 // guard runs before every route: Host, then Origin, then the token. The Host
 // check stops DNS rebinding, the Origin check stops other web pages, and the
@@ -51,7 +52,8 @@ func (server *Server) guard(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
-	if c.Path() == livePath {
+	if c.Path() == livePath || strings.HasPrefix(c.Path(), "/api/screen/ingest/") ||
+		strings.HasPrefix(c.Path(), "/api/screen/watch/") {
 		return server.guardLive(c)
 	}
 

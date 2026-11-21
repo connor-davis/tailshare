@@ -25,6 +25,8 @@ describe("preload bridge", () => {
     expect(exposed.map((m) => [m[1], m[2]])).toEqual([["tailshare", "bridge"]])
     expect(source).not.toMatch(/exposeInMainWorld\("\w+", ipcRenderer/)
     for (const name of [
+      "screenSources",
+      "pickScreenSource",
       "getConnectionInfo",
       "chooseFolder",
       "addFiles",
@@ -161,5 +163,24 @@ describe("dropped files", () => {
     } finally {
       vi.doUnmock("electron")
     }
+  })
+})
+
+describe("capture choice validation", () => {
+  it("refuses native IDs, non-image thumbnails and oversized replies", async () => {
+    const { isCaptureSources } = await import("../shared/bridge")
+    const choice = {
+      id: "12345678-1234-1234-1234-123456789abc",
+      name: "Desktop",
+      thumbnail: "data:image/png;base64,AA==",
+    }
+    expect(isCaptureSources([choice])).toBe(true)
+    expect(isCaptureSources([{ ...choice, id: "screen:0" }])).toBe(false)
+    expect(
+      isCaptureSources([
+        { ...choice, thumbnail: "https://outside.example/image.png" },
+      ])
+    ).toBe(false)
+    expect(isCaptureSources(Array(257).fill(choice))).toBe(false)
   })
 })

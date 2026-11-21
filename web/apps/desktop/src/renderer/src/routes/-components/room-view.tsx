@@ -1,3 +1,11 @@
+import { useEffect, useState } from "react"
+import { announce } from "@/components/status-region"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { apiFetch } from "@/lib/api/client"
+import { useScreens } from "@/lib/api/screens"
+import { createScreenRecorder } from "@/lib/media/screen-recorder"
+import { ScreenPanel } from "./screen-panel"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -41,6 +49,25 @@ export function RoomView({
   /** Epoch milliseconds the room opened, for the code countdown. */
   startedAt?: number | null
 }) {
+  const screens = useScreens()
+  const [captureError, setCaptureError] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  const [capture] = useState(() =>
+    createScreenRecorder(() => {
+      setCaptureError(
+        "Could not share your screen. Check the selected window and try again."
+      )
+    })
+  )
+  useEffect(() => () => capture.stop(), [capture])
+  const mine = screens.data?.mine[0]
+  const sharingId = mine?.id
+  useEffect(() => {
+    if (!sharingId) return
+    announce("You are sharing your screen.")
+    return () => announce("Screen sharing stopped.")
+  }, [sharingId])
+
   const [transfersOpen, toggleTransfers] = usePanelOpen("transfers")
   const layout = usePanelLayout(
     "room-main",
@@ -58,6 +85,33 @@ export function RoomView({
         roomCode={roomCode}
         startedAt={startedAt}
       />
+      {mine && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 border-b bg-primary/10 px-4 py-2 text-sm"
+        >
+          <span>
+            You are sharing your screen · {mine.viewers}{" "}
+            {mine.viewers === 1 ? "viewer" : "viewers"}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              capture.stop()
+              void apiFetch(`/api/screen/${mine.id}`, {
+                method: "DELETE",
+              }).catch(() =>
+                setCaptureError(
+                  "Could not stop sharing. Leave the room to stop."
+                )
+              )
+            }}
+          >
+            Stop sharing
+          </Button>
+        </div>
+      )}
       <div className="min-h-0 flex-1">
         <ResizablePanelGroup
           key={transfersOpen ? "split" : "chat-only"}
@@ -70,6 +124,9 @@ export function RoomView({
               <TabsList variant="line" className="px-2">
                 <TabsTrigger value="chat">Chat</TabsTrigger>
                 <TabsTrigger value="apps">Apps</TabsTrigger>
+                <TabsTrigger value="screen">
+                  Screen <Badge variant="outline">Experimental</Badge>
+                </TabsTrigger>
               </TabsList>
               {/* forceMount keeps the chat alive (and scrolled) on the Apps tab. */}
               <TabsContent
@@ -78,6 +135,32 @@ export function RoomView({
                 className="min-h-0 flex-1 data-[state=inactive]:hidden"
               >
                 <RoomChat connected={peer !== undefined} />
+              </TabsContent>
+              <TabsContent
+                value="screen"
+                forceMount
+                className="min-h-0 flex-1 data-[state=inactive]:hidden"
+              >
+                <ScreenPanel
+                  state={screens.data}
+                  loading={screens.isPending}
+                  error={
+                    captureError ??
+                    (screens.error
+                      ? "Could not load screen shares. Rejoin the room to try again."
+                      : undefined)
+                  }
+                  busy={busy}
+                  onShare={async (id) => {
+                    setBusy(true)
+                    setCaptureError(undefined)
+                    try {
+                      await capture.start(id)
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                />
               </TabsContent>
               <TabsContent value="apps" className="min-h-0 flex-1">
                 <AppsPanel connected={peer !== undefined} />

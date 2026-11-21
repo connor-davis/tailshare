@@ -4,6 +4,8 @@ import { JOIN_CODE, SIDECAR_STATUSES } from "./bridge"
 /** IPC channel names. Main and preload both read them from here. */
 export const CHANNELS = {
   connectionInfo: "tailshare:connection-info",
+  screenSources: "tailshare:screen-sources",
+  pickScreenSource: "tailshare:pick-screen-source",
   chooseFolder: "tailshare:choose-folder",
   addFiles: "tailshare:add-files",
   addDroppedFiles: "tailshare:add-dropped-files",
