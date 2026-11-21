@@ -18,7 +18,6 @@ import (
 	"github.com/connor-davis/tailshare/internal/platform/config"
 	"github.com/connor-davis/tailshare/internal/services/forward"
 	"github.com/connor-davis/tailshare/internal/services/peer"
-	"github.com/connor-davis/tailshare/internal/services/screen"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/connor-davis/tailshare/internal/services/transfer"
@@ -66,7 +65,6 @@ type Server struct {
 	transferDone  chan struct{}
 	ending        chan struct{}
 	forwards      *forward.Forwards
-	screens       *screen.Screens
 }
 
 // New builds the API and owns a transfer manager for each connected session.
@@ -177,12 +175,6 @@ func (server *Server) routes() {
 
 	api.Get("/chat", server.getChat)
 	api.Post("/chat", server.postChat)
-
-	api.Get("/screen", server.listScreens)
-	api.Post("/screen", server.startScreen)
-	api.Delete("/screen/:id", server.stopScreen)
-	api.Get("/screen/ingest/:id", server.screenSocket(true))
-	api.Get("/screen/watch/:id", server.screenSocket(false))
 
 	api.Get("/forwards", server.listForwards)
 	api.Post("/forwards", server.shareForward)

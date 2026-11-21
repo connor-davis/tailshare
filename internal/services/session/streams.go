@@ -15,6 +15,7 @@ import (
 )
 
 // kindReverse is the internal stream kind that answers a stream.open request.
+// Kind 1 is forwards. Kind 2 is retired (a removed 0.1.2 feature) and must never be reused.
 const kindReverse byte = 0
 
 // streamHeaderWait bounds how long a new stream may take to send its header.

@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 import {
   SIDECAR_STATUSES,
-  isCaptureSources,
   isDownloadsStatus,
   isJoinCode,
   isRecentRooms,
@@ -21,16 +20,6 @@ import {
 // Channel names are repeated here on purpose: a sandboxed preload cannot load
 // the schema module. src/preload/preload.test.ts checks they match.
 const bridge: TailshareBridge = Object.freeze({
-  screenSources: async () => {
-    const sources: unknown = await ipcRenderer.invoke(
-      "tailshare:screen-sources"
-    )
-    if (!isCaptureSources(sources))
-      throw new Error("Could not read the screen choices.")
-    return sources
-  },
-  pickScreenSource: (id: string) =>
-    ipcRenderer.invoke("tailshare:pick-screen-source", id),
   getSettings: () => ipcRenderer.invoke("tailshare:get-settings"),
   updateSettings: (patch: SettingsPatch) =>
     ipcRenderer.invoke("tailshare:update-settings", patch),

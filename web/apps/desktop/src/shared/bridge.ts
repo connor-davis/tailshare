@@ -192,10 +192,6 @@ export interface AddFilesResult {
  * exposes `ipcRenderer`, `process` or a way to call other channels.
  */
 export interface TailshareBridge {
-  /** Lists short-lived screen and window choices with thumbnails. */
-  readonly screenSources: () => Promise<CaptureSource[]>
-  /** Authorizes one opaque choice for the next display-media request. */
-  readonly pickScreenSource: (id: string) => Promise<void>
   /** Reads the saved settings. */
   readonly getSettings: () => Promise<Settings>
   /** Checks and saves a patch, then resolves to the new settings. */
@@ -303,31 +299,4 @@ export function isReleaseLink(value: unknown): value is string {
   } catch {
     return false
   }
-}
-
-/** A short-lived opaque capture choice; no native source ID or path. */
-export interface CaptureSource {
-  readonly id: string
-  readonly name: string
-  readonly thumbnail: string
-}
-
-/** Validates capture choices before the sandboxed preload returns them. */
-export function isCaptureSources(value: unknown): value is CaptureSource[] {
-  return (
-    Array.isArray(value) &&
-    value.length <= 256 &&
-    value.every(
-      (source) =>
-        source &&
-        typeof source === "object" &&
-        typeof source.id === "string" &&
-        /^[a-f0-9-]{36}$/.test(source.id) &&
-        typeof source.name === "string" &&
-        source.name.length <= 256 &&
-        typeof source.thumbnail === "string" &&
-        source.thumbnail.length <= 1_000_000 &&
-        /^data:image\/png;base64,/.test(source.thumbnail)
-    )
-  )
 }

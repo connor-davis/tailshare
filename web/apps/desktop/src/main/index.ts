@@ -2,18 +2,12 @@ import {
   app,
   BrowserWindow,
   dialog,
-  desktopCapturer,
   ipcMain,
   nativeTheme,
   session,
   shell,
   type Tray,
 } from "electron"
-import {
-  createScreenCapture,
-  registerScreenIpc,
-  screenRequestAllowed,
-} from "./screen-capture"
 import { release } from "node:os"
 import { join, resolve } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
@@ -296,24 +290,7 @@ async function main() {
       callback({ requestHeaders: fixSocketOrigin(details.requestHeaders) })
   )
 
-  const capture = createScreenCapture(() =>
-    desktopCapturer.getSources({
-      types: ["screen", "window"],
-      thumbnailSize: { width: 320, height: 180 },
-    })
-  )
-  registerScreenIpc(host, capture)
-  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-    const source = capture.grant(
-      screenRequestAllowed(request, window?.webContents.mainFrame)
-    )
-    callback(source ? { video: source } : {})
-  })
-
   createWindow(startsHidden(process.argv) && !startLink, look())
-
-  window?.webContents.on("did-start-loading", capture.reset)
-  window?.webContents.on("destroyed", capture.reset)
 
   tray = createTray(
     { onOpen: () => showWindow(window), onQuit: () => app.quit() },

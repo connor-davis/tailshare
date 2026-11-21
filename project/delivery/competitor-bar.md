@@ -40,22 +40,7 @@ rooms of up to 8 people, and local Allow/Deny for every joiner.
 | UDP | No | Yes | No | Skip: TCP only (scope brief) |
 | Request inspector | Yes | No | No | Skip: dev tool, not core sharing |
 
-## Screen: Parsec, AnyDesk (Tailshare screen sharing is experimental in 0.1.2)
-
-| Core feature | Parsec | AnyDesk | Tailshare | Verdict |
-|---|---|---|---|---|
-| Share a whole screen | Yes | Yes | Yes | Match |
-| Share one window | No | No | Yes | Beat |
-| Several viewers at once | Yes | Yes | Yes, everyone in the room | Match |
-| No account | No | Optional | Yes | Beat |
-| Clear "you are sharing" indicator and Stop | Yes | Yes | Yes, a "you are sharing" bar with Stop above the room tabs | Match |
-| End-to-end encrypted, no vendor relay of media | Vendor relays | Vendor relays | Media rides the members' own WireGuard tunnel | Beat |
-| Remote mouse and keyboard | Yes | Yes | No | Skip: view only (owner decision) |
-| Audio | Yes | Yes | No | Skip: out of scope for 0.1.2 |
-| 60 fps game streaming | Yes | No | No, tuned for desktops and apps | Skip: not a game streamer |
-
 ## Where Tailshare is ahead
 
-Tailshare is the only tool here that does files, private ports and screen
-sharing in one app, with no account, from one short code. None of the rivals
-combine all three.
+Tailshare is the only tool here that does files and private ports in one app,
+with no account, from one short code. Neither rival combines both.
