@@ -74,15 +74,18 @@ func validateRoster(roster peer.ShareRoster) (map[string]peer.ShareMember, error
 	}
 	members := make(map[string]peer.ShareMember)
 	orders := make(map[uint64]bool)
+	names := make(map[string]bool)
 	for _, member := range roster.Members {
 		if err := validateMember(member); err != nil {
 			return nil, err
 		}
-		if _, exists := members[member.ID]; exists || orders[member.JoinOrder] {
+		name := strings.ToLower(strings.TrimSpace(member.DisplayName))
+		if _, exists := members[member.ID]; exists || orders[member.JoinOrder] || names[name] {
 			return nil, invalid()
 		}
 		members[member.ID] = member
 		orders[member.JoinOrder] = true
+		names[name] = true
 	}
 	return members, nil
 }

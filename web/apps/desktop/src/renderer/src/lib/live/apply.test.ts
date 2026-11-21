@@ -7,7 +7,13 @@ import type {
   TransferItem,
   TransferView,
 } from "../api/types"
-import { applyEvent, upsertTransfer } from "./apply"
+import {
+  CHAT_LIMIT,
+  appendChat,
+  applyEvent,
+  mergeChat,
+  upsertTransfer,
+} from "./apply"
 
 const item = (over: Partial<TransferItem> = {}): TransferItem => ({
   id: "t1",
@@ -48,6 +54,37 @@ describe("applyEvent", () => {
 
     expect(client.getQueryData(keys.session)).toEqual(connected)
     expect(client.getQueryData<TransferView[]>(keys.transfers)).toHaveLength(1)
+  })
+
+  it("keeps shared apps from the snapshot and live changes, then clears them", () => {
+    const client = new QueryClient()
+    const app = {
+      id: "a",
+      label: "Web",
+      port: 80,
+      ownerId: "m",
+      ownerName: "Hana",
+      open: false,
+    }
+    const state = { mine: [], others: [app], unsupported: [] }
+
+    applyEvent(client, {
+      seq: 0,
+      type: "snapshot",
+      data: { session: connected, transfers: [], forwards: state },
+    })
+    expect(client.getQueryData(keys.forwards)).toEqual(state)
+
+    const next = { ...state, others: [] }
+    applyEvent(client, { seq: 1, type: "forward.changed", data: next })
+    expect(client.getQueryData(keys.forwards)).toEqual(next)
+
+    applyEvent(client, {
+      seq: 2,
+      type: "session.state",
+      data: { state: "idle" },
+    })
+    expect(client.getQueryData(keys.forwards)).toBeUndefined()
   })
 
   it("replaces the session on session.state", () => {
@@ -139,5 +176,111 @@ describe("upsertTransfer", () => {
 
     upsertTransfer(client, item({ bytes: 1000 }), 2000)
     expect(speed()).toBe(1000)
+  })
+})
+
+describe("live state is newer than HTTP", () => {
+  it("keeps a snapshot when an older session read finishes after it", async () => {
+    const client = new QueryClient()
+    let finish: (state: SessionState) => void = () => {}
+    const read = client
+      .fetchQuery({
+        queryKey: keys.session,
+        queryFn: () => new Promise<SessionState>((r) => (finish = r)),
+      })
+      .catch(() => {})
+    const hosting: SessionState = { state: "hosting", role: "host" }
+
+    applyEvent(client, {
+      seq: 0,
+      type: "snapshot",
+      data: { session: hosting, transfers: [] },
+    })
+    finish({ state: "idle" })
+    await read
+
+    expect(client.getQueryData(keys.session)).toEqual(hosting)
+  })
+
+  it("keeps live transfers when an older list read finishes after them", async () => {
+    const client = new QueryClient()
+    let finish: (list: TransferView[]) => void = () => {}
+    const read = client
+      .fetchQuery({
+        queryKey: keys.transfers,
+        queryFn: () => new Promise<TransferView[]>((r) => (finish = r)),
+      })
+      .catch(() => {})
+
+    applyEvent(client, { seq: 1, type: "transfer.state", data: item() })
+    finish([])
+    await read
+
+    expect(client.getQueryData<TransferView[]>(keys.transfers)).toHaveLength(1)
+  })
+
+  it("merges a chat read with messages that arrived while it ran", () => {
+    const merged = mergeChat([chat("a"), chat("b")], [chat("b"), chat("c")])
+
+    expect(merged.map((m) => m.id)).toEqual(["a", "b", "c"])
+  })
+})
+
+describe("chat memory bound", () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, i) => chat(`m${i}`))
+
+  it("keeps only the newest 200 messages when appending", () => {
+    const client = new QueryClient()
+
+    for (const message of many(CHAT_LIMIT + 1)) appendChat(client, message)
+
+    const list = client.getQueryData<ChatMessage[]>(keys.chat)!
+    expect(list).toHaveLength(CHAT_LIMIT)
+    expect(list[0]!.id).toBe("m1")
+    // A message that rolled off can come back; one that stayed cannot double.
+    appendChat(client, chat("m1"))
+    expect(client.getQueryData<ChatMessage[]>(keys.chat)).toHaveLength(
+      CHAT_LIMIT
+    )
+  })
+
+  it("caps a merged history too", () => {
+    expect(mergeChat(many(150), many(300).slice(100))).toHaveLength(CHAT_LIMIT)
+    expect(mergeChat(many(300))[0]!.id).toBe("m100")
+  })
+})
+
+describe("screen events", () => {
+  it("seeds screens from snapshots, replaces live metadata, and clears it on leave", () => {
+    const client = new QueryClient()
+    const screens = {
+      mine: [],
+      others: [
+        {
+          id: "a",
+          ownerId: "m",
+          ownerName: "Hana",
+          codec: "video/webm;codecs=vp8",
+          viewers: 0,
+        },
+      ],
+      unsupported: ["Old build"],
+    }
+    applyEvent(client, {
+      seq: 1,
+      type: "snapshot",
+      data: { session: connected, transfers: [], screens },
+    })
+    expect(client.getQueryData(keys.screens)).toEqual(screens)
+    const changed = { ...screens, others: [], unsupported: [] }
+    applyEvent(client, { seq: 2, type: "screen.changed", data: changed })
+    expect(client.getQueryData(keys.screens)).toEqual(changed)
+    applyEvent(client, {
+      seq: 3,
+      type: "session.state",
+      data: { state: "idle" },
+    })
+    expect(client.getQueryData(keys.screens)).toBeUndefined()
   })
 })

@@ -143,6 +143,7 @@ describe("update IPC", () => {
     CHANNELS.checkForUpdates,
     CHANNELS.downloadUpdate,
     CHANNELS.openReleaseLink,
+    CHANNELS.openForwardLink,
     CHANNELS.restartToUpdate,
     CHANNELS.updateSettings,
   ])("rejects other windows and malformed arguments on %s", async (channel) => {
@@ -206,6 +207,39 @@ describe("update IPC", () => {
     await expect(
       handler(CHANNELS.openReleaseLink)(true, [url])
     ).rejects.toThrow("could not open this release link. Try again.")
+  })
+
+  it("opens only a forwarded app link", async () => {
+    const { handler, openExternal } = setupUpdates()
+    const open = handler(CHANNELS.openForwardLink)
+    await open(true, ["http://127.0.0.1:51234/"])
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(
+      "http://127.0.0.1:51234/"
+    )
+
+    openExternal.mockClear()
+    for (const bad of [
+      "http://127.0.0.1:51234",
+      "http://127.0.0.1:51234/path",
+      "http://127.0.0.1:51234/?a=1",
+      "http://127.0.0.1:80/",
+      "http://127.0.0.1:70000/",
+      "http://127.0.0.1:/",
+      "http://localhost:51234/",
+      "http://127.0.0.1.evil.test:51234/",
+      "http://user@127.0.0.1:51234/",
+      "https://127.0.0.1:51234/",
+      "http://127.0.0.1:51234/ ",
+      "file:///C:/Windows",
+    ])
+      await expect(open(true, [bad])).rejects.toThrow(
+        "could not read that request"
+      )
+    expect(openExternal).not.toHaveBeenCalled()
+
+    await expect(open(false, ["http://127.0.0.1:51234/"])).rejects.toThrow(
+      "could not answer this window"
+    )
   })
 
   it("saves a valid patch and replies with every setting", async () => {
@@ -509,6 +543,45 @@ describe("room file IPC", () => {
     await expect(
       call(CHANNELS.openRoomFolder, true, ["7K3Q9PXM"])
     ).rejects.toThrow("Could not open the room folder.")
+  })
+
+  it("keeps the current room in main for a reloaded page", async () => {
+    const { registerRoomIpc } = await import("./room-ipc")
+    const handlers = new Map<string, Handler>()
+    registerRoomIpc(
+      {
+        handle: (channel, handler) => handlers.set(channel, handler),
+        pickFolder: async () => null,
+      },
+      {
+        roomsDir: "C:/rooms",
+        pickFiles: async () => null,
+        addFiles: async () => ({ added: [], skipped: [] }),
+        openPath: async () => "",
+      }
+    )
+    const call = (channel: string, sender: boolean, args: unknown[]) =>
+      handlers.get(channel)!(sender, args)
+    const room = { name: "Movie night", code: "7K3Q9PXM" }
+
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toBeNull()
+    await call(CHANNELS.setCurrentRoom, true, [room])
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toEqual(room)
+
+    for (const bad of [
+      { ...room, code: "nope" },
+      { name: 1, code: room.code },
+    ]) {
+      await expect(call(CHANNELS.setCurrentRoom, true, [bad])).rejects.toThrow(
+        "could not read that request"
+      )
+    }
+    await expect(call(CHANNELS.setCurrentRoom, false, [room])).rejects.toThrow()
+    await expect(call(CHANNELS.getCurrentRoom, false, [])).rejects.toThrow()
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toEqual(room)
+
+    await call(CHANNELS.setCurrentRoom, true, [null])
+    expect(await call(CHANNELS.getCurrentRoom, true, [])).toBeNull()
   })
 
   it("sends both tokens only from main", async () => {

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/resizable"
 import { useHost, useJoin, useLeave, useSession } from "@/lib/api/session"
 import { EmptyState } from "./-components/empty-state"
+import { DownloadsAlert } from "./-components/downloads-alert"
 import { MembersPanel } from "./-components/members-panel"
 import { MainBar } from "./-components/main-bar"
 import { usePanelLayout, usePanelOpen } from "./-components/panel-layout"
@@ -23,6 +24,8 @@ import { RoomView } from "./-components/room-view"
  * right. Today there is one room at a time.
  */
 export const Route = createFileRoute("/")({ component: Shell })
+
+const noop = () => {}
 
 function Shell() {
   const { data: session } = useSession()
@@ -82,11 +85,14 @@ function Shell() {
     })
 
   // A tailshare:// link joins as if its code were typed. Kept in a ref so the
-  // subscription is made once but always calls the newest handler.
+  // subscription is made once but always calls the newest handler. Until the
+  // session is known, "idle" cannot be told from "busy", so the link waits.
+  const pendingLink = useRef<string | null>(null)
   const onLink = useRef((code: string) => joinCode(code))
   useEffect(() => {
     onLink.current = (code) => {
-      if (state === "idle") joinCode(code)
+      if (state === undefined) pendingLink.current = code
+      else if (state === "idle") joinCode(code)
       else announce("Leave the open room first.", "assertive")
     }
   })
@@ -94,6 +100,13 @@ function Shell() {
     () => window.tailshare.onJoinLink((code) => onLink.current(code)),
     []
   )
+  useEffect(() => {
+    const code = pendingLink.current
+    if (!state || !code) return
+
+    pendingLink.current = null
+    onLink.current(code)
+  }, [state])
 
   // The open room joins the recent list only once this computer is out of
   // it, however it ended: Leave, the code running out or the other side going.
@@ -102,6 +115,45 @@ function Shell() {
   useEffect(() => {
     if (code) openRoom.current = { roomName, code }
   }, [code, roomName])
+
+  // Main keeps the room's code for as long as it runs, so a reloaded page can
+  // get its folder and share controls back. The sidecar never repeats the code.
+  const roomCodeNow = session?.role === "host" ? (code ?? hostCode) : joinedCode
+  useEffect(() => {
+    if (state === "idle") void window.tailshare.setCurrentRoom(null).catch(noop)
+    else if (state && roomCodeNow)
+      void window.tailshare
+        .setCurrentRoom({ name: roomName ?? "", code: roomCodeNow })
+        .catch(noop)
+  }, [state, roomCodeNow, roomName])
+  const role = session?.role
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current || !state || state === "idle") return
+
+    restored.current = true
+    void window.tailshare
+      .getCurrentRoom()
+      .then((room) => {
+        if (!room) return
+        if (role === "host") setHostCode((now) => now ?? room.code)
+        else setJoinedCode((now) => now ?? room.code)
+        openRoom.current ??= {
+          roomName: room.name || undefined,
+          code: room.code,
+        }
+      })
+      .catch(noop)
+  }, [state, role])
+
+  // A request waiting inside a hidden Members column would go unseen.
+  const joinWaiting = session?.role === "host" && !!session.join
+  const joinId = joinWaiting ? session?.join?.id : undefined
+  useEffect(() => {
+    if (joinId !== undefined && !membersOpen)
+      announce("Someone wants to join. Open Members to answer.", "assertive")
+  }, [joinId, membersOpen])
+
   useEffect(() => {
     if (state !== "idle" || !openRoom.current) return
     rememberRoom(openRoom.current.roomName, openRoom.current.code)
@@ -145,6 +197,7 @@ function Shell() {
       <RoomView
         peer={session.peer}
         roomName={session.roomName}
+        host={session.role === "host"}
         leaving={leave.isPending}
         code={
           session.role === "host"
@@ -203,7 +256,9 @@ function Shell() {
               onToggleRooms={toggleRooms}
               membersOpen={membersOpen}
               onToggleMembers={toggleMembers}
+              joinWaiting={joinWaiting}
             />
+            <DownloadsAlert />
             {notice || error ? (
               <Alert
                 role="status"

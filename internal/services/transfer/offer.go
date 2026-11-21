@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/connor-davis/tailshare/internal/services/share"
@@ -16,6 +17,9 @@ func validHash(hash string) bool {
 }
 
 func (manager *Manager) offer(ctx context.Context, raw json.RawMessage) (any, error) {
+	if err := manager.authorize(ctx, true); err != nil {
+		return nil, err
+	}
 	var offer peer.TransferOffer
 	if json.Unmarshal(raw, &offer) != nil || !validID(offer.TransferID) {
 		return nil, &peer.RemoteError{Code: peer.CodeBadRequest, Message: errInvalid.Error()}
@@ -68,11 +72,11 @@ func (manager *Manager) offer(ctx context.Context, raw json.RawMessage) (any, er
 		err = manager.prepareReceiver(item)
 	}
 	if err != nil {
-		manager.finish(item, err)
+		manager.refuse(item, err)
 		return refusal(err)
 	}
 	if err := manager.register(item); err != nil {
-		manager.finish(item, err)
+		manager.refuse(item, err)
 		return refusal(err)
 	}
 
@@ -87,6 +91,9 @@ func (manager *Manager) offer(ctx context.Context, raw json.RawMessage) (any, er
 }
 
 func (manager *Manager) resumeOffer(ctx context.Context, raw json.RawMessage) (any, error) {
+	if err := manager.authorize(ctx, false); err != nil {
+		return nil, err
+	}
 	var resume peer.TransferResume
 	if json.Unmarshal(raw, &resume) != nil || !validID(resume.TransferID) {
 		return nil, &peer.RemoteError{Code: peer.CodeBadRequest, Message: errInvalid.Error()}
@@ -103,5 +110,38 @@ func (manager *Manager) resumeOffer(ctx context.Context, raw json.RawMessage) (a
 		return struct{}{}, nil
 	default:
 		return nil, &peer.RemoteError{Code: peer.CodeBadRequest, Message: errInvalid.Error()}
+	}
+}
+
+func (manager *Manager) authorize(ctx context.Context, offer bool) error {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
+	if peer.Conversation(ctx) != manager.peer {
+		return &peer.RemoteError{Code: peer.CodeDenied, Message: "This link cannot transfer files."}
+	}
+	if offer && manager.peer != nil {
+		now := time.Now()
+		if now.Sub(manager.offerWindow) >= time.Second {
+			manager.offerWindow, manager.offerCount = now, 0
+		}
+		if manager.offerCount >= 4 {
+			return &peer.RemoteError{Code: peer.CodeBusy, Message: "Try again shortly."}
+		}
+		manager.offerCount++
+	}
+	return nil
+}
+
+func (manager *Manager) refuse(item *job, err error) {
+	manager.finish(item, err)
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	delete(manager.jobs, item.view.ID)
+	for i, id := range manager.order {
+		if id == item.view.ID {
+			manager.order = append(manager.order[:i], manager.order[i+1:]...)
+			break
+		}
 	}
 }

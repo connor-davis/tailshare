@@ -2,20 +2,28 @@ import {
   app,
   BrowserWindow,
   dialog,
+  desktopCapturer,
   ipcMain,
   nativeTheme,
   session,
   shell,
   type Tray,
 } from "electron"
+import {
+  createScreenCapture,
+  registerScreenIpc,
+  screenRequestAllowed,
+} from "./screen-capture"
 import { release } from "node:os"
 import { join, resolve } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
 import updaterPackage from "electron-updater"
 import { CHANNELS } from "../shared/ipc-schema"
 import { resolveSidecarPath } from "./config"
+import { createDownloads } from "./downloads"
 import { checkHealth } from "./health"
 import {
+  registerDownloadsIpc,
   registerIpc,
   registerRecentRoomsIpc,
   registerUpdateIpc,
@@ -32,7 +40,7 @@ import { createJoinInbox, findJoinLink } from "./join-link"
 import { applyLoginItem } from "./login-item"
 import { openRecentRooms } from "./recent-rooms"
 import { callMainApi, registerRoomIpc } from "./room-ipc"
-import type { AddFilesResult, ConnectionInfo } from "../shared/bridge"
+import type { AddFilesResult } from "../shared/bridge"
 import { findProfile } from "./profile"
 import { openSettings } from "./settings"
 import { createTray, trayIconPaths } from "./tray"
@@ -108,18 +116,20 @@ async function main() {
     downloads: app.getPath("downloads"),
   })
   let mainToken = newToken()
-  let downloadsUpdate = Promise.resolve<unknown>(undefined)
-  const configureDownloads = (info: ConnectionInfo) => {
-    // Serialize changes and read the newest folder when each request starts.
-    downloadsUpdate = downloadsUpdate
-      .catch(() => {})
-      .then(() =>
-        callMainApi(info, mainToken, "/api/downloads", {
-          folder: settings.get().saveFolder,
-        })
-      )
-    return downloadsUpdate
-  }
+  // ponytail: stored "ask" uses the folder too until per-file dialogs return.
+  const downloads = createDownloads({
+    configure: async () =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/downloads",
+        { folder: settings.get().saveFolder }
+      ),
+    onChange: (status) => {
+      if (window && !window.isDestroyed())
+        window.webContents.send(CHANNELS.downloadsStatus, status)
+    },
+  })
   const runtime = ManagedRuntime.make(
     sidecarLayer({
       spawn: (token) => {
@@ -127,11 +137,9 @@ async function main() {
         return spawnSidecar(binary, token, roomsDir, mainToken)
       },
       newToken,
-      health: async (baseUrl, token) => {
-        await checkHealth(baseUrl, token)
-        // ponytail: stored "ask" uses the folder too until per-file dialogs return.
-        await configureDownloads({ baseUrl, token })
-      },
+      // A bad save folder must not look like a dead engine, so it is applied
+      // after ready instead (see `downloads`).
+      health: checkHealth,
     })
   )
   const sidecar = await runtime.runPromise(
@@ -139,6 +147,12 @@ async function main() {
       return yield* Sidecar
     })
   )
+
+  // Every start, first or after a crash, gives the sidecar the save folder.
+  sidecar.onStatus((status) => {
+    if (status === "ready") void downloads.apply()
+  })
+  if (sidecar.status() === "ready") void downloads.apply()
 
   closeToTray = settings.get().closeToTray
   // Forcing light or dark here flips prefers-color-scheme in the page too.
@@ -188,7 +202,11 @@ async function main() {
   const host: IpcHost = {
     handle: (channel, handler) =>
       ipcMain.handle(channel, (event, ...args) =>
-        handler(event.sender === window?.webContents, args)
+        handler(
+          event.sender === window?.webContents &&
+            event.senderFrame === window?.webContents.mainFrame,
+          args
+        )
       ),
     pickFolder: async () => {
       const options = { properties: ["openDirectory" as const] }
@@ -229,6 +247,7 @@ async function main() {
   ipcMain.on(CHANNELS.rendererReady, (event) => {
     if (event.sender === window?.webContents) joinInbox.ready()
   })
+  registerDownloadsIpc(host, downloads.status)
   registerWindowIpc(host, {
     state: () => windowState(look()),
   })
@@ -236,17 +255,7 @@ async function main() {
   // One place reacts to a saved change: updater, login item, tray flag, windows.
   settings.onChange((next, previous) => {
     closeToTray = next.closeToTray
-    if (next.saveFolder !== previous.saveFolder) {
-      void runtime
-        .runPromise(sidecar.connectionInfo)
-        .then(configureDownloads)
-        .catch(() =>
-          dialog.showErrorBox(
-            "Downloads folder",
-            "Could not set the downloads folder. Choose it again."
-          )
-        )
-    }
+    if (next.saveFolder !== previous.saveFolder) void downloads.apply()
     if (next.updateChannel !== previous.updateChannel)
       updater.setChannel(next.updateChannel)
     if (next.startWithWindows !== previous.startWithWindows)
@@ -287,7 +296,24 @@ async function main() {
       callback({ requestHeaders: fixSocketOrigin(details.requestHeaders) })
   )
 
+  const capture = createScreenCapture(() =>
+    desktopCapturer.getSources({
+      types: ["screen", "window"],
+      thumbnailSize: { width: 320, height: 180 },
+    })
+  )
+  registerScreenIpc(host, capture)
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    const source = capture.grant(
+      screenRequestAllowed(request, window?.webContents.mainFrame)
+    )
+    callback(source ? { video: source } : {})
+  })
+
   createWindow(startsHidden(process.argv) && !startLink, look())
+
+  window?.webContents.on("did-start-loading", capture.reset)
+  window?.webContents.on("destroyed", capture.reset)
 
   tray = createTray(
     { onOpen: () => showWindow(window), onQuit: () => app.quit() },

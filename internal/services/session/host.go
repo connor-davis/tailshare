@@ -84,10 +84,14 @@ func (session *Session) acceptJoins(server *tailcat.Server, listener net.Listene
 			return
 		}
 		session.mu.Lock()
-		if session.closed {
+		closed := session.closed
+		if closed || len(session.bootstraps) >= 4 {
 			session.mu.Unlock()
 			_ = conn.Close()
-			return
+			if closed {
+				return
+			}
+			continue
 		}
 		session.bootstraps[conn] = struct{}{}
 		session.mu.Unlock()

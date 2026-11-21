@@ -137,6 +137,42 @@ export function isRecentRooms(value: unknown): value is RecentRoom[] {
   )
 }
 
+/** The room this window is in, kept by main so a reloaded page can find it. */
+export interface CurrentRoom {
+  /** The room's own name; empty when the sidecar gave none. Up to 64 characters. */
+  readonly name: string
+  /** The bare code. A secret: it joins the room. */
+  readonly code: string
+}
+
+/** Checks a current room without loading Effect in the sandboxed preload. */
+export function isCurrentRoom(value: unknown): value is CurrentRoom {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "code" in value &&
+    isJoinCode(value.code)
+  )
+}
+
+/** Whether received files have a folder to land in. */
+export interface DownloadsStatus {
+  /** False when the save folder could not be used; downloads stay off. */
+  readonly ok: boolean
+}
+
+/** Checks a downloads status without loading Effect in the sandboxed preload. */
+export function isDownloadsStatus(value: unknown): value is DownloadsStatus {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "ok" in value &&
+    typeof value.ok === "boolean"
+  )
+}
+
 /** Where the local API listens and the secret that opens it. */
 export interface ConnectionInfo {
   /** Loopback origin such as `http://127.0.0.1:51234`, with no path. */
@@ -156,6 +192,10 @@ export interface AddFilesResult {
  * exposes `ipcRenderer`, `process` or a way to call other channels.
  */
 export interface TailshareBridge {
+  /** Lists short-lived screen and window choices with thumbnails. */
+  readonly screenSources: () => Promise<CaptureSource[]>
+  /** Authorizes one opaque choice for the next display-media request. */
+  readonly pickScreenSource: (id: string) => Promise<void>
   /** Reads the saved settings. */
   readonly getSettings: () => Promise<Settings>
   /** Checks and saves a patch, then resolves to the new settings. */
@@ -170,6 +210,8 @@ export interface TailshareBridge {
   readonly checkForUpdates: () => Promise<void>
   /** Opens an HTTPS github.com release link in the system browser. */
   readonly openReleaseLink: (url: string) => Promise<void>
+  /** Opens `http://127.0.0.1:<port>/` for a forwarded app in the system browser. */
+  readonly openForwardLink: (url: string) => Promise<void>
   /** Downloads an available release only after the user asks. */
   readonly downloadUpdate: () => Promise<void>
   /** Stops the sidecar before installing a downloaded update. */
@@ -201,6 +243,16 @@ export interface TailshareBridge {
   readonly onRecentRoomsChanged: (
     listener: (rooms: RecentRoom[]) => void
   ) => () => void
+  /** Reads the room kept by main, or `null`. Survives a page reload. */
+  readonly getCurrentRoom: () => Promise<CurrentRoom | null>
+  /** Tells main which room is open, or `null` once it is over. */
+  readonly setCurrentRoom: (room: CurrentRoom | null) => Promise<void>
+  /** Reads whether the save folder works, including news sent before load. */
+  readonly getDownloadsStatus: () => Promise<DownloadsStatus>
+  /** Calls `listener` when the save folder starts or stops working. */
+  readonly onDownloadsStatus: (
+    listener: (status: DownloadsStatus) => void
+  ) => () => void
   /**
    * Resolves once the sidecar passed its health check. Rejects with a plain
    * sentence if it is down for good.
@@ -218,6 +270,17 @@ export interface TailshareBridge {
   readonly onSidecarStatus: (
     listener: (status: SidecarStatus) => void
   ) => () => void
+}
+
+/** Allows only `http://127.0.0.1:<port>/` with a port from 1024 up: a forwarded app. */
+export function isForwardLink(value: unknown): value is string {
+  if (typeof value !== "string") return false
+
+  const match = /^http:\/\/127\.0\.0\.1:([0-9]{1,5})\/$/.exec(value)
+  if (!match) return false
+
+  const port = Number(match[1])
+  return port >= 1024 && port <= 65535
 }
 
 /** Allows only explicit HTTPS GitHub URLs without credentials or a custom port. */
@@ -240,4 +303,31 @@ export function isReleaseLink(value: unknown): value is string {
   } catch {
     return false
   }
+}
+
+/** A short-lived opaque capture choice; no native source ID or path. */
+export interface CaptureSource {
+  readonly id: string
+  readonly name: string
+  readonly thumbnail: string
+}
+
+/** Validates capture choices before the sandboxed preload returns them. */
+export function isCaptureSources(value: unknown): value is CaptureSource[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 256 &&
+    value.every(
+      (source) =>
+        source &&
+        typeof source === "object" &&
+        typeof source.id === "string" &&
+        /^[a-f0-9-]{36}$/.test(source.id) &&
+        typeof source.name === "string" &&
+        source.name.length <= 256 &&
+        typeof source.thumbnail === "string" &&
+        source.thumbnail.length <= 1_000_000 &&
+        /^data:image\/png;base64,/.test(source.thumbnail)
+    )
+  )
 }

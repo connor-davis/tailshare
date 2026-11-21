@@ -3,6 +3,8 @@ import { announce } from "../../components/status-region"
 import { keys } from "../api/keys"
 import type {
   ChatMessage,
+  ForwardState,
+  ScreenState,
   LiveEvent,
   SessionState,
   Snapshot,
@@ -48,16 +50,53 @@ export function upsertTransfer(
   })
 }
 
+/** Most chat messages the screen keeps, like the sidecar's own history. */
+export const CHAT_LIMIT = 200
+
+// How many live session or transfer events each client has applied. An HTTP
+// reply that started before one of them is older than the socket's word.
+const liveRevisions = new WeakMap<QueryClient, number>()
+
+/** Count of live events applied so far; compare before and after a request. */
+export function liveRevision(client: QueryClient): number {
+  return liveRevisions.get(client) ?? 0
+}
+
+// The socket owns session and transfers: stop reads still in flight, so their
+// older answer cannot land on top of what the socket just said.
+function claimLive(client: QueryClient, key: readonly unknown[]): void {
+  liveRevisions.set(client, liveRevision(client) + 1)
+  void client.cancelQueries({ queryKey: key })
+}
+
+/**
+ * Join a chat history read with what the socket delivered meanwhile. History
+ * comes first; live messages it lacks follow. The newest {@link CHAT_LIMIT} stay.
+ */
+export function mergeChat(
+  history: ChatMessage[],
+  live: ChatMessage[] = []
+): ChatMessage[] {
+  const known = new Set(history.map((entry) => entry.id))
+  const extra = live.filter((entry) => !known.has(entry.id))
+
+  return [...history, ...extra].slice(-CHAT_LIMIT)
+}
+
 /** Add a chat message unless one with its id is already there. */
 export function appendChat(client: QueryClient, message: ChatMessage): void {
   client.setQueryData<ChatMessage[]>(keys.chat, (list = []) =>
-    list.some((entry) => entry.id === message.id) ? list : [...list, message]
+    list.some((entry) => entry.id === message.id)
+      ? list
+      : [...list, message].slice(-CHAT_LIMIT)
   )
 }
 
 /** Drop what belongs to a session that is over. Chat must never linger. */
 function clearSession(client: QueryClient): void {
   client.removeQueries({ queryKey: keys.chat })
+  client.removeQueries({ queryKey: keys.forwards })
+  client.removeQueries({ queryKey: keys.screens })
   client.setQueryData<TransferView[]>(keys.transfers, [])
 }
 
@@ -73,12 +112,22 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
   switch (event.type) {
     case "snapshot": {
       const snapshot = event.data as Snapshot
+      claimLive(client, keys.session)
+      void client.cancelQueries({ queryKey: keys.transfers })
       client.setQueryData<SessionState>(keys.session, snapshot.session)
       const now = Date.now()
       client.setQueryData<TransferView[]>(
         keys.transfers,
         (snapshot.transfers ?? []).map((item) => ({ ...item, sampledAt: now }))
       )
+
+      if (snapshot.forwards)
+        client.setQueryData<ForwardState>(keys.forwards, snapshot.forwards)
+
+      if (snapshot.screens) {
+        claimLive(client, keys.screens)
+        client.setQueryData<ScreenState>(keys.screens, snapshot.screens)
+      }
 
       // The snapshot carries no chat, so read it again after every socket.
       if (snapshot.session.state === "connected") {
@@ -92,6 +141,7 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
 
     case "session.state": {
       const session = event.data as SessionState
+      claimLive(client, keys.session)
       client.setQueryData<SessionState>(keys.session, session)
       if (session.state === "idle") clearSession(client)
 
@@ -103,9 +153,30 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
 
       return
 
+    case "screen.changed": {
+      const state = event.data as ScreenState
+      const before = client.getQueryData<ScreenState>(keys.screens)
+      for (const item of state.others) {
+        if (!before?.others.some((old) => old.id === item.id))
+          announce(`${item.ownerName} is sharing their screen.`)
+      }
+      claimLive(client, keys.screens)
+      client.setQueryData<ScreenState>(keys.screens, state)
+      return
+    }
+
+    case "forward.changed":
+      client.setQueryData<ForwardState>(
+        keys.forwards,
+        event.data as ForwardState
+      )
+
+      return
+
     case "transfer.progress":
     case "transfer.state": {
       const item = event.data as TransferItem
+      claimLive(client, keys.transfers)
       const known = client
         .getQueryData<TransferView[]>(keys.transfers)
         ?.find((entry) => entry.id === item.id)

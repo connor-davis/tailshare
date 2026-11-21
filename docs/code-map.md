@@ -61,8 +61,8 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Regular-file import, atomic no-replace copy and collision names | `internal/services/share/import.go` (`Import`, `AvailableName`, `NumberedName`); `import_windows.go`, `import_other.go` (link and junction checks) |
 | Open the shared folder once (`os.Root`), list, stat, close | `internal/services/share/share.go` (`Open`, `Root`) |
 | Peer path rules (slash paths, no `..`, drives, streams, device names) | `internal/services/share/path.go` (`Localize`) |
-| Partial-file access, regular-file checks and no-replace hard-link publication | `internal/services/share/partial.go` (`PartialSize`, `OpenPartial`, `ReadPartial`, `Commit`, `RemovePartial`) |
-| Private partial suffix, peer-path refusal and listing filter | `internal/services/share/path.go` (`PartialSuffix`), `internal/services/share/share.go` (`List`) |
+| Partial-file access, regular-file checks and no-replace link or reserved-name rename publication | `internal/services/share/partial.go` (`PartialSize`, `OpenPartial`, `ReadPartial`, `Commit`, `RemovePartial`) |
+| Private partial suffix, bounded peer paths, Windows alias refusal and listing filter | `internal/services/share/path.go` (`PartialSuffix`), `internal/services/share/share.go` (`List`) |
 | Confined read and exclusive-create for downloads and uploads | `internal/services/share/files.go` (`OpenRead`, `Create`) |
 | Path table, escape, link and junction tests | `internal/services/share/*_test.go` |
 
@@ -82,7 +82,10 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
 | Transfer routes, the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
 | Manager adapter, direction/path mapping, state/progress events and subscription recovery | `internal/api/transfer_manager.go` (`managedTransfers`), `internal/api/session.go` (manager lifetime) |
-| One event hub, bounded client queues, snapshot-first WebSocket | `internal/api/live.go` (`hub`, `Event`, `Snapshot`) |
+| One event hub, bounded client queues, snapshot-first WebSocket (also `forward.changed`) | `internal/api/live.go` (`hub`, `Event`, `Snapshot`) |
+| Shared-app routes, state and live change hook | `internal/api/forwards.go` |
+| Session streams: kind byte, reverse path with nonce, per-kind handlers, `Broadcast` | `internal/services/session/streams.go` (`OpenStream`, `HandleStream`, `Broadcast`), `internal/services/mesh/tunnel.go` (`OpenStream`, `AcceptStream`), `internal/services/mesh/link.go` (`S` prefix) |
+| Shared apps: list, announce, open, loopback listener, sharer dial, caps | `internal/services/forward/` (`forward.go`, `listen.go`, `pipe.go`), wire types in `internal/services/peer/{stream,forward}.go` |
 | `tailshare serve`: startup checks, ready line, stdin/signal shutdown | `cmd/tailshare/serve.go` |
 | API route, guard, live, session and transfer tests (fake manager, SHA-256 upload/download over local relay, subscription overflow) | `internal/api/*_test.go`, `cmd/tailshare/serve_test.go` |
 
@@ -150,6 +153,8 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Real sidecar process (spawn, both tokens, room storage env, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
 | Health check call | `src/main/health.ts` |
+| Save folder applied after ready; a bad folder turns downloads off, never the engine (status get/push) | `src/main/downloads.ts`, `src/renderer/src/components/use-downloads-status.ts`, `src/renderer/src/routes/-components/downloads-alert.tsx` |
+| Current room kept in main so a reloaded page finds its code (`getCurrentRoom`/`setCurrentRoom`) | `src/main/room-ipc.ts` |
 | Sidecar binary path (dev `bin/`, packaged resources) | `src/main/config.ts` |
 | IPC handlers: sender check, schema checks, folder dialog, recent rooms get/touch/remove | `src/main/ipc.ts` |
 | IPC channel names and payload schemas | `src/shared/ipc-schema.ts` |
@@ -166,6 +171,8 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | One live socket, seq ordering, reconnect, cache updates | `src/renderer/src/lib/live/` |
 | Chat composer (Enter sends, grows to 8 lines, Add files button) and file card (Download, progress, Saved) | `src/renderer/src/routes/-components/` (`chat-composer.tsx`, `file-card.tsx`) |
 | Adding files from the button or a drop, one chat message per file | `src/renderer/src/routes/-components/use-share-files.ts` (calls `window.tailshare.addFiles` and `addDroppedFiles`) |
+| Apps tab: shared apps list, Share dialog, Open, Copy, Open in browser | `src/renderer/src/routes/-components/` (`apps-panel.tsx`, `share-app-dialog.tsx`), `src/renderer/src/lib/api/forwards.ts` |
+| Open-in-browser link check (`isForwardLink`) and its main-process handler | `src/shared/bridge.ts`, `src/main/ipc.ts` (`openForwardLink`) |
 | Transfer row (the only piece left in `session/`) | `src/renderer/src/routes/session/-components/transfer-row.tsx` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |
@@ -188,3 +195,34 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Real-session upload/download, pause, disconnect, cancel and queue tests | `internal/services/transfer/transfer_test.go` |
 | Path, partial, duplicate ID, waiter and resume guards | `internal/services/transfer/guard_test.go` |
 | Checksum, no-replace commit, byte cap and progress tests | `internal/services/transfer/receive_test.go`, `internal/services/transfer/progress_test.go` |
+
+## Backend audit guards
+
+| Job | Owner |
+| --- | --- |
+| Partial sender/hash/size ownership, partial quota and seven-day room cleanup | `internal/services/share/partial_policy.go` |
+| Available disk bytes for the current user | `internal/services/share/space_windows.go`, `space_other.go` (`FreeSpace`) |
+| Two-second directory listing cache and download-folder identity | `internal/services/share/share.go` (`List`, `SameFolder`) |
+| Incremental frame body reads and authenticated handler conversation | `internal/services/peer/frame.go`, `peer.go`, `dispatch.go` (`Conversation`, `MemberID`) |
+| Stable short public-key label and optional removed-members admission response | `internal/services/peer/share.go` (`Fingerprint`, `ShareLinksResult`) |
+| Concurrent bounded prefix routing and one pending control per member | `internal/services/mesh/link.go` (`Accept`, `routeStream`) |
+| Join stream cap, deny backoff, pending fingerprint and expiry after a linked member | `internal/services/session/host.go`, `admission.go`, `mesh.go` |
+| Admitter-only member removal route and replacement transfer manager | `internal/api/session_members.go`; `internal/services/session/mesh.go` (`RemoveMember`, `SetHandlers`) |
+| Attached-conversation transfer authorization, offer rate and refusal cleanup | `internal/services/transfer/offer.go` |
+| Cancellable source/partial hashes and size-scaled download offer deadline | `internal/services/transfer/send.go`, `receive.go`, `run.go` |
+| Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |
+| Backend audit regressions, offline network abuse checks and actual Windows short alias | `internal/services/{share,peer,mesh,session,transfer}/audit*_test.go`, `internal/api/audit_test.go` |
+
+## Screen sharing
+
+| Job | Owner |
+| --- | --- |
+| One recording per member, optional room list/announce methods, late joins, viewer counts, bounded epochs and lifecycle | `internal/services/screen/screen.go` |
+| Session stream kind 2, bounded frame reads/writes, authenticated viewer open/serve and independent slow-viewer disconnect | `internal/services/screen/stream.go` |
+| Screen controls, dedicated token-authenticated binary ingest/watch sockets and live metadata hook | `internal/api/screen.go`; registration and lifetime in `server.go`, `session.go`, snapshots in `live.go` |
+| Local-relay three-member fanout, byte order, late joins, stalled viewer isolation, stop/leave, unknown IDs and token tests | `internal/api/screen_test.go`; frame/epoch/queue bounds in `internal/services/screen/screen_test.go` |
+| Opaque source choices, expiry, one-use main-frame video grants and sender-checked IPC | `web/apps/desktop/src/main/screen-capture.ts`, `screen-capture.test.ts`; wiring in `main/index.ts` |
+| Capture choice bridge types, validation and narrow preload channels | `web/apps/desktop/src/shared/{bridge,ipc-schema}.ts`, `src/preload/index.ts`, `preload.test.ts` |
+| Screen tab, source picker, viewer video/fullscreen and visible persistent Stop sharing bar | `web/apps/desktop/src/renderer/src/routes/-components/{screen-panel,room-view}.tsx`, `screen-panel.test.tsx` |
+| Local screen metadata/query and binary connection client; live reducer | `web/apps/desktop/src/renderer/src/lib/api/screens.ts`, `types.ts`, `keys.ts`; `lib/live/apply.ts`, `apply.test.ts` |
+| Bounded MediaRecorder capture epochs, ordered MediaSource playback, trim/live-edge and cleanup | `web/apps/desktop/src/renderer/src/lib/media/{screen-recorder,screen-player}.ts` and adjacent tests |

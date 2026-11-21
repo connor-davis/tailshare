@@ -26,23 +26,27 @@ type Options struct {
 // Mesh owns a mesh server, its roster and the authenticated expected-link list.
 // Callers own the control peers registered with RegisterPeer.
 type Mesh struct {
-	mu        sync.Mutex
-	server    *tailcat.Server
-	listener  net.Listener
-	self      peer.ShareMember
-	members   map[string]peer.ShareMember
-	expected  map[key.NodePublic]string
-	used      map[key.NodePublic]bool
-	controls  map[string]*peer.Peer
-	incoming  map[string]map[net.Conn]struct{}
-	outgoing  map[string]*Link
-	tunnels   map[string]*Tunnel
-	expiry    map[string]*time.Timer
-	pending   *Admission
-	closed    bool
-	lastOrder uint64
-	nextOrder uint64
-	stop      func() bool
+	mu              sync.Mutex
+	server          *tailcat.Server
+	listener        net.Listener
+	self            peer.ShareMember
+	members         map[string]peer.ShareMember
+	expected        map[key.NodePublic]string
+	used            map[key.NodePublic]bool
+	controls        map[string]*peer.Peer
+	incoming        map[string]map[net.Conn]struct{}
+	outgoing        map[string]*Link
+	tunnels         map[string]*Tunnel
+	expiry          map[string]*time.Timer
+	pending         *Admission
+	closed          bool
+	lastOrder       uint64
+	nextOrder       uint64
+	stop            func() bool
+	acceptOnce      sync.Once
+	accepted        chan controlStream
+	acceptDone      chan struct{}
+	pendingControls map[string]net.Conn
 }
 
 // New starts a fresh mesh server that allows no external client initially.
@@ -76,7 +80,9 @@ func New(ctx context.Context, options Options) (*Mesh, error) {
 		expected: make(map[key.NodePublic]string), used: make(map[key.NodePublic]bool),
 		expiry: make(map[string]*time.Timer), incoming: make(map[string]map[net.Conn]struct{}),
 		controls: make(map[string]*peer.Peer), outgoing: make(map[string]*Link),
-		tunnels: make(map[string]*Tunnel),
+		tunnels:  make(map[string]*Tunnel),
+		accepted: make(chan controlStream, 8), acceptDone: make(chan struct{}),
+		pendingControls: make(map[string]net.Conn),
 	}
 	mesh.mu.Lock()
 	mesh.stop = context.AfterFunc(ctx, func() { _ = mesh.Close() })
@@ -125,7 +131,7 @@ func (mesh *Mesh) SetRoster(roster peer.ShareRoster) error {
 		return err
 	}
 	self, ok := members[mesh.self.ID]
-	if !ok || self.Address != mesh.self.Address || self.DisplayName != mesh.self.DisplayName {
+	if !ok || self.Address != mesh.self.Address {
 		return invalid()
 	}
 
@@ -178,7 +184,12 @@ func (mesh *Mesh) Remove(id string) error {
 func (mesh *Mesh) removeLocked(id string) {
 	mesh.confirmLocked(id)
 	delete(mesh.members, id)
+	control := mesh.controls[id]
 	delete(mesh.controls, id)
+	delete(mesh.pendingControls, id)
+	if control != nil {
+		go control.Close()
+	}
 	for conn := range mesh.incoming[id] {
 		_ = conn.Close()
 	}

@@ -53,6 +53,9 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 
 	if item.sender {
 		if err := manager.send(item, conn); err != nil {
+			if item.ctx.Err() == nil {
+				_ = manager.peer.Notify(peer.MethodTransferCancel, peer.TransferCancel{TransferID: item.view.ID})
+			}
 			return err
 		}
 		// Closing signals EOF; completion still requires the receiver's verdict.
@@ -80,7 +83,7 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 		progressReader{conn, manager, item},
 	)
 	if err == nil {
-		err = verifyPartial(manager.receiverRoot(item), item.local, hash)
+		err = verifyPartialContext(item.ctx, manager.receiverRoot(item), item.local, hash)
 	}
 	if err == nil {
 		manager.mu.Lock()
@@ -89,9 +92,6 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 			err = errDropped
 		} else {
 			err = manager.receiverRoot(item).Commit(item.local)
-			if err != nil {
-				_ = manager.receiverRoot(item).RemovePartial(item.local)
-			}
 			if err == nil {
 				item.view.State = Done
 			}
@@ -131,11 +131,25 @@ func (manager *Manager) negotiate(item *job) error {
 	}
 	manager.mu.Unlock()
 	var answer peer.TransferAccept
-	ctx, cancel := context.WithTimeout(item.ctx, streamTimeout)
+	timeout := streamTimeout
+	if !item.sender {
+		statContext, stopStat := context.WithTimeout(item.ctx, streamTimeout)
+		entry, err := manager.peer.Stat(statContext, item.view.PeerPath)
+		stopStat()
+		if err != nil {
+			return errDropped
+		}
+		timeout = offerTimeout(entry.Size)
+	}
+	ctx, cancel := context.WithTimeout(item.ctx, timeout)
 	defer cancel()
 	for {
 		if err := manager.peer.Call(ctx, peer.MethodTransferOffer, offer, &answer); err != nil {
-			return errDropped
+			var remote *peer.RemoteError
+			if !errors.As(err, &remote) || remote.Code != peer.CodeBusy {
+				return errDropped
+			}
+			answer = peer.TransferAccept{TransferID: item.view.ID, Reason: errBusy.Error()}
 		}
 		if answer.TransferID != item.view.ID || !validID(answer.TransferID) {
 			return errInvalid
@@ -212,5 +226,32 @@ func (manager *Manager) finish(item *job, err error) {
 	manager.emitLocked(item)
 	item.working = false
 	close(item.done)
+	manager.pruneLocked()
 	manager.scheduleLocked()
+}
+
+func (manager *Manager) pruneLocked() {
+	retained := 0
+	for _, id := range manager.order {
+		item := manager.jobs[id]
+		if !item.working && (item.view.State == Done || item.view.State == Failed || item.view.State == Canceled) {
+			retained++
+		}
+	}
+	order := manager.order[:0]
+	for _, id := range manager.order {
+		item := manager.jobs[id]
+		if retained > 200 && !item.working && (item.view.State == Done || item.view.State == Failed || item.view.State == Canceled) {
+			delete(manager.jobs, id)
+			retained--
+			continue
+		}
+		order = append(order, id)
+	}
+	manager.order = order
+}
+
+func offerTimeout(size int64) time.Duration {
+	// Allow a full read even on a slow disk, plus the normal negotiation window.
+	return streamTimeout + time.Duration(min(max(size, 0), maxFileSize)/(1<<20)+1)*time.Second
 }

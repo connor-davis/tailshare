@@ -57,7 +57,7 @@ function Dot({ live }: { live: boolean }) {
       aria-hidden
       className={
         live
-          ? "size-2 shrink-0 rounded-full bg-green-500"
+          ? "size-2 shrink-0 rounded-full bg-success"
           : "size-2 shrink-0 rounded-full bg-muted-foreground/40"
       }
     />
@@ -91,6 +91,7 @@ export function RoomSidebar({
   const [joining, setJoining] = useState(false)
   const idle = session.state === "idle"
   const [query, setQuery] = useState("")
+  const [forgetError, setForgetError] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const needle = query.trim().toLowerCase()
   const matches = (name: string, code?: string) =>
@@ -202,7 +203,10 @@ export function RoomSidebar({
               <Label id="open-room">Rooms</Label>
               <p className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary">
                 <Dot live />
-                <span className="min-w-0 flex-1 truncate">{live}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="sr-only">Open now: </span>
+                  {live}
+                </span>
                 {session.members?.length ? (
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {session.members.length}
@@ -268,9 +272,12 @@ export function RoomSidebar({
                       variant="ghost"
                       className="absolute right-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
                       aria-label={`Forget ${room.name}`}
-                      onClick={() =>
-                        void window.tailshare.removeRecentRoom(room.code)
-                      }
+                      onClick={() => {
+                        setForgetError(false)
+                        window.tailshare
+                          .removeRecentRoom(room.code)
+                          .catch(() => setForgetError(true))
+                      }}
                     >
                       <XIcon aria-hidden />
                     </Button>
@@ -278,6 +285,11 @@ export function RoomSidebar({
                 ))}
               </ul>
             )}
+            {forgetError ? (
+              <p role="alert" className="px-2 text-xs text-destructive">
+                Could not forget that room. Try again.
+              </p>
+            ) : null}
           </section>
         </div>
       </ScrollArea>

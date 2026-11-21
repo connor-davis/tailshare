@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -66,6 +67,10 @@ type Manager struct {
 	attached        bool
 	closed          bool
 	closeDone       chan struct{}
+	hashSource      func(context.Context, *os.File) (string, int64, error)
+	offerWindow     time.Time
+	offerCount      int
+	freeSpace       func(*share.Root) (int64, error)
 }
 
 // New prepares handlers before peer.Start. The caller owns the shared folder.
@@ -73,6 +78,7 @@ func New(root *share.Root) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		root:         root,
+		freeSpace:    (*share.Root).FreeSpace,
 		downloadRoot: root,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -154,7 +160,7 @@ func (manager *Manager) enqueue(ctx context.Context, local, remote string, direc
 			return Transfer{}, errors.New("Choose a downloads folder first.")
 		}
 		if manager.renameDownloads {
-			if strings.ContainsAny(local, "/\\") || strings.Contains(local, "..") {
+			if strings.ContainsAny(local, "/\\") {
 				return Transfer{}, share.ErrBadPath
 			}
 			var err error

@@ -42,10 +42,14 @@ Limits, all required:
   accessing files. The authenticated stream key must match the join line.
   Hello supplies a display-only name; Allow or Deny is a local action. The
   prompt expires after 60 seconds. One prompt or preparation is active at a
-  time, and the share holds at most eight members.
+  time, and the share holds at most eight members. Four bootstrap streams may
+  be held at once. Denied authenticated client keys and claimed mesh identities
+  wait 60 seconds before retrying (a bounded 256-key table). Busy refusals close
+  after a 100 ms reply grace, rather than the preparation backstop. Prompts show
+  a twelve-hex-character fingerprint of the authenticated client public key.
 - **Unused-code expiry.** A code expires ten minutes after it is shown unless
   someone is allowed. Pending and denied requests do not stop expiry. The
-  first Allow stops expiry for the remainder of the share.
+  first registered mesh control stream stops expiry for the remainder of the share.
 - **Independent links.** Every member has a fresh random mesh server and a
   fresh random client key for each outgoing link. Mesh starts with only its
   own key allowlisted; admission adds expected link keys. Every stream is
@@ -82,10 +86,13 @@ and every peer path goes through that handle (`internal/services/share`). The
 check and the open are one step, so there is no gap to race. Peer paths are
 also checked in words first (`share.Localize`), because the protocol is
 stricter than any one OS: slash paths only, no `..`, no absolute paths, no
-drive letters, no colon (this also blocks NTFS streams), no backslash or NUL
+drive letters, at most 4096 bytes total and 255 bytes per component, no colon (this also blocks NTFS streams), no backslash or NUL
 or control characters, and no Windows device names (`CON`, `NUL`, `COM1` and
 the rest, with any extension). A bad path is refused, never cleaned up into a
-good one. Uploads create a new file only and never overwrite.
+good one. Windows refuses `~` followed by a digit in a component to block
+short-name aliases of private files. Uploads create a new file only and never
+overwrite. Listing pages reuse a two-second cache (128 directories maximum),
+with directory modification time checked before reuse.
 
 What `os.Root` covers:
 
@@ -170,10 +177,11 @@ the main-only token stays in main.
 
 Transfer sources and upload destinations use the room root. Locally requested
 downloads use a separate confined downloads root; they never become room files.
-The destination must be a base name without separators or `..`, and collisions
+The destination must be a base name without separators or a `..` component, and collisions
 become `name (2).ext`. Each queued download pins its root and relative name,
-including across pause/resume and settings changes. Retired roots remain open
-until shutdown so paused jobs keep their destination. Stored `ask` mode currently
+including across pause/resume and settings changes. Downloads roots are deduplicated
+by directory identity; old roots close once no active or resumable job pins them
+when settings change or the session ends. Stored `ask` mode currently
 uses the configured save folder. Peer upload destinations
 and download sources pass through `share.Localize` and `os.Root`. Files only
 are supported, with two active transfers across both directions and a 1 TiB
@@ -182,24 +190,40 @@ size limit. The declared size caps reads and writes on the data stream.
 Unfinished files use `.tailshare-part` beside the destination. These names
 are refused in peer paths and hidden from listings. Partial files must be
 regular files; links and folders are refused. Pause and connection loss keep
-the partial; cancel removes it. There is no free-space preflight: disk errors
-fail the transfer. The chosen folder and local programs modifying it remain
+the partial; cancel removes it. An explicit sender-side upload failure cancels
+and removes the receiver partial. Before acceptance, available disk space must
+cover remaining receive bytes plus a 64 MiB reserve, including active receives.
+Rooms cap private partial entries at 200 and partial bytes and reserved sizes plus the proposed
+file at 1 TiB. Opening a room prunes private files older than seven days.
+Private metadata binds each partial to sender mesh identity, hash and size;
+another identity cannot resume, truncate or delete it through an offer.
+Nonempty unowned legacy partials are refused. Fresh sessions use fresh mesh
+identities, so they cannot resume an earlier identity's partial. The chosen folder and local programs modifying it remain
 trusted, as described above.
 
 The receiver re-reads the entire partial and verifies SHA-256 before publishing.
 A mismatch deletes the partial. Publication uses `os.Root.Link` followed by
 `Remove`, so an existing final name can never be replaced, including one that
 appears during transfer. Volumes without hard-link support fail with a plain
-sentence; there is no rename fallback. A crash between link and removal may
+sentence only when exclusive reservation and rename also fail. The fallback
+first reserves the final name with `O_EXCL`, then renames the partial over that
+reservation. Other local programs remain trusted during that operation.
+Any publication error keeps the verified partial. A crash between link and removal may
 leave both names for the same verified file.
 
-Download resume trusts the prefix size until the final whole-file checksum;
+Hashing checks cancellation at least every MiB. A download's offer deadline
+allows a full source read at one second per MiB plus thirty seconds. Only the
+manager's attached member may call transfer methods; offers are limited to four
+per second. Refused offers are discarded and terminal history retains at most
+200 jobs. The peer's authenticated conversation supplies this authorization.
+
+Download resume trusts the owned prefix size until the final whole-file checksum;
 a stale prefix is removed on mismatch and the user retries from zero. A
 prefix hash in `transfer.resume` is the future upgrade. Progress stays local;
 only completion, failure and cancel verdicts travel on the control stream.
 Transfer IDs must have the 26-character `rand.Text` base32 shape on every
 peer-sent control and data message. A responder refuses every known ID,
-including finished attempts, and duplicate pending stream registrations are
+including retained finished attempts, and duplicate pending stream registrations are
 refused. Unknown or late data streams close without writing a file. Stream
 headers have a ten-second read deadline; stream and verdict waits are bounded
 at thirty seconds.
@@ -214,6 +238,29 @@ kept as little as possible.
 - It is gone when the session ends.
 - Text is at most 8 KiB of valid UTF-8, and the ID has no control characters,
   so the other computer cannot send anything the screen cannot show.
+
+## Shared apps (port forwarding)
+
+A member can share a local TCP port with the room. It is room-wide: every
+member can see the label and the sharer's name, and can open it.
+
+- **Loopback only, both ends.** A viewer listens on `127.0.0.1:0` (IPv4
+  loopback, a free port) and nothing else, so other computers on its network
+  cannot reach it. The sharer dials `127.0.0.1` only.
+- **Only listed ports are dialed.** Each stream names a share id. The sharer
+  looks it up in its own current list, never in what a peer sent, and dials
+  that one port. An unknown or stopped id closes the stream with no dial.
+  A peer cannot ask for another port or host.
+- **Bounded.** 16 shares per member, 64 connections per opened share, and the
+  stream header must arrive within 10 seconds. The mesh keeps at most 80
+  accepted streams per member.
+- **Cleaned up.** Stop, leave, removal and session end close listeners and
+  piped connections on both sides.
+- **No logs.** Labels and ports are never written to disk or logs.
+- **Open in browser.** The page can only ask Electron to open exactly
+  `http://127.0.0.1:<port>/` with a port from 1024 to 65535: no path, query,
+  user name or other host. Main checks the sender window and the URL again
+  before it calls `shell.openExternal` (`isForwardLink`).
 
 ## Local API
 
@@ -235,7 +282,8 @@ drive it.
   bound port are accepted, so DNS rebinding cannot reach the API. Forwarded
   headers are never trusted.
 - **Origin check.** If a request carries an `Origin`, it must be exactly
-  `null` (the packaged app) or `http://localhost:5173` (the Vite dev server).
+  `null` (the packaged app), `http://localhost:5173` (the Vite dev server),
+  or `http://localhost:5174` (the second dev copy using `TAILSHARE_DEV_PORT=5174`).
   Anything else is refused. The allowed origin is echoed back, never `*`, and
   credentials are never allowed. A CORS preflight (`OPTIONS`) from an allowed
   origin is answered without the token, because browsers do not send it
@@ -249,7 +297,9 @@ drive it.
 - **Main-only paths.** `POST /api/room/files` and `PUT /api/downloads` also need
   one `X-Tailshare-Main` header, compared in constant time against
   `TAILSHARE_MAIN_TOKEN`. Main generates a fresh second token for each sidecar
-  launch, including dev launches, and never sends it to the renderer.
+  launch, including dev launches, and never sends it to the renderer. When set,
+  the sidecar requires 64 hex characters and different decoded bytes from the
+  renderer token.
 - **Add-files consent.** Main obtains paths from its native multi-file dialog or
   preload resolves real dropped Files with `webUtils.getPathForFile`. Empty
   paths are dropped. At most 100 files are copied through the room root; folders,
@@ -260,8 +310,49 @@ drive it.
   and whenever it changes. The main-only endpoint creates missing directories
   and opens a separate root; absolute destinations never enter peer or live DTOs.
 - **Members list.** `session.state` carries each member's id, display name and
-  host/you flags only. Addresses and keys stay in the sidecar.
+  host/you flags and a short mesh-key fingerprint. Duplicate display names
+  receive a fingerprint suffix during admission. Addresses and private keys
+  stay in the sidecar. `DELETE /api/session/members/:id` lets only the lowest
+  surviving join-order member remove another member and close its links.
+  A member refusing `share.admit` is removed so admission can continue.
 
 The current local API still selects one control peer for browsing, chat and
-transfers. Losing that peer ends the local API session, including when other
-mesh members survive. Per-member API ownership is a later change.
+transfers. After that peer is removed while the mesh session survives, its
+manager closes and the API attaches a fresh manager to a surviving or newly
+joined member. Per-member API ownership is a later change.
+
+## View-only screen sharing
+
+Capture starts only after a person presses Share screen and chooses a screen
+or window from named thumbnails. Electron main enumerates native sources and
+returns random opaque choices, valid for thirty seconds. Selecting a choice
+consumes the list and permits one display-media request for ten seconds.
+Unknown, expired and reused choices are refused. The request must come from
+this window's main frame, request video and request no audio. Main grants only
+the picked source, with no system-picker fallback. Source IDs stay in main.
+IPC rejects other senders, subframes and extra arguments. Reload and destruction
+clear pending choices. Native OS capture permissions still apply.
+
+The room header keeps a visible You are sharing your screen bar with Stop
+sharing across every tab. The status region announces sharing. Stopping, the
+captured track ending, renderer loss or leaving closes ingest and all viewers.
+Viewing grants no keyboard, pointer, audio or remote-control channel.
+
+Only authenticated current room members can open a share's session stream.
+The share ID selects an existing local recording and cannot select a desktop
+source or start capture. Names come from the room roster. Leaving or removal
+closes that member's streams; session end clears everything. All members of
+the room may watch, so choose a window when other desktop content is private.
+
+Recordings, initialization data, thumbnails and viewer state stay in memory;
+nothing is saved or logged. A malicious viewer can still record what they see.
+There is no third-party media service or new relay: media travels only through
+the existing encrypted Tailcat member links (which may themselves use the
+existing Tailcat DERP transport relays). There are no public media URLs.
+
+Binary local sockets require the same per-launch token, Host and Origin checks
+as the live socket. Media never goes through the JSON hub. Chunk, epoch and
+per-viewer queue limits bound memory, and a stalled viewer is disconnected
+without slowing capture or other viewers. See [protocol.md](protocol.md) for
+framing, buffer and deadline limits. CSP adds only `media-src blob:`;
+`connect-src` keeps its existing self and loopback-only policy.

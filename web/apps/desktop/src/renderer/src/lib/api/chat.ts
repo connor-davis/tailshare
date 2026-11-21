@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { appendChat } from "../live/apply"
+import { appendChat, mergeChat } from "../live/apply"
 import { apiFetch } from "./client"
 import { keys } from "./keys"
 import type { ChatMessage } from "./types"
@@ -9,12 +9,18 @@ import type { ChatMessage } from "./types"
  * so nothing reaches disk. It is cleared when the session ends.
  */
 export function useChat(enabled: boolean) {
+  const client = useQueryClient()
+
   return useQuery({
     queryKey: keys.chat,
     queryFn: async () => {
       const body = await apiFetch<{ items: ChatMessage[] | null }>("/api/chat")
 
-      return body.items ?? []
+      // Messages the socket delivered while this read was away must survive.
+      return mergeChat(
+        body.items ?? [],
+        client.getQueryData<ChatMessage[]>(keys.chat)
+      )
     },
     enabled,
     staleTime: Infinity,

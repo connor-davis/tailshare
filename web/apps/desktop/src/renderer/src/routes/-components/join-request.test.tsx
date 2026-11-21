@@ -51,6 +51,21 @@ describe("JoinRequest", () => {
     }
   )
 
+  it("shows the fingerprint so the host can tell two same names apart", () => {
+    const client = new QueryClient()
+    render(
+      <QueryClientProvider client={client}>
+        <JoinRequest
+          join={{ id: 7, displayName: "Pat", fingerprint: "a1b2c3d4e5f6" }}
+        />
+      </QueryClientProvider>
+    )
+
+    const print = screen.getByText("a1b2c3d4e5f6")
+    expect(print.className).toContain("font-mono")
+    expect(print.parentElement?.textContent).toContain("Fingerprint")
+  })
+
   it("disables both choices while waiting", async () => {
     vi.mocked(apiFetch).mockImplementation(() => new Promise(() => {}))
     show()

@@ -180,7 +180,8 @@ func checkAttachment(attachment *Attachment) error {
 	if attachment == nil {
 		return nil
 	}
-	if attachment.Path == "" || attachment.Name == "" || attachment.Size < 0 ||
+	if attachment.Path == "" || attachment.Name == "" || attachment.Size < 0 || attachment.Size > 1<<40 ||
+		len(attachment.Name) > 255 || len(attachment.Path) > 4096 ||
 		path.Base(attachment.Path) != attachment.Name {
 		return errors.New("That attachment is not valid.")
 	}

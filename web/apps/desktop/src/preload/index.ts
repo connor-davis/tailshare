@@ -1,10 +1,14 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 import {
   SIDECAR_STATUSES,
+  isCaptureSources,
+  isDownloadsStatus,
   isJoinCode,
   isRecentRooms,
   isUpdateStatus,
   isWindowState,
+  type CurrentRoom,
+  type DownloadsStatus,
   type RecentRoom,
   type Settings,
   type SettingsPatch,
@@ -17,6 +21,16 @@ import {
 // Channel names are repeated here on purpose: a sandboxed preload cannot load
 // the schema module. src/preload/preload.test.ts checks they match.
 const bridge: TailshareBridge = Object.freeze({
+  screenSources: async () => {
+    const sources: unknown = await ipcRenderer.invoke(
+      "tailshare:screen-sources"
+    )
+    if (!isCaptureSources(sources))
+      throw new Error("Could not read the screen choices.")
+    return sources
+  },
+  pickScreenSource: (id: string) =>
+    ipcRenderer.invoke("tailshare:pick-screen-source", id),
   getSettings: () => ipcRenderer.invoke("tailshare:get-settings"),
   updateSettings: (patch: SettingsPatch) =>
     ipcRenderer.invoke("tailshare:update-settings", patch),
@@ -33,6 +47,8 @@ const bridge: TailshareBridge = Object.freeze({
   checkForUpdates: () => ipcRenderer.invoke("tailshare:check-for-updates"),
   openReleaseLink: (url: string) =>
     ipcRenderer.invoke("tailshare:open-release-link", url),
+  openForwardLink: (url: string) =>
+    ipcRenderer.invoke("tailshare:open-forward-link", url),
   downloadUpdate: () => ipcRenderer.invoke("tailshare:download-update"),
   restartToUpdate: () => ipcRenderer.invoke("tailshare:restart-to-update"),
   onUpdateStatus: (listener: (status: UpdateStatus) => void) => {
@@ -70,6 +86,18 @@ const bridge: TailshareBridge = Object.freeze({
     }
     ipcRenderer.on("tailshare:recent-rooms-changed", handler)
     return () => void ipcRenderer.off("tailshare:recent-rooms-changed", handler)
+  },
+  getCurrentRoom: () => ipcRenderer.invoke("tailshare:get-current-room"),
+  setCurrentRoom: (room: CurrentRoom | null) =>
+    ipcRenderer.invoke("tailshare:set-current-room", room),
+  getDownloadsStatus: () =>
+    ipcRenderer.invoke("tailshare:get-downloads-status"),
+  onDownloadsStatus: (listener: (status: DownloadsStatus) => void) => {
+    const handler = (_event: unknown, status: unknown) => {
+      if (isDownloadsStatus(status)) listener(status)
+    }
+    ipcRenderer.on("tailshare:downloads-status", handler)
+    return () => void ipcRenderer.off("tailshare:downloads-status", handler)
   },
   getConnectionInfo: () => ipcRenderer.invoke("tailshare:connection-info"),
   chooseFolder: () => ipcRenderer.invoke("tailshare:choose-folder"),

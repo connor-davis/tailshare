@@ -19,6 +19,8 @@ export interface SessionMember {
   host?: boolean
   /** True for this computer. */
   you?: boolean
+  /** Short code (12 hex characters) that tells two same-named computers apart. */
+  fingerprint?: string
 }
 
 /** The session as the sidecar reports it (`GET /api/session`). */
@@ -34,7 +36,7 @@ export interface SessionState {
   /** The other computer. Present only while connected. */
   peer?: PeerInfo
   /** One person waiting for local approval. */
-  join?: { id: number; displayName: string }
+  join?: { id: number; displayName: string; fingerprint?: string }
   /** Everyone in the room, host first. Present while hosting or connected. */
   members?: SessionMember[]
 }
@@ -107,12 +109,44 @@ export interface ChatMessage {
   time: string
 }
 
+/** One app (a TCP port) a member shares with the room. */
+export interface ForwardItem {
+  /** Share id, chosen by the sharer. */
+  id: string
+  /** Name the sharer gave it. */
+  label: string
+  /** Port on the sharer's computer. */
+  port: number
+  /** Member id of the sharer. */
+  ownerId: string
+  /** Display name of the sharer. */
+  ownerName: string
+  /** True while this computer listens for it. */
+  open: boolean
+  /** Loopback port on this computer; set only while `open`. */
+  localPort?: number
+}
+
+/** Every share in the room, from this computer's point of view. */
+export interface ForwardState {
+  /** Apps this computer shares. */
+  mine: ForwardItem[]
+  /** Apps other members share. */
+  others: ForwardItem[]
+  /** Names of members whose build cannot share apps. */
+  unsupported: string[]
+}
+
 /** What the first live message carries. */
 export interface Snapshot {
   /** Session state. */
   session: SessionState
   /** Every transfer, oldest first. */
   transfers: TransferItem[]
+  /** Shared apps. Missing when the sidecar is older than the screen. */
+  forwards?: ForwardState
+  /** Active screen shares, when supported by the sidecar. */
+  screens?: ScreenState
 }
 
 /** The one shape of every live message. */
@@ -123,4 +157,20 @@ export interface LiveEvent {
   type: string
   /** The payload; its shape depends on `type`. */
   data: unknown
+}
+
+/** One member's view-only screen recording. */
+export interface ScreenItem {
+  id: string
+  codec: string
+  ownerId: string
+  ownerName: string
+  viewers: number
+}
+
+/** Memory-only room screen-sharing state, updated by the live socket. */
+export interface ScreenState {
+  mine: ScreenItem[]
+  others: ScreenItem[]
+  unsupported: string[]
 }

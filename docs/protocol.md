@@ -14,8 +14,13 @@ mesh address. The 30-second join-line deadline is cleared before hello.
 
 Both sides then say hello. `share.roster` waits for local Allow or Deny.
 The prompt expires after 60 seconds with `join_denied`; the whole join call
-has 90 seconds. Allow starts a separate 30-second preparation window and stops
-the unused-code expiry. `share.links` prepares all members before the joiner
+has 90 seconds. Allow starts a separate 30-second preparation window. Only a
+registered mesh control stream stops the unused-code expiry. At most four
+bootstrap streams are held at once. Deny backs off that authenticated client
+key and claimed mesh identity for 60 seconds; the bounded deny table holds
+at most 256 keys. Refusals close after a 100 ms grace for their reply.
+The local pending-join JSON includes `fingerprint`, the first twelve hex
+characters of SHA-256 of the authenticated client public-key string. `share.links` prepares all members before the joiner
 dials independently keyed mesh links. The admission stream then closes.
 
 Every **mesh** Tailcat stream starts with one byte: `C` for control, `D` for
@@ -24,7 +29,9 @@ the source key before reading exactly one prefix byte, with a 5-second read
 deadline that is cleared afterwards. Bad prefixes and unknown sources close.
 `C` is followed by control frames; `D` by the existing 26-byte transfer ID and
 file data. Each member has a separate incoming data queue capped at 8 streams;
-an excess stream closes. Only the link dialer opens data streams.
+an excess stream closes. Prefix reads run independently, with at most twelve
+incoming streams per member and one pending control stream per member.
+Only the link dialer opens data streams.
 
 ## Two kinds of stream
 
@@ -41,7 +48,7 @@ A frame is a 4-byte big-endian length, then that many bytes of JSON.
 
 - A length of 0, or over 1 MiB (`1 << 20`), is an error.
 - The length is checked before any memory is set aside, so a peer cannot make
-  us allocate more than 1 MiB.
+  us allocate more than 1 MiB. Bodies grow incrementally as bytes arrive.
 - The header and the body go out in one `Write`, so half a frame is never sent.
 
 Owner: `internal/services/peer/frame.go`.
@@ -89,7 +96,7 @@ Until hello is done, any other request gets `not_ready`.
 | `stat` | request | One file or folder (`path`). |
 | `chat` | request | One chat message. |
 | `transfer.offer` | request | Offers a file in one direction. |
-| `transfer.cancel` | request | Stops a transfer. |
+| `transfer.cancel` | event | Stops a transfer. |
 | `transfer.resume` | request | Asks to continue from an offset. |
 | `transfer.complete` | event | The file arrived and was verified. |
 | `transfer.failed` | event | The transfer stopped early. |
@@ -136,7 +143,7 @@ details before local approval. Ordinary mesh peers get only `share.admit`.
 | Method | Params | Result |
 | --- | --- | --- |
 | `share.roster` | Omitted or `{}` | `{members:[{id,displayName,address,joinOrder}]}`, including the approved joiner. |
-| `share.links` | `{links:[{id,linkKey}]}` | `{}` after every existing member has prepared its expected key. |
+| `share.links` | `{links:[{id,linkKey}]}` | `{removed?:[id]}` after preparing reachable members; removed links must be closed and skipped. |
 | `share.admit` | `{joinerId,joinerName,joinerAddress,joinOrder,linkKey}` | `{}` after recording the member and allowing the key. |
 | `share.leave` | `{}` | Event; no reply. Its sender is the authenticated member on the link. |
 
@@ -147,7 +154,9 @@ details before local approval. Ordinary mesh peers get only `share.admit`.
 - Share payloads, including roster results, are at most 16 KiB. Each address
   is at most 4 KiB. Unknown request fields, missing required values, duplicate
   IDs/orders, and reused keys get `bad_request`. A received roster must
-  include the receiver exactly once, with its own address and name intact.
+  include the receiver exactly once with its own address intact. Duplicate
+  display names (ignoring case and surrounding whitespace) are suffixed on
+  admission with the joiner's mesh-key fingerprint, within 64 characters.
 - `share.links` names exactly the existing roster, with a different fresh
   node key for each target. A server identity cannot double as a dialing
   key. Offered keys are not reused, even after an admission fails or a
@@ -156,7 +165,10 @@ details before local approval. Ordinary mesh peers get only `share.admit`.
   Its identity comes from the authenticated link, never from JSON. A joiner
   cannot install itself twice or choose an order older than a known member.
 - The admitter waits for every `share.admit` reply before answering
-  `share.links`. A failed member preparation returns `join_failed`. A prepared
+  `share.links`. A member that refuses preparation or lacks a control stream
+  is removed and its link closed; other preparations continue. The optional
+  `removed` reply field lets the joiner discard those links. Older version-2
+  joiners ignore that field and may need to retry after such a removal. A prepared
   member that never opens a link is forgotten after 30 seconds. One locally
   approved admission may prepare at a time (`busy` for a second); its slot
   expires after 30 seconds. The session layer owns the separate Allow prompt.
@@ -179,7 +191,8 @@ Owners: `internal/services/peer/share.go` (wire types),
 - `chat` carries an `id` and `text` (and the sender's `sentAt`).
 - Optional `attachment` is `{ "name": "file.pdf", "path": "docs/file.pdf", "size": 123 }`.
   `path` is relative to the sender's room and passes `share.Localize`; `name`
-  is its base name and `size` is nonnegative. The sender stats its own room file
+  is its base name (at most 255 bytes), `path` is at most 4096 bytes, and
+  `size` is between zero and 1 TiB. The sender stats its own room file
   to fill metadata. Invalid remote attachments reject the whole message with
   `bad_request` and are never recorded. Empty text is allowed only with an attachment.
   JSON decoding ignores unknown fields, so this adds no protocol version. Older
@@ -218,6 +231,51 @@ offset, which must be between 0 and the file size and match the agreed hash.
 Owners: `internal/services/transfer/stream.go` (header),
 `run.go` (negotiation), `send.go` and `receive.go` (bytes).
 
+## Session streams and shared apps
+
+Any member can open a stream to any other, whichever side dialed the link. A
+stream with the prefix `S` is a session stream. It never reaches the transfer
+queue. It carries: a kind byte, a one-byte header length (at most 64), then
+the header, then raw bytes.
+
+- **Kind 0 is the reverse path.** Links are one-way: only the newer member
+  can open a stream. The older member sends the control request
+  `stream.open` `{kind, header, nonce}` (the nonce is 16 random bytes). The
+  newer member opens a stream back with kind 0 whose header is the nonce. The
+  asker matches the nonce to its waiter, and only the member it asked may
+  answer. The newer member then runs its own handler for `kind`.
+- Other kinds are registered with `Session.HandleStream`. An unknown kind, or
+  a header that takes longer than 10 seconds, closes the stream.
+- The mesh keeps at most 80 live accepted streams per member.
+
+Shared apps (kind 1) send raw TCP over a session stream. A member shares a
+local TCP port with a label; every member sees the label and the sharer,
+never the sharer's real address.
+
+- `forward.announce` `{rev, shares:[{id,label,port}]}` is sent to every member
+  whenever the sharer's list changes. `rev` only goes up; an older list is
+  ignored. `forward.list` asks a member for its list, so a late joiner gets
+  the shares already running. A member that answers `unknown_method` is shown
+  as a build that cannot share apps.
+- Limits: 16 shares per member, label 1 to 64 characters (no control
+  characters), id 16 lowercase hex characters chosen by the sharer, port 1 to
+  65535, 64 piped connections per opened share, 10 second header deadline.
+- The viewer's stream header is the share id. The sharer looks the id up in
+  its own list, dials `127.0.0.1:<listed port>` and pipes both ways. An
+  unknown or stopped id closes the stream and dials nothing.
+- Stop, leave, removal and session end close the listener and every piped
+  connection on both sides, and drop the member's shares from everyone's list.
+- Shares live in memory only. The local API is `GET /api/forwards`,
+  `POST /api/forwards`, `DELETE /api/forwards/:id`,
+  `POST` and `DELETE /api/forwards/:id/open`, and the live event
+  `forward.changed` carries `{mine, others, unsupported}`. The snapshot has
+  the same `forwards` object.
+
+Protocol version stays 2.
+
+Owners: `internal/services/session/streams.go`, `internal/services/forward/`,
+`internal/services/peer/{stream,forward}.go`.
+
 ## Direction in an offer
 
 `direction` in `transfer.offer` is the offering side's view. `upload` means the
@@ -225,3 +283,86 @@ offerer sends the file. The receiver of the offer flips it with its own
 `initiator` flag to learn whether it sends or receives (`newJobLocked` in
 `internal/services/transfer/manager.go`). `path` in the offer is a slash path
 on the computer that receives it.
+
+## Resource limits and local member removal
+
+Every peer path is at most 4096 bytes with components at most 255 bytes.
+Windows also refuses components containing `~` followed by a digit, blocking
+8.3 aliases of private partials. Directory listings are cached for two seconds
+(up to 128 directories), invalidated when directory modification time changes.
+
+Transfer methods accept only the control conversation attached to the local
+transfer manager. Offers on that conversation are capped at four per second.
+Refused offers leave no retained queue entry; terminal history keeps at most
+200 jobs. Downloads allow hash preparation at one second per MiB plus the
+30-second negotiation window. Source and verification hashing check cancellation
+at least every MiB. Stream and receiver-verdict waits remain thirty seconds.
+
+Upload admission and download preparation reserve 64 MiB of free disk space,
+including remaining active receive sizes. Private partial metadata records
+sender mesh identity, SHA-256 and size; resumption requires an exact match.
+Unowned nonempty legacy partials are refused. A restarted session has new mesh
+identities and cannot claim an old identity's partial. Rooms cap private partial
+entries at 200 and partial bytes and reserved sizes plus the proposed file at 1 TiB. Room open
+prunes private files older than seven days without following directory links.
+Explicit sender upload failures cancel the receiver and remove its partial;
+pause and transport loss retain it. Verified partials survive publication errors.
+
+`DELETE /api/session/members/:id` is a local authenticated API action for the
+lowest surviving join-order member only. It refuses self-removal and closes
+the removed member's control, incoming streams and outgoing link. There is no
+peer kick method. Local member JSON includes optional `fingerprint` (twelve hex
+characters derived from the mesh public-key string). Protocol version stays 2.
+
+## Screen sharing (optional version-2 feature)
+
+Screen media uses session stream kind **2**, opened by a viewer through
+`Session.OpenStream`, including the existing nonce-bound reverse-open path.
+The header is exactly the active share's 16 lowercase hex ID. Only the
+current authenticated room member on that stream can watch. Unknown IDs,
+duplicate viewers from the same member and stopped shares close immediately.
+There is one active recording per member and at most seven remote viewers.
+
+- `screen.list` (omitted params) returns `{rev, share}`; `share` is `null` or
+  `{id, codec}`. `screen.announce` sends the same full state on each start or
+  stop and returns `{}`. Revisions increase; stale lists are ignored. Announce
+  requests are at most 4 KiB. Names and owner IDs are derived from the
+  authenticated roster, regardless of any extra fields in the payload.
+- Codecs are exactly `video/webm;codecs=vp8` or `video/webm;codecs=vp9`.
+  The renderer checks recording and MediaSource support, prefers VP8, requests
+  no audio, caps capture at 1920 by 1080 and 15 fps, and requests 2.5 Mbps.
+  MediaRecorder uses 250 ms timeslices and restarts every two seconds on the
+  same captured track. Each independent recording epoch begins with its WebM
+  initialization and a keyframe. This avoids joining midway through a GOP.
+- Each stream frame is a four-byte unsigned big-endian length followed by a
+  one-byte epoch flag and WebM bytes. Length includes the flag, ranges from
+  2 through 1 MiB, and is checked before allocation. Flag 1 starts an epoch;
+  flag 0 continues it. No other flags are accepted. The first frame must start
+  an epoch. No JSON or base64 is used for media.
+- The sharer retains only the current epoch (including its first/init chunk),
+  capped at 4 MiB and 32 messages. A viewer receives that epoch first and then
+  every new message in order, atomically with subscription. Each viewer has an
+  independent 32-message, 4 MiB queue plus at most one in-flight frame. Full
+  queues disconnect that viewer; three-second write deadlines also disconnect
+  stalled viewers. The producer never waits for a viewer to read.
+- The receiver serializes MediaSource appends, offsets each new epoch after
+  the previous epoch (resetting the WebM parser before offset changes), trims frames older than ten seconds and seeks near the
+  live edge when more than 1.5 seconds behind. Its pending append queue is
+  capped at 32 messages / 4 MiB; excess data ends that playback.
+- Stop, captured-track end, ingest loss, leave, removal and session end close
+  media streams. An unbound local share reservation expires after ten seconds;
+  ingest and media reads also time out after ten seconds without data.
+- Local controls: `GET /api/screen`, `POST /api/screen` with `{codec}`,
+  `DELETE /api/screen/:id`. Dedicated binary WebSockets are
+  `/api/screen/ingest/:id` and `/api/screen/watch/:id`. Both use the same Host,
+  Origin and exact `["tailshare.v1", token]` handshake as `/api/live`.
+  Ingest binary messages carry the epoch flag and chunk, without the stream's
+  four-byte length (WebSocket already frames them). Only one ingest may bind.
+- Live metadata event `screen.changed` and snapshot field `screens` carry
+  `{mine, others, unsupported}`. Items contain `id`, `codec`, `ownerId`,
+  `ownerName`, `viewers`; viewer count is local to the sharer. Old version-2
+  builds answer `unknown_method` to `screen.list` and are listed as unable to
+  watch/share screens. No version bump or mandatory hello change is needed.
+
+Owners: `internal/services/screen/`, `internal/api/screen.go`,
+`web/apps/desktop/src/renderer/src/lib/media/`.

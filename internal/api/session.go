@@ -56,6 +56,7 @@ type SessionState struct {
 // and keys never leave the sidecar.
 type MemberInfo struct {
 	ID          string `json:"id"`
+	Fingerprint string `json:"fingerprint,omitempty"`
 	DisplayName string `json:"displayName"`
 	// Host is true for the computer that admitted everyone else.
 	Host bool `json:"host,omitempty"`
@@ -96,7 +97,7 @@ func (server *Server) stateLocked() SessionState {
 		selfID := server.sess.SelfID()
 		for index, member := range server.sess.Members() {
 			state.Members = append(state.Members, MemberInfo{
-				ID: member.ID, DisplayName: member.DisplayName,
+				ID: member.ID, DisplayName: member.DisplayName, Fingerprint: peer.Fingerprint(member.ID),
 				Host: index == 0, You: member.ID == selfID,
 			})
 		}
@@ -105,6 +106,7 @@ func (server *Server) stateLocked() SessionState {
 }
 
 func (server *Server) publishSession() {
+	server.syncRoomFeatures()
 	server.hub.publish("session.state", server.sessionState())
 }
 
@@ -145,10 +147,22 @@ func (server *Server) release() {
 		server.root = nil
 	}
 	server.manager = nil
+	forwards := server.forwards
+	screens := server.screens
+	server.screens = nil
+	server.forwards = nil
 	server.phase = phaseIdle
 	server.role = ""
 	server.roomName = ""
 	server.mu.Unlock()
+
+	if screens != nil {
+		screens.Close()
+	}
+
+	if forwards != nil {
+		forwards.Close()
+	}
 
 	server.publishSession()
 }
@@ -170,13 +184,18 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	}
 
 	manager := server.roomManager(root)
+	forwards := server.newForwards()
+	screens := server.newScreens()
 	host := displayName(in.DisplayName)
 	// ponytail: the name is fixed when the room is created; renaming later is not built.
 	room := roomName(in.RoomName, host)
 	sess, code, err := session.Host(server.ctx, server.cfg, host, session.Options{
 		Root: root, Handlers: manager.Handlers(), Code: selected, RoomName: room,
+		RoomHandlers: roomHandlers(forwards.RoomHandlers(), screens.RoomHandlers()),
 	})
 	if err != nil {
+		forwards.Close()
+		screens.Close()
 		_ = manager.Close()
 		server.release()
 		return connectError(err)
@@ -189,6 +208,8 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	server.phase = phaseHosting
 	server.mu.Unlock()
 
+	server.attachScreens(sess, screens)
+	server.attachForwards(sess, forwards)
 	server.publishSession()
 	go server.awaitJoiner(sess, manager)
 
@@ -263,10 +284,15 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	defer cancel()
 
 	manager := server.roomManager(root)
+	forwards := server.newForwards()
+	screens := server.newScreens()
 	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(in.DisplayName), session.Options{
 		Root: root, Handlers: manager.Handlers(),
+		RoomHandlers: roomHandlers(forwards.RoomHandlers(), screens.RoomHandlers()),
 	})
 	if err != nil {
+		forwards.Close()
+		screens.Close()
 		_ = manager.Close()
 		server.release()
 		return connectError(err)
@@ -281,6 +307,8 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 		}
 	}
 	if other == nil {
+		forwards.Close()
+		screens.Close()
 		_ = manager.Close()
 		_ = sess.Close()
 		server.release()
@@ -292,6 +320,8 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	server.roomName = sess.RoomName()
 	server.mu.Unlock()
 
+	server.attachScreens(sess, screens)
+	server.attachForwards(sess, forwards)
 	server.connect(sess, other, manager, memberID, false)
 	go server.watchSession(sess)
 
@@ -344,24 +374,17 @@ func (server *Server) connect(
 	}()
 
 	server.peer = other
-	server.code = ""
 	server.phase = phaseConnected
 	server.mu.Unlock()
 
 	server.publishSession()
 
 	chatEvents := other.Subscribe()
-	go func() {
-		for event := range chatEvents.Events {
-			if event.Kind == peer.EventChat {
-				server.hub.publish("chat.message", event.Chat)
-			}
-		}
-	}()
+	go server.forwardChat(other, chatEvents)
 
 	go func() {
 		<-other.Done()
-		server.end(sess)
+		server.replacePeer(sess, other, manager)
 	}()
 }
 
@@ -412,12 +435,23 @@ func (server *Server) endCurrent(expected *session.Session) {
 	}
 	transfers, done := server.transfers, server.transferDone
 	manager := server.manager
+	forwards := server.forwards
+	screens := server.screens
+	server.screens = nil
+	server.forwards = nil
 	ending := make(chan struct{})
 	server.ending = ending
 	server.phase = phaseConnecting
 	server.transfers = nil
 	server.mu.Unlock()
 
+	if screens != nil {
+		screens.Close()
+	}
+
+	if forwards != nil {
+		forwards.Close()
+	}
 	if manager != nil {
 		_ = manager.Close()
 	}
@@ -444,6 +478,7 @@ func (server *Server) endCurrent(expected *session.Session) {
 		server.root = nil
 	}
 	server.manager = nil
+	server.pruneDownloadRootsLocked()
 	server.ending = nil
 	close(ending)
 	server.mu.Unlock()
@@ -463,7 +498,7 @@ func displayName(chosen string) string {
 		return "Tailshare"
 	}
 
-	return name[:min(len(name), 64)]
+	return truncateName(name)
 }
 
 // roomName is the room's name: the host's pick when it is usable, otherwise
@@ -486,4 +521,37 @@ func usableName(chosen string) (string, bool) {
 		!strings.ContainsFunc(chosen, unicode.IsControl)
 
 	return chosen, ok
+}
+
+func truncateName(name string) string {
+	runes := []rune(name)
+	return string(runes[:min(len(runes), 64)])
+}
+
+func (server *Server) forwardChat(other *peer.Peer, subscription *peer.Subscription) {
+	defer func() { subscription.Close() }()
+	var last int64
+	for {
+		for event := range subscription.Events {
+			if event.Kind == peer.EventChat && event.Chat.Seq > last {
+				last = event.Chat.Seq
+				server.hub.publish("chat.message", event.Chat)
+			}
+		}
+		select {
+		case <-other.Done():
+			return
+		case <-server.ctx.Done():
+			return
+		default:
+		}
+		subscription.Close()
+		subscription = other.Subscribe()
+		for _, message := range subscription.Snapshot {
+			if message.Seq > last {
+				last = message.Seq
+				server.hub.publish("chat.message", message)
+			}
+		}
+	}
 }

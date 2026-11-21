@@ -114,7 +114,7 @@ func TestDownloadDestinationContract(t *testing.T) {
 	defer manager.Close()
 	f.server.transfers = newManagedTransfers(manager)
 	f.server.phase = phaseConnected
-	for _, destination := range []string{"sub/file.pdf", `sub\file.pdf`, "..", "a..pdf", "../outside"} {
+	for _, destination := range []string{"sub/file.pdf", `sub\file.pdf`, "..", "../outside"} {
 		f.send("POST", "/api/transfers", TransferRequest{Direction: "download", Source: "report.pdf", Destination: destination}).expect(t, 400, "bad_path")
 	}
 	response := f.send("POST", "/api/transfers", TransferRequest{Direction: "download", Source: "report.pdf", Destination: "report.pdf"})

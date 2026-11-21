@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { isJoinCode, isRecentRooms, isUpdateStatus } from "../shared/bridge"
+import {
+  isCurrentRoom,
+  isDownloadsStatus,
+  isJoinCode,
+  isRecentRooms,
+  isUpdateStatus,
+} from "../shared/bridge"
 import { CHANNELS } from "../shared/ipc-schema"
 
 const source = readFileSync(join(import.meta.dirname, "index.ts"), "utf8")
@@ -19,6 +25,8 @@ describe("preload bridge", () => {
     expect(exposed.map((m) => [m[1], m[2]])).toEqual([["tailshare", "bridge"]])
     expect(source).not.toMatch(/exposeInMainWorld\("\w+", ipcRenderer/)
     for (const name of [
+      "screenSources",
+      "pickScreenSource",
       "getConnectionInfo",
       "chooseFolder",
       "addFiles",
@@ -33,6 +41,7 @@ describe("preload bridge", () => {
       "checkForUpdates",
       "downloadUpdate",
       "openReleaseLink",
+      "openForwardLink",
       "restartToUpdate",
       "getWindowState",
       "onWindowState",
@@ -41,6 +50,10 @@ describe("preload bridge", () => {
       "touchRecentRoom",
       "removeRecentRoom",
       "onRecentRoomsChanged",
+      "getCurrentRoom",
+      "setCurrentRoom",
+      "getDownloadsStatus",
+      "onDownloadsStatus",
     ]) {
       expect(source).toContain(`${name}:`)
     }
@@ -70,6 +83,20 @@ describe("preload checks for join links and recent rooms", () => {
       expect(isRecentRooms(bad)).toBe(false)
   })
 
+  it("lets only a well-formed current room and downloads status through", () => {
+    expect(isCurrentRoom({ name: "", code: "7K3Q9PXM" })).toBe(true)
+    for (const bad of [
+      null,
+      {},
+      { name: 1, code: "7K3Q9PXM" },
+      { name: "A", code: "7K3Q-9PXM" },
+    ])
+      expect(isCurrentRoom(bad)).toBe(false)
+    expect(isDownloadsStatus({ ok: false })).toBe(true)
+    for (const bad of [null, {}, { ok: "yes" }, "ok"])
+      expect(isDownloadsStatus(bad)).toBe(false)
+  })
+
   it("sends ready only after the join-link listener is attached", () => {
     const body = source.slice(source.indexOf("onJoinLink:"))
 
@@ -79,7 +106,11 @@ describe("preload checks for join links and recent rooms", () => {
   })
 
   it("subscribes and unsubscribes on the exact channels", () => {
-    for (const channel of ["join-link", "recent-rooms-changed"]) {
+    for (const channel of [
+      "join-link",
+      "recent-rooms-changed",
+      "downloads-status",
+    ]) {
       expect(source).toContain(`ipcRenderer.on("tailshare:${channel}"`)
       expect(source).toContain(`ipcRenderer.off("tailshare:${channel}"`)
     }
@@ -132,5 +163,24 @@ describe("dropped files", () => {
     } finally {
       vi.doUnmock("electron")
     }
+  })
+})
+
+describe("capture choice validation", () => {
+  it("refuses native IDs, non-image thumbnails and oversized replies", async () => {
+    const { isCaptureSources } = await import("../shared/bridge")
+    const choice = {
+      id: "12345678-1234-1234-1234-123456789abc",
+      name: "Desktop",
+      thumbnail: "data:image/png;base64,AA==",
+    }
+    expect(isCaptureSources([choice])).toBe(true)
+    expect(isCaptureSources([{ ...choice, id: "screen:0" }])).toBe(false)
+    expect(
+      isCaptureSources([
+        { ...choice, thumbnail: "https://outside.example/image.png" },
+      ])
+    ).toBe(false)
+    expect(isCaptureSources(Array(257).fill(choice))).toBe(false)
   })
 })

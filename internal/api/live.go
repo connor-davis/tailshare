@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/connor-davis/tailshare/internal/services/forward"
+	"github.com/connor-davis/tailshare/internal/services/screen"
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
 )
@@ -24,7 +26,7 @@ const (
 type Event struct {
 	Seq int64 `json:"seq"`
 	// Type says what the data is: snapshot, session.state, chat.message,
-	// transfer.state or transfer.progress.
+	// transfer.state, transfer.progress, forward.changed or screen.changed (whole feature state).
 	Type string `json:"type"`
 	// Data is the payload for Type; its shape depends on Type.
 	Data any `json:"data"`
@@ -36,6 +38,8 @@ type Event struct {
 type Snapshot struct {
 	Session   SessionState   `json:"session"`
 	Transfers []TransferItem `json:"transfers"`
+	Forwards  forward.State  `json:"forwards"`
+	Screens   screen.State   `json:"screens"`
 }
 
 // client is one open live socket.
@@ -141,6 +145,8 @@ func (server *Server) snapshot() any {
 	return Snapshot{
 		Session:   server.sessionState(),
 		Transfers: server.transferList(),
+		Forwards:  server.forwardState(),
+		Screens:   server.screenState(),
 	}
 }
 

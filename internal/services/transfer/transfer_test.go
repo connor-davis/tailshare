@@ -250,9 +250,9 @@ func TestPauseThenResume(t *testing.T) {
 	assertFile(t, pair.joinDir, "received", data)
 }
 
-func TestResumeAfterSessionDrop(t *testing.T) {
+func TestSessionDropDoesNotReuseDifferentOwner(t *testing.T) {
 	hostDir, joinDir := t.TempDir(), t.TempDir()
-	data := putFile(t, hostDir, "source", 32<<20)
+	putFile(t, hostDir, "source", 32<<20)
 	first := pair(t, hostDir, joinDir)
 	transfer, err := first.join.Download(first.ctx, "source", "received")
 	if err != nil {
@@ -269,16 +269,10 @@ func TestResumeAfterSessionDrop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := waitFor(
-		t,
-		second.join,
-		resumed.ID,
-		func(view Transfer) bool { return view.State == Done },
-	)
-	if result.Offset <= 0 {
-		t.Fatal("resume started from zero")
+	waitFor(t, second.join, resumed.ID, func(view Transfer) bool { return view.State == Failed })
+	if size, err := second.join.root.PartialSize("received"); err != nil || size == 0 {
+		t.Fatalf("another identity removed the partial: %d %v", size, err)
 	}
-	assertFile(t, joinDir, "received", data)
 }
 
 func TestCancelRemovesPartial(t *testing.T) {

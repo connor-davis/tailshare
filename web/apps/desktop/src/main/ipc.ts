@@ -3,12 +3,18 @@ import {
   CHANNELS,
   ChosenFolderSchema,
   ConnectionInfoSchema,
+  DownloadsStatusSchema,
   NoArgs,
   RecentRoomsSchema,
   SettingsSchema,
   WindowStateSchema,
 } from "../shared/ipc-schema"
-import { isReleaseLink, type WindowState } from "../shared/bridge"
+import {
+  isForwardLink,
+  isReleaseLink,
+  type DownloadsStatus,
+  type WindowState,
+} from "../shared/bridge"
 import type { RecentRoomsStore } from "./recent-rooms"
 import type { SettingsStore } from "./settings"
 import type { UpdateController } from "./updater"
@@ -81,6 +87,18 @@ export function registerUpdateIpc(
     }
   })
 
+  host.handle(CHANNELS.openForwardLink, async (senderOk, args) => {
+    if (!senderOk) throw refuse("answer this window")
+    if (args.length !== 1 || !isForwardLink(args[0]))
+      throw refuse("read that request")
+
+    try {
+      await openExternal(args[0])
+    } catch {
+      throw refuse("open this app. Try again")
+    }
+  })
+
   // The store checks the whole patch before it writes or tells anyone.
   host.handle(CHANNELS.updateSettings, async (senderOk, args) => {
     if (!senderOk) throw refuse("answer this window")
@@ -131,6 +149,17 @@ export function registerWindowIpc(host: IpcHost, controls: WindowControls) {
   host.handle(CHANNELS.getWindowState, async (senderOk, args) => {
     await Effect.runPromise(guard(senderOk, args))
     return Effect.runPromise(check(WindowStateSchema, controls.state()))
+  })
+}
+
+/** Registers the downloads status request behind the same window and tuple guards. */
+export function registerDownloadsIpc(
+  host: IpcHost,
+  status: () => DownloadsStatus
+) {
+  host.handle(CHANNELS.getDownloadsStatus, async (senderOk, args) => {
+    await Effect.runPromise(guard(senderOk, args))
+    return Effect.runPromise(check(DownloadsStatusSchema, status()))
   })
 }
 

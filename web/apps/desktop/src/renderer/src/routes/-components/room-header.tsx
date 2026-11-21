@@ -1,7 +1,8 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { announce } from "@/components/status-region"
 import { FolderOpenIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "./confirm-dialog"
 import { ShareCode } from "./share-code"
 import { CodeCountdown } from "./code-countdown"
 import type { PeerInfo } from "@/lib/api/types"
@@ -14,12 +15,15 @@ import { useLiveStatus } from "@/lib/live/use-live"
 export function RoomHeader({
   peer,
   roomName,
+  host = false,
   onLeave,
   leaving,
   code,
   roomCode,
   startedAt = null,
 }: {
+  /** True when this computer is the host, so Leave ends the room for all. */
+  host?: boolean
   /** The other computer; missing while the host waits for someone. */
   peer?: PeerInfo
   /** The host's name for the room. Falls back to the other computer's name. */
@@ -36,6 +40,8 @@ export function RoomHeader({
   startedAt?: number | null
 }) {
   const live = useLiveStatus()
+  const [folderError, setFolderError] = useState(false)
+  const [confirmingLeave, setConfirmingLeave] = useState(false)
   const reconnecting = live === "reconnecting"
 
   useEffect(() => {
@@ -76,16 +82,31 @@ export function RoomHeader({
           {reconnecting ? "Reconnecting…" : "Connected"}
         </p>
       ) : null}
+      {folderError ? (
+        <p role="alert" className="text-sm text-destructive">
+          Could not open the room folder. Try again.
+        </p>
+      ) : null}
       {roomCode ? (
         <Button
           variant="outline"
-          onClick={() => void window.tailshare.openRoomFolder(roomCode)}
+          onClick={() => {
+            setFolderError(false)
+            window.tailshare
+              .openRoomFolder(roomCode)
+              .catch(() => setFolderError(true))
+          }}
         >
           <FolderOpenIcon aria-hidden data-icon="inline-start" />
           Open folder
         </Button>
       ) : null}
-      <Button variant="outline" disabled={leaving} onClick={onLeave}>
+      <Button
+        variant="outline"
+        disabled={leaving}
+        // Nobody else is in the room yet, so cancelling costs no one anything.
+        onClick={peer ? () => setConfirmingLeave(true) : onLeave}
+      >
         {peer
           ? leaving
             ? "Leaving…"
@@ -94,6 +115,23 @@ export function RoomHeader({
             ? "Cancelling…"
             : "Cancel"}
       </Button>
+      <ConfirmDialog
+        open={confirmingLeave}
+        onOpenChange={setConfirmingLeave}
+        title={host ? "End this room for everyone?" : "Leave this room?"}
+        description={
+          host
+            ? "Everyone is disconnected and the code stops working."
+            : "You can join again later with the code."
+        }
+        confirmLabel={host ? "End room" : "Leave"}
+        busyLabel="Leaving…"
+        busy={leaving}
+        onConfirm={() => {
+          setConfirmingLeave(false)
+          onLeave()
+        }}
+      />
     </header>
   )
 }

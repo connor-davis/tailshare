@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { liveRevision } from "../live/apply"
 import { apiFetch } from "./client"
 import { keys } from "./keys"
 import type { SessionState } from "./types"
@@ -18,7 +19,12 @@ function useSessionCall<Input>(send: (input: Input) => Promise<SessionState>) {
 
   return useMutation({
     mutationFn: send,
-    onSuccess: (state) => client.setQueryData(keys.session, state),
+    // The socket may have said something newer while the call was away.
+    onMutate: () => liveRevision(client),
+    onSuccess: (state, _input, started) => {
+      if (liveRevision(client) === started)
+        client.setQueryData(keys.session, state)
+    },
   })
 }
 
@@ -57,6 +63,15 @@ export function useLeave() {
 export function useAllowJoin() {
   return useSessionCall<number>((id) =>
     apiFetch<SessionState>(`/api/session/joins/${id}/allow`, { method: "POST" })
+  )
+}
+
+/** Remove one member from the room. Only the host can; the sidecar says so otherwise. */
+export function useRemoveMember() {
+  return useSessionCall<string>((id) =>
+    apiFetch<SessionState>(`/api/session/members/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    })
   )
 }
 

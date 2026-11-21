@@ -75,8 +75,10 @@ export function windowOptions(
     title: "Tailshare",
     width: 1100,
     height: 760,
-    minWidth: 480,
-    minHeight: 360,
+    // Rooms 200 + room 400 + members 200 side by side, and the room's stacked
+    // panels, need this much; smaller windows clipped the transfer buttons.
+    minWidth: 800,
+    minHeight: 600,
     titleBarStyle: "hidden",
     titleBarOverlay: titleBarOverlay(look),
     backgroundMaterial: look.material,

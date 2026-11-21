@@ -2,6 +2,7 @@ package mesh
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -426,5 +427,43 @@ func TestMalformedPrefixAndFullQueueClosed(t *testing.T) {
 	_ = host.Remove(joiner.ID)
 	if _, err := tunnel.Accept(); err != net.ErrClosed {
 		t.Fatalf("removed tunnel Accept: %v", err)
+	}
+}
+
+func TestSessionStreamsStayOutOfTransferQueue(t *testing.T) {
+	relay := tailcattest.LocalDERP(t)
+	host, joiner := localMesh(t, relay, "Host"), localMesh(t, relay, "Joiner")
+	link := prepareJoin(t, host, joiner)[host.Self().ID]
+	connectControl(t, joiner, host, link)
+	go func() { _, _, _ = host.Accept() }()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	tunnel, _ := host.Tunnel(joiner.Self().ID)
+	outgoing, err := link.OpenStream(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer outgoing.Close()
+
+	accepted := make(chan net.Conn, 1)
+	go func() { conn, _ := tunnel.AcceptStream(); accepted <- conn }()
+	select {
+	case incoming := <-accepted:
+		exchange(t, outgoing, incoming)
+		_ = incoming.Close()
+	case <-ctx.Done():
+		t.Fatal("session stream did not reach its queue")
+	}
+
+	// The host never dialed the joiner, so it cannot open one, and says so.
+	if _, err := tunnel.OpenStream(ctx); !errors.Is(err, ErrNotDialer) {
+		t.Fatalf("a member that did not dial opened a stream: %v", err)
+	}
+	select {
+	case conn := <-tunnel.incoming:
+		_ = conn.Close()
+		t.Fatal("a session stream landed in the transfer queue")
+	default:
 	}
 }

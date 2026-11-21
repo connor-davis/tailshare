@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/forward"
 	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/screen"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/connor-davis/tailshare/internal/services/transfer"
@@ -63,6 +65,8 @@ type Server struct {
 	transfers     Transfers
 	transferDone  chan struct{}
 	ending        chan struct{}
+	forwards      *forward.Forwards
+	screens       *screen.Screens
 }
 
 // New builds the API and owns a transfer manager for each connected session.
@@ -72,6 +76,13 @@ func New(cfg config.Config) (*Server, error) {
 		return nil, errors.New("TAILSHARE_TOKEN must be 32 random bytes written as 64 hex characters.")
 	}
 
+	if cfg.MainToken != "" {
+		raw, err := hex.DecodeString(cfg.MainToken)
+		renderer, _ := hex.DecodeString(cfg.Token)
+		if err != nil || len(raw) != 32 || subtle.ConstantTimeCompare(raw, renderer) == 1 {
+			return nil, errors.New("TAILSHARE_MAIN_TOKEN must be a separate 32-byte hex token.")
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
 		cfg: cfg, hub: newHub(), ctx: ctx, cancel: cancel, phase: phaseIdle,
@@ -155,6 +166,7 @@ func (server *Server) routes() {
 	api.Post("/session/host", server.hostSession)
 	api.Post("/session/join", server.joinSession)
 	api.Delete("/session", server.leaveSession)
+	api.Delete("/session/members/:id", server.removeMember)
 	api.Post("/session/joins/:id/allow", server.allowJoin)
 	api.Post("/session/joins/:id/deny", server.denyJoin)
 
@@ -165,6 +177,18 @@ func (server *Server) routes() {
 
 	api.Get("/chat", server.getChat)
 	api.Post("/chat", server.postChat)
+
+	api.Get("/screen", server.listScreens)
+	api.Post("/screen", server.startScreen)
+	api.Delete("/screen/:id", server.stopScreen)
+	api.Get("/screen/ingest/:id", server.screenSocket(true))
+	api.Get("/screen/watch/:id", server.screenSocket(false))
+
+	api.Get("/forwards", server.listForwards)
+	api.Post("/forwards", server.shareForward)
+	api.Delete("/forwards/:id", server.stopForward)
+	api.Post("/forwards/:id/open", server.openForward)
+	api.Delete("/forwards/:id/open", server.closeForward)
 
 	api.Get("/transfers", server.listTransfers)
 	api.Post("/transfers", server.startTransfer)

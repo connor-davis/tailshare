@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,8 +32,12 @@ type Entry struct {
 // the session ends: on Windows an open root also stops the folder being
 // renamed or deleted.
 type Root struct {
-	root *os.Root
-	name string
+	root          *os.Root
+	name          string
+	mu            sync.Mutex
+	listings      map[string]listing
+	link          func(string, string) error
+	readDirectory func(*os.File) ([]string, error)
 }
 
 // Open opens the folder the user chose to share.
@@ -90,13 +95,25 @@ func (shared *Root) List(dir string, offset, limit int) ([]Entry, int, error) {
 		return nil, 0, err
 	}
 
+	shared.mu.Lock()
+	defer shared.mu.Unlock()
+	if cached, ok := shared.listings[local]; ok && time.Since(cached.at) < 2*time.Second {
+		if info, err := shared.root.Stat(local); err == nil && info.ModTime() == cached.modified {
+			return pageEntries(cached.entries, offset, limit)
+		}
+	}
+
 	handle, err := shared.root.Open(local)
 	if err != nil {
 		return nil, 0, mapError(err)
 	}
 	defer handle.Close()
 
-	names, err := handle.Readdirnames(-1)
+	readDirectory := func(file *os.File) ([]string, error) { return file.Readdirnames(-1) }
+	if shared.readDirectory != nil {
+		readDirectory = shared.readDirectory
+	}
+	names, err := readDirectory(handle)
 	if err != nil {
 		return nil, 0, mapError(err)
 	}
@@ -124,6 +141,22 @@ func (shared *Root) List(dir string, offset, limit int) ([]Entry, int, error) {
 		return strings.ToLower(entries[i].Name) < strings.ToLower(entries[j].Name)
 	})
 
+	info, err := handle.Stat()
+	if err == nil {
+		if shared.listings == nil || len(shared.listings) >= 128 {
+			shared.listings = make(map[string]listing)
+		}
+		shared.listings[local] = listing{entries: entries, at: time.Now(), modified: info.ModTime()}
+	}
+	return pageEntries(entries, offset, limit)
+}
+
+type listing struct {
+	entries      []Entry
+	at, modified time.Time
+}
+
+func pageEntries(entries []Entry, offset, limit int) ([]Entry, int, error) {
 	total := len(entries)
 	if limit <= 0 || limit > MaxPage {
 		limit = MaxPage
@@ -132,7 +165,7 @@ func (shared *Root) List(dir string, offset, limit int) ([]Entry, int, error) {
 		offset = total
 	}
 
-	return entries[offset:min(offset+limit, total)], total, nil
+	return append([]Entry{}, entries[offset:min(offset+limit, total)]...), total, nil
 }
 
 func entryOf(name string, info fs.FileInfo) Entry {
@@ -150,4 +183,14 @@ func mapError(err error) error {
 	default:
 		return ErrDenied
 	}
+}
+
+// SameFolder compares a configured directory with this open folder's identity.
+func (shared *Root) SameFolder(folder string) bool {
+	current, err := shared.root.Stat(".")
+	if err != nil {
+		return false
+	}
+	offered, err := os.Stat(filepath.Clean(folder))
+	return err == nil && os.SameFile(current, offered)
 }
