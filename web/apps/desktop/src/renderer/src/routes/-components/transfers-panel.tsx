@@ -1,6 +1,5 @@
 import { useState } from "react"
-import { cn } from "cn"
-import { ArrowDownUpIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { ArrowDownUpIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -34,19 +33,8 @@ function summary(items: TransferView[]): string {
   return text.length > 0 ? text.join(" · ") : "No transfers yet"
 }
 
-/**
- * The queue at the bottom of the room. Its panel decides the height; the
- * button only asks the panel to collapse to this header or open again.
- */
-export function TransfersPanel({
-  collapsed,
-  onToggle,
-}: {
-  /** True while the panel is squeezed down to its header. */
-  collapsed: boolean
-  /** Asks the panel to collapse or expand. */
-  onToggle: () => void
-}) {
+/** The transfer queue inside a tile, with counts and local Clear actions. */
+export function TransfersPanel() {
   const { data = [] } = useTransfers()
   // ponytail: "Clear" hides rows on this screen only. The API has no remove
   // event; upgrade is a delete route plus a remove event.
@@ -60,14 +48,9 @@ export function TransfersPanel({
   return (
     <section
       aria-label="Transfers"
-      // Open, the resize handle draws the top line; collapsed, there is none.
-      className={cn(
-        "flex h-full min-h-0 flex-col bg-card",
-        collapsed && "border-t"
-      )}
+      className="flex h-full min-h-0 flex-col bg-card"
     >
-      <header className="flex h-10 shrink-0 items-center gap-3 px-3">
-        <h2 className="text-sm font-semibold">Transfers</h2>
+      <header className="flex min-h-10 shrink-0 flex-wrap items-center gap-2 px-3 py-2">
         <p className="flex-1 text-xs text-muted-foreground tabular-nums">
           {summary(items)}
         </p>
@@ -80,21 +63,8 @@ export function TransfersPanel({
             Clear finished
           </Button>
         ) : null}
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-expanded={!collapsed}
-          onClick={onToggle}
-        >
-          {collapsed ? (
-            <ChevronUpIcon aria-hidden data-icon="inline-start" />
-          ) : (
-            <ChevronDownIcon aria-hidden data-icon="inline-start" />
-          )}
-          {collapsed ? "Expand" : "Collapse"}
-        </Button>
       </header>
-      {collapsed ? null : items.length === 0 ? (
+      {items.length === 0 ? (
         <Empty className="min-h-0 gap-2 p-4">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -102,7 +72,7 @@ export function TransfersPanel({
             </EmptyMedia>
             <EmptyTitle>No transfers yet</EmptyTitle>
             <EmptyDescription>
-              Files you download from the chat show up here.
+              Files you download show up here.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

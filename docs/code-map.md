@@ -141,8 +141,11 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
 | Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
 | Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
-| Window drag strip on top of each column (no window-wide title bar; 138 px kept free for the native buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
+| Window drag strips for the black rail and app toolbar (138 px kept free for native caption buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
 | Update available button and dialog with per-version dismissal, shown in the main top bar | `src/renderer/src/components/update-button.tsx`, `update-button.test.tsx` beside it |
+| Spaces home hero and saved-room cards; real current membership seats | `src/renderer/src/routes/-components/home-board.tsx`, `empty-state.tsx` |
+| Spaces five-tile board, expand/return state and People header join notice | `src/renderer/src/routes/-components/room-view.tsx` |
+| Session attachment file collection, file picker/drop and existing download cards | `src/renderer/src/routes/-components/room-files.tsx` |
 | Shell pieces: main top bar, empty state, join form and dialog, new-room name dialog, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `new-room-dialog`, `share-code`, `code-countdown`, `name-editor`) |
 | Update event subscription and initial-read race guard, shared by Settings and the update button | `src/renderer/src/components/use-update-status.ts` |
 | Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and the update dialog | `src/renderer/src/components/update-release.tsx` |
@@ -163,7 +166,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Renderer entry and Content Security Policy | `src/renderer/index.html` |
 | Query client and hash router | `src/renderer/src/main.tsx` |
 | Root outlet, live socket start, sidecar banner, announcements | `src/renderer/src/routes/__root.tsx`, `src/renderer/src/components/sidecar-banner.tsx`, `src/renderer/src/components/status-region.tsx` |
-| App shell: rooms sidebar (New room, Join, search), room (header with Open folder, chat column, transfers panel at the bottom), members column; panel sizes saved per computer | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` (`room-sidebar`, `room-view`, `room-header`, `room-chat`, `members-panel`, `transfers-panel`, `panel-layout.ts`, `recent-rooms.ts`) |
+| Spaces shell: black room rail (New room, Join, search), home board, room board and heading; rail visibility saved; retired member/transfer and size preferences ignored | `src/renderer/src/routes/index.tsx`, `src/renderer/src/routes/-components/` (`room-sidebar`, `room-view`, `room-header`, `room-chat`, `members-panel`, `transfers-panel`, `panel-layout.ts`, `recent-rooms.ts`) |
 | Local join prompt, pending/error state and Allow/Deny actions | `src/renderer/src/routes/-components/join-request.tsx`, `join-request.test.tsx` beside it |
 | Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
 | Byte, speed, time and date text | `src/renderer/src/lib/format.ts` |

@@ -26,7 +26,10 @@
   --border: #d0d0ce;
   --input: #858585;
   --field: #efeee9;
-  --ring: #0f1c2e;
+  --ring: #000000;
+  --chrome: #000000;
+  --chrome-foreground: #ffffff;
+  --chrome-muted: #b8b8bd;
   --radius: 6px;
 }
 
@@ -81,6 +84,9 @@
   --color-input: var(--input);
   --color-field: var(--field);
   --color-ring: var(--ring);
+  --color-chrome: var(--chrome);
+  --color-chrome-foreground: var(--chrome-foreground);
+  --color-chrome-muted: var(--chrome-muted);
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: var(--radius);
@@ -130,4 +136,192 @@ html.mica body {
     background: var(--primary);
     color: var(--primary-foreground);
   }
+}
+
+/* The rail stays black in both modes; its controls need a light focus edge. */
+.spaces-rail {
+  --background: #000000;
+  --secondary: #141415;
+  --secondary-foreground: #ffffff;
+  --muted: #141415;
+  --border: #49494d;
+  --foreground: #ffffff;
+  --muted-foreground: #b8b8bd;
+  --card: #000000;
+  --accent: #242426;
+  --accent-foreground: #ffffff;
+  --field: #141415;
+  --input: #858585;
+  --ring: #fa7a00;
+  --link: #fa7a00;
+  --destructive: #ff7b72;
+  color: var(--chrome-foreground);
+  background: var(--chrome);
+}
+
+.spaces-hazard {
+  height: 8px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--primary) 0 12px,
+    var(--chrome) 12px 24px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.rail-initial {
+  display: none;
+}
+
+.spaces-rail-compact > header {
+  padding: 0;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0;
+}
+
+.spaces-rail-compact > div:has(input[type="search"]) {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.spaces-rail-compact > div:has(input[type="search"]) > div {
+  flex: none;
+  width: 44px;
+}
+
+.spaces-rail-compact input[type="search"] {
+  width: 44px;
+  padding-left: 32px;
+}
+
+.spaces-rail-compact input[type="search"]:focus {
+  position: relative;
+  z-index: 20;
+  width: 220px;
+}
+
+.spaces-rail-compact section > h2,
+.spaces-rail-compact [data-slot="empty"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.spaces-rail-compact section > button,
+.spaces-rail-compact li {
+  height: 44px;
+  margin-bottom: 8px;
+  border: 1px solid var(--input);
+}
+
+.spaces-rail-compact section > button > span:not(.rail-initial),
+.spaces-rail-compact li button > span:not(.rail-initial) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.spaces-rail-compact .rail-initial {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  font-weight: 700;
+}
+
+.spaces-rail-compact footer {
+  flex-direction: column;
+}
+
+.spaces-rail-compact footer > div {
+  width: 100%;
+}
+
+.spaces-rail-compact footer button > span + span {
+  display: none;
+}
+
+/* Editing a name needs room even when the rail is compact. */
+.spaces-rail-compact footer input {
+  position: relative;
+  z-index: 20;
+  width: 220px;
+}
+
+.spaces-board {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(300px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  height: 100%;
+  min-height: 650px;
+}
+
+.spaces-tile {
+  min-width: 0;
+  min-height: 0;
+}
+
+.spaces-tile-files {
+  grid-column: 1 / 8;
+}
+.spaces-tile-people {
+  grid-column: 8 / 13;
+}
+.spaces-tile-chat {
+  grid-column: 1 / 6;
+}
+.spaces-tile-transfers {
+  grid-column: 6 / 10;
+}
+.spaces-tile-apps {
+  grid-column: 10 / 13;
+}
+
+.spaces-board-expanded {
+  min-height: 400px;
+  grid-template-rows: 1fr;
+}
+
+.spaces-board-expanded > .spaces-tile:not(.hidden) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .spaces-board:not(.spaces-board-expanded) {
+    height: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 340px;
+    grid-template-rows: none;
+  }
+
+  .spaces-board > .spaces-tile {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .spaces-board:not(.spaces-board-expanded) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+[data-slot="scroll-area-viewport"] > div:has(> .spaces-board) {
+  height: 100%;
 }

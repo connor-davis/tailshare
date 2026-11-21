@@ -41,14 +41,16 @@ export function ShareCode({
   return (
     <div
       className={
-        compact ? "flex items-center gap-2" : "flex flex-col items-center gap-4"
+        compact
+          ? "flex flex-wrap items-center gap-2"
+          : "flex flex-col items-center gap-4"
       }
     >
       <p
         aria-label={`Code ${code.replace(/-/g, "").split("").join(" ")}`}
         className={
           compact
-            ? "font-mono text-base font-semibold tracking-widest tabular-nums"
+            ? "rounded-md bg-chrome px-3 py-1 font-mono text-base font-semibold tracking-widest text-primary tabular-nums"
             : "font-mono text-5xl font-semibold tracking-widest tabular-nums"
         }
       >

@@ -17,7 +17,10 @@ tokens:
   destructive: { light: "#D3212C", dark: "#FF7B72" }
   warning: { light: "#CA8A04", dark: "#E8C547" }
   success: { light: "#24963E", dark: "#3DD68C" }
-  ring: { light: "#0F1C2E", dark: "#FA7A00" }
+  chrome: "#000000"
+  chrome-foreground: "#FFFFFF"
+  chrome-muted: "#B8B8BD"
+  ring: { light: "#000000", dark: "#FA7A00" }
   radius: "6px"
 asymmetries:
   - "Polyphron supplies light colours only; dark values are Tailshare adaptations."
@@ -28,9 +31,8 @@ asymmetries:
 ## 1. Overview
 
 A compact desktop file manager. Orange identifies actions; neutral surfaces
-leave room for names, paths and transfer state. The current shell contains only
-the Tailshare title and a disabled connection placeholder. The layout below is
-the contract for step 11, not an implemented session screen.
+leave room for names, paths and transfer state. The Spaces shell uses a black
+room rail, a home board of recent rooms, and a five-tile room board. Existing session and transfer behavior stays intact.
 
 Source: `D:/Programming/Polyphron/polyphron/DESIGN.md` supplies the exact light
 hex values. Viper's console and 3REco's app supply density and component patterns.
@@ -41,16 +43,19 @@ The website's marketing layout, square corners and heading sizes do not apply.
 The frontmatter maps the semantic CSS variables in
 `web/apps/desktop/src/renderer/src/styles/globals.css`.
 Light background, foreground, card, orange, link, muted text, borders and status
-colours are Polyphron source values. Blueprint Navy supplies the light focus ring.
+colours are Polyphron source values. Black supplies the light focus ring.
 Dark values are Tailshare choices inspired by Viper, not official brand tokens.
 
 Popover uses card colours. Secondary, muted and accent surfaces use white in
-light and raised neutral `#1E1E20` in dark, with the normal foreground. The top
-bar's future dark surface is `#141415`. Use `#0F1C2E` sparingly for emphasis.
-Keep these future layout values in this document until the corresponding UI exists.
+light and raised neutral `#1E1E20` in dark, with the normal foreground.
+Black `#000000` chrome is shared by both modes: the rail, welcome hero,
+room-card headers and code chips. Chrome foreground is white and secondary
+text is `#B8B8BD`. Orange on black and black on orange exceed AA contrast.
+On black chrome, links use orange and errors use the dark-mode `#FF7B72`
+so validation and Forget failures stay readable in both modes.
 
 Normal text needs at least 4.5:1 contrast; large text and meaningful control
-boundaries need at least 3:1. Light links use `#B85600`, never bright orange.
+boundaries need at least 3:1. Links on light surfaces use `#B85600`.
 Primary orange buttons use dark text. Source warning and success colours are
 signals, not small text on light surfaces; pair them with readable foreground
 labels and explicit words. Low-contrast separator colours must not be the sole
@@ -70,27 +75,17 @@ Use 4, 8, 12, 16, 24 and 32px spacing. Group a label and control tightly; separa
 unrelated actions. Controls have at least 32px hit height; compact rows retain
 keyboard access. Use 6px control corners, 4px small corners and 8px dialogs.
 
-Shell layout:
-
-```text
-+ Rooms ----+ Peer / code  Open folder Leave + Members -----+
-| [New room]|                                | You (host)   |
-| [Search ] | messages, file cards           | Pat   Host   |
-| Recent    |  (centred, max 768px)          |              |
-| Name, gear| [+ Write a message...      (^)]+              |
-|           +--------------------------------+              |
-|           | Transfers: active / done       |              |
-+-----------+ queue rows ----------------------+-------------+
-```
-
-Rooms shell: a rooms sidebar (plain aside, 180-360px), the room in the middle
-(48px header, the chat with its composer pinned at the bottom, and a 180px
-transfers panel under it that collapses to its 40px header) and a members column
-(200px minimum, 40% maximum). The chat and transfers split is a vertical resizable
-group. Columns never collapse by dragging; their toggles hide them, and sizes
-and open state are saved per computer. The sidebar top is a full-width outline
-New room button with a Join icon button beside it, then a search box (Ctrl+K
-focuses it, Esc clears it). ponytail: below 720px the columns do not stack yet.
+Shell layout: a black room rail with search, New room, Join room, recent rooms,
+name and Settings. Home has a black welcome hero with an orange hazard stripe,
+then recent-room cards. Saved rooms show last seen, Rejoin and Forget; they do
+not claim to be live or show invented occupancy. Active rooms show the actual
+member count and eight seats. The room board has Files and People above Chat,
+Transfers and Apps. Every tile expands to full view and returns to the board.
+Hidden tiles remain mounted so drafts, queue filters and dialogs survive.
+At narrow widths the rail is compact and the board stacks into one column.
+The window never scrolls; board and tile ScrollAreas own overflow. The top
+bar always leaves 138px clear for native caption buttons. Only rail visibility is saved. Retired member, transfer and size preferences
+are ignored and left untouched; board expansion is ephemeral.
 
 ## 5. Elevation & Depth
 
@@ -101,9 +96,10 @@ may use a restrained soft shadow when implemented; do not add shadow tokens yet.
 ## 6. Shapes
 
 Radius is 6px, with 4px small and 8px large derivatives. Avoid pill-shaped primary
-controls. Focus uses a 3px ring with 2px offset: navy in light, orange in dark.
+controls. Focus uses a 3px ring with 2px offset: black in light, orange in dark
+(and on black chrome).
 All keyboard actions need visible focus; selection and errors also need words or
-shape cues. Respect reduced motion and do not add motion to this placeholder.
+shape cues. Disable animation and transitions for prefers-reduced-motion.
 
 ## 7. Components
 
@@ -117,7 +113,7 @@ shape cues. Respect reduced motion and do not add motion to this placeholder.
 | Chat composer | A big rounded frame (`bg-field`, `border-border`, `rounded-2xl`) centred at 768px max, pinned under the messages. A growing textarea (about 8 lines, then it scrolls), a ghost `+` button ("Add files") on the left, a round send button ("Send") on the right. Enter sends, Shift+Enter adds a line. Off with a plain hint while nobody else is in the room. Focus shows the ring on the frame. |
 | File card | Chat attachment: `bg-card`, `border-border`, `rounded-xl`, 288px wide. File icon in the primary colour, name (truncated, full name in the title), size, then a status: "Shared" for your own file; for theirs a Download button, then a progress bar, then "Saved" or the failure sentence with "Try again". |
 | Drop overlay | Dragging files over the chat shows a dashed primary border on `bg-background/85` with "Drop to share". It never takes the pointer, so leaving the chat always clears it. |
-| Shell route | `/` is the whole app: rooms sidebar with search and recent rooms, the open room with the chat, composer and file cards, a transfers panel under the chat, and the members column (host marked with the word Host). Live data comes over one socket; chat stays in memory. |
+| Shell route | `/` composes the rail, home cards and five-tile room board. Existing live data comes over one socket; chat stays in memory. Files uses existing chat attachments and import/drop actions, with no new folder browser. People includes approval and removal, with a text badge in its tile header for a pending request. A request also stays reachable while another tile is expanded. Tile expand and return buttons are labelled and keep keyboard focus. |
 
 The renderer applies `.dark` before React mounts and follows changes to
 `prefers-color-scheme`. Settings can force Light or Dark (default System); main sets
@@ -129,4 +125,4 @@ controls inherit `color-scheme`; both modes use the same layout and spacing.
 Use semantic tokens and plain action labels. Keep file actions accessible by
 keyboard as well as drag and drop. Future routes need loading, empty and error
 states. Never use colour alone for status. Keep chat in session memory only.
-Do not add charts, sidebar tokens or unused component scaffolding.
+Do not add charts, fake room status, future mock features or unused scaffolding.
