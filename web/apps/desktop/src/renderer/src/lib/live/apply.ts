@@ -4,7 +4,6 @@ import { keys } from "../api/keys"
 import type {
   ChatMessage,
   ForwardState,
-  ScreenState,
   LiveEvent,
   SessionState,
   Snapshot,
@@ -96,7 +95,6 @@ export function appendChat(client: QueryClient, message: ChatMessage): void {
 function clearSession(client: QueryClient): void {
   client.removeQueries({ queryKey: keys.chat })
   client.removeQueries({ queryKey: keys.forwards })
-  client.removeQueries({ queryKey: keys.screens })
   client.setQueryData<TransferView[]>(keys.transfers, [])
 }
 
@@ -124,11 +122,6 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
       if (snapshot.forwards)
         client.setQueryData<ForwardState>(keys.forwards, snapshot.forwards)
 
-      if (snapshot.screens) {
-        claimLive(client, keys.screens)
-        client.setQueryData<ScreenState>(keys.screens, snapshot.screens)
-      }
-
       // The snapshot carries no chat, so read it again after every socket.
       if (snapshot.session.state === "connected") {
         void client.invalidateQueries({ queryKey: keys.chat })
@@ -152,18 +145,6 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
       appendChat(client, event.data as ChatMessage)
 
       return
-
-    case "screen.changed": {
-      const state = event.data as ScreenState
-      const before = client.getQueryData<ScreenState>(keys.screens)
-      for (const item of state.others) {
-        if (!before?.others.some((old) => old.id === item.id))
-          announce(`${item.ownerName} is sharing their screen.`)
-      }
-      claimLive(client, keys.screens)
-      client.setQueryData<ScreenState>(keys.screens, state)
-      return
-    }
 
     case "forward.changed":
       client.setQueryData<ForwardState>(

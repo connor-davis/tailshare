@@ -26,16 +26,11 @@ func (server *Server) attachForwards(sess *session.Session, forwards *forward.Fo
 	}
 }
 
-// syncRoomFeatures follows room membership for apps and screen shares.
+// syncRoomFeatures follows room membership for apps.
 func (server *Server) syncRoomFeatures() {
 	server.mu.Lock()
 	forwards := server.forwards
-	screens := server.screens
 	server.mu.Unlock()
-
-	if screens != nil {
-		screens.Sync()
-	}
 
 	if forwards != nil {
 		forwards.Sync()

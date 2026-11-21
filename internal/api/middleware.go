@@ -52,8 +52,7 @@ func (server *Server) guard(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 
-	if c.Path() == livePath || strings.HasPrefix(c.Path(), "/api/screen/ingest/") ||
-		strings.HasPrefix(c.Path(), "/api/screen/watch/") {
+	if c.Path() == livePath {
 		return server.guardLive(c)
 	}
 

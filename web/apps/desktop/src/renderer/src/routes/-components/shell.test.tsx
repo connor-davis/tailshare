@@ -41,12 +41,6 @@ vi.mock("@/lib/api/transfers", () => ({
   useTransfers: () => ({ data: [] }),
   useStartTransfer: () => ({ mutate: vi.fn(), isPending: false, error: null }),
 }))
-vi.mock("@/lib/api/screens", () => ({
-  useScreens: () => ({
-    data: { mine: [], others: [], unsupported: [] },
-    isPending: false,
-  }),
-}))
 vi.mock("@/lib/api/chat", () => ({
   useChat: () => ({ data: [] }),
   useSendChat: () => ({ mutate: vi.fn(), isPending: false, error: null }),
@@ -171,7 +165,6 @@ describe("shell", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Chat",
       "Apps",
-      "Screen Experimental",
     ])
     expect(screen.getByText("You (host)")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
