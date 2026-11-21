@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <title>Tailshare</title>
-  <!-- Two arrows passing: one file goes out, one comes in. -->
-  <rect width="256" height="256" rx="56" fill="#FA7A00"/>
-  <path d="M60 98h112" stroke="#0F1C2E" stroke-width="26" stroke-linecap="round"/>
-  <path d="M150 66l36 32-36 32" fill="none" stroke="#0F1C2E" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M196 158H84" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round"/>
-  <path d="M106 126l-36 32 36 32" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><title>Tailshare</title><rect width="256" height="256" fill="#FA7A00" rx="56"/><path stroke="#0F1C2E" stroke-linecap="round" stroke-width="26" d="M60 98h112"/><path fill="none" stroke="#0F1C2E" stroke-linecap="round" stroke-linejoin="round" stroke-width="26" d="M150 66l36 32-36 32"/><path stroke="#FFF" stroke-linecap="round" stroke-width="26" d="M196 158H84"/><path fill="none" stroke="#FFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="26" d="M106 126l-36 32 36 32"/></svg>
