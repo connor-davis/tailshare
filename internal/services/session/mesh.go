@@ -49,6 +49,12 @@ func (session *Session) startControl(ctx context.Context, id string, conn net.Co
 	session.mu.Unlock()
 
 	handlers, err := mergeHandlers(session.mesh.Handlers(id), extra)
+	if err == nil {
+		handlers, err = mergeHandlers(handlers, session.streamHandlers(id))
+	}
+	if err == nil {
+		handlers, err = mergeHandlers(handlers, session.settings.options.RoomHandlers)
+	}
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -82,6 +88,9 @@ func (session *Session) startControl(ctx context.Context, id string, conn net.Co
 	session.changedLocked()
 	session.mu.Unlock()
 	go session.watchMember(id, control, subscription)
+	if tunnel, ok := session.mesh.Tunnel(id); ok {
+		go session.serveStreams(id, tunnel)
+	}
 	return control, nil
 }
 

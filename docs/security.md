@@ -239,6 +239,29 @@ kept as little as possible.
 - Text is at most 8 KiB of valid UTF-8, and the ID has no control characters,
   so the other computer cannot send anything the screen cannot show.
 
+## Shared apps (port forwarding)
+
+A member can share a local TCP port with the room. It is room-wide: every
+member can see the label and the sharer's name, and can open it.
+
+- **Loopback only, both ends.** A viewer listens on `127.0.0.1:0` (IPv4
+  loopback, a free port) and nothing else, so other computers on its network
+  cannot reach it. The sharer dials `127.0.0.1` only.
+- **Only listed ports are dialed.** Each stream names a share id. The sharer
+  looks it up in its own current list, never in what a peer sent, and dials
+  that one port. An unknown or stopped id closes the stream with no dial.
+  A peer cannot ask for another port or host.
+- **Bounded.** 16 shares per member, 64 connections per opened share, and the
+  stream header must arrive within 10 seconds. The mesh keeps at most 80
+  accepted streams per member.
+- **Cleaned up.** Stop, leave, removal and session end close listeners and
+  piped connections on both sides.
+- **No logs.** Labels and ports are never written to disk or logs.
+- **Open in browser.** The page can only ask Electron to open exactly
+  `http://127.0.0.1:<port>/` with a port from 1024 to 65535: no path, query,
+  user name or other host. Main checks the sender window and the URL again
+  before it calls `shell.openExternal` (`isForwardLink`).
+
 ## Local API
 
 The Electron app talks to the Go sidecar over HTTP and a WebSocket on this

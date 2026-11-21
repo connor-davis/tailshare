@@ -32,6 +32,9 @@ type Options struct {
 	RoomName string
 	Root     *share.Root
 	Handlers map[string]peer.Handler
+	// RoomHandlers live as long as the session. SetHandlers never replaces them. A
+	// handler finds its sender with peer.Conversation(ctx).MemberID().
+	RoomHandlers map[string]peer.Handler
 }
 
 // PendingJoin is one person waiting for the local Allow or Deny.
@@ -63,6 +66,7 @@ type Session struct {
 	nextJoin   uint64
 	deniedKeys map[string]time.Time
 	roomName   string
+	streams    streams
 }
 
 type settings struct {
@@ -96,6 +100,7 @@ func newSession(ctx context.Context, options settings, code codes.Code) (*Sessio
 	session := &Session{
 		mesh: network, done: make(chan struct{}), changes: make(chan struct{}, 1),
 		ctx: lifetime, cancel: cancel, settings: options, code: code, roomName: options.options.RoomName,
+		streams:    streams{handlers: make(map[byte]StreamHandler), waiting: make(map[string]*waiter)},
 		deniedKeys: make(map[string]time.Time), controls: make(map[string]*peer.Peer), bootstraps: make(map[net.Conn]struct{}),
 	}
 	go session.acceptMesh()

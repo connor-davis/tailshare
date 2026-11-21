@@ -106,6 +106,7 @@ func (server *Server) stateLocked() SessionState {
 }
 
 func (server *Server) publishSession() {
+	server.syncForwards()
 	server.hub.publish("session.state", server.sessionState())
 }
 
@@ -146,10 +147,16 @@ func (server *Server) release() {
 		server.root = nil
 	}
 	server.manager = nil
+	forwards := server.forwards
+	server.forwards = nil
 	server.phase = phaseIdle
 	server.role = ""
 	server.roomName = ""
 	server.mu.Unlock()
+
+	if forwards != nil {
+		forwards.Close()
+	}
 
 	server.publishSession()
 }
@@ -171,13 +178,16 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	}
 
 	manager := server.roomManager(root)
+	forwards := server.newForwards()
 	host := displayName(in.DisplayName)
 	// ponytail: the name is fixed when the room is created; renaming later is not built.
 	room := roomName(in.RoomName, host)
 	sess, code, err := session.Host(server.ctx, server.cfg, host, session.Options{
 		Root: root, Handlers: manager.Handlers(), Code: selected, RoomName: room,
+		RoomHandlers: forwards.RoomHandlers(),
 	})
 	if err != nil {
+		forwards.Close()
 		_ = manager.Close()
 		server.release()
 		return connectError(err)
@@ -190,6 +200,7 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	server.phase = phaseHosting
 	server.mu.Unlock()
 
+	server.attachForwards(sess, forwards)
 	server.publishSession()
 	go server.awaitJoiner(sess, manager)
 
@@ -264,10 +275,12 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	defer cancel()
 
 	manager := server.roomManager(root)
+	forwards := server.newForwards()
 	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(in.DisplayName), session.Options{
-		Root: root, Handlers: manager.Handlers(),
+		Root: root, Handlers: manager.Handlers(), RoomHandlers: forwards.RoomHandlers(),
 	})
 	if err != nil {
+		forwards.Close()
 		_ = manager.Close()
 		server.release()
 		return connectError(err)
@@ -282,6 +295,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 		}
 	}
 	if other == nil {
+		forwards.Close()
 		_ = manager.Close()
 		_ = sess.Close()
 		server.release()
@@ -293,6 +307,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	server.roomName = sess.RoomName()
 	server.mu.Unlock()
 
+	server.attachForwards(sess, forwards)
 	server.connect(sess, other, manager, memberID, false)
 	go server.watchSession(sess)
 
@@ -406,12 +421,17 @@ func (server *Server) endCurrent(expected *session.Session) {
 	}
 	transfers, done := server.transfers, server.transferDone
 	manager := server.manager
+	forwards := server.forwards
+	server.forwards = nil
 	ending := make(chan struct{})
 	server.ending = ending
 	server.phase = phaseConnecting
 	server.transfers = nil
 	server.mu.Unlock()
 
+	if forwards != nil {
+		forwards.Close()
+	}
 	if manager != nil {
 		_ = manager.Close()
 	}

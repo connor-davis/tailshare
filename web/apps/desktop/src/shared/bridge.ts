@@ -206,6 +206,8 @@ export interface TailshareBridge {
   readonly checkForUpdates: () => Promise<void>
   /** Opens an HTTPS github.com release link in the system browser. */
   readonly openReleaseLink: (url: string) => Promise<void>
+  /** Opens `http://127.0.0.1:<port>/` for a forwarded app in the system browser. */
+  readonly openForwardLink: (url: string) => Promise<void>
   /** Downloads an available release only after the user asks. */
   readonly downloadUpdate: () => Promise<void>
   /** Stops the sidecar before installing a downloaded update. */
@@ -264,6 +266,17 @@ export interface TailshareBridge {
   readonly onSidecarStatus: (
     listener: (status: SidecarStatus) => void
   ) => () => void
+}
+
+/** Allows only `http://127.0.0.1:<port>/` with a port from 1024 up: a forwarded app. */
+export function isForwardLink(value: unknown): value is string {
+  if (typeof value !== "string") return false
+
+  const match = /^http:\/\/127\.0\.0\.1:([0-9]{1,5})\/$/.exec(value)
+  if (!match) return false
+
+  const port = Number(match[1])
+  return port >= 1024 && port <= 65535
 }
 
 /** Allows only explicit HTTPS GitHub URLs without credentials or a custom port. */

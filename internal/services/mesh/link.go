@@ -12,6 +12,9 @@ import (
 	"tailscale.com/types/key"
 )
 
+// maxIncoming caps live accepted streams per member: control, transfers and forwards.
+const maxIncoming = 80
+
 // Link owns exactly one client and its fresh identity. It can open many streams.
 type Link struct {
 	client *tailcat.Client
@@ -42,6 +45,12 @@ func (link *Link) PublicKey() string {
 // Open opens a stream with a deadline even when Tailcat silently ignores the key.
 func (link *Link) Open(ctx context.Context) (net.Conn, error) {
 	return link.open(ctx, 'D')
+}
+
+// OpenStream opens a session stream: the prefix 'S', then the caller writes its own
+// kind byte and header. Transfers never see these, because they use 'D'.
+func (link *Link) OpenStream(ctx context.Context) (net.Conn, error) {
+	return link.open(ctx, 'S')
 }
 
 func (link *Link) open(ctx context.Context, kind byte) (net.Conn, error) {
@@ -133,7 +142,7 @@ func (mesh *Mesh) acceptLoop() {
 		}
 		mesh.mu.Lock()
 		id := mesh.identityLocked(conn.RemoteAddr())
-		if id == "" || len(mesh.incoming[id]) >= 12 {
+		if id == "" || len(mesh.incoming[id]) >= maxIncoming {
 			mesh.mu.Unlock()
 			_ = conn.Close()
 			continue
@@ -153,7 +162,7 @@ func (mesh *Mesh) routeStream(id string, conn net.Conn) {
 	var prefix [1]byte
 	_, err := io.ReadFull(conn, prefix[:])
 	_ = conn.SetReadDeadline(time.Time{})
-	if err != nil || (prefix[0] != 'C' && prefix[0] != 'D') {
+	if err != nil || (prefix[0] != 'C' && prefix[0] != 'D' && prefix[0] != 'S') {
 		_ = stream.Close()
 		return
 	}
@@ -180,8 +189,12 @@ func (mesh *Mesh) routeStream(id string, conn net.Conn) {
 		return
 	}
 	tunnel := mesh.tunnelLocked(id)
+	queue := tunnel.incoming
+	if prefix[0] == 'S' {
+		queue = tunnel.streams
+	}
 	select {
-	case tunnel.incoming <- stream:
+	case queue <- stream:
 		mesh.mu.Unlock()
 	default:
 		mesh.mu.Unlock()

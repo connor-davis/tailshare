@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/services/forward"
 	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/connor-davis/tailshare/internal/services/transfer"
@@ -40,6 +41,16 @@ func toAppError(err error) *apperr.Error {
 	}
 
 	switch {
+	case errors.Is(err, forward.ErrInvalid):
+		return apperr.BadRequest(forward.ErrInvalid.Error())
+	case errors.Is(err, forward.ErrLimit):
+		return apperr.Conflict("limit", forward.ErrLimit.Error())
+	case errors.Is(err, forward.ErrNotFound):
+		return apperr.NotFound(forward.ErrNotFound.Error())
+	case errors.Is(err, forward.ErrNotConnected):
+		return errNotConnected()
+	case errors.Is(err, forward.ErrUnreachable):
+		return apperr.Unavailable(forward.ErrUnreachable.Error())
 	case errors.Is(err, transfer.ErrUnavailable):
 		return apperr.Conflict("conflict", transfer.ErrUnavailable.Error())
 	case errors.Is(err, transfer.ErrClosed):

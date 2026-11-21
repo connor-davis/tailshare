@@ -82,7 +82,10 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
 | Transfer routes, the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
 | Manager adapter, direction/path mapping, state/progress events and subscription recovery | `internal/api/transfer_manager.go` (`managedTransfers`), `internal/api/session.go` (manager lifetime) |
-| One event hub, bounded client queues, snapshot-first WebSocket | `internal/api/live.go` (`hub`, `Event`, `Snapshot`) |
+| One event hub, bounded client queues, snapshot-first WebSocket (also `forward.changed`) | `internal/api/live.go` (`hub`, `Event`, `Snapshot`) |
+| Shared-app routes, state and live change hook | `internal/api/forwards.go` |
+| Session streams: kind byte, reverse path with nonce, per-kind handlers, `Broadcast` | `internal/services/session/streams.go` (`OpenStream`, `HandleStream`, `Broadcast`), `internal/services/mesh/tunnel.go` (`OpenStream`, `AcceptStream`), `internal/services/mesh/link.go` (`S` prefix) |
+| Shared apps: list, announce, open, loopback listener, sharer dial, caps | `internal/services/forward/` (`forward.go`, `listen.go`, `pipe.go`), wire types in `internal/services/peer/{stream,forward}.go` |
 | `tailshare serve`: startup checks, ready line, stdin/signal shutdown | `cmd/tailshare/serve.go` |
 | API route, guard, live, session and transfer tests (fake manager, SHA-256 upload/download over local relay, subscription overflow) | `internal/api/*_test.go`, `cmd/tailshare/serve_test.go` |
 
@@ -168,6 +171,8 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | One live socket, seq ordering, reconnect, cache updates | `src/renderer/src/lib/live/` |
 | Chat composer (Enter sends, grows to 8 lines, Add files button) and file card (Download, progress, Saved) | `src/renderer/src/routes/-components/` (`chat-composer.tsx`, `file-card.tsx`) |
 | Adding files from the button or a drop, one chat message per file | `src/renderer/src/routes/-components/use-share-files.ts` (calls `window.tailshare.addFiles` and `addDroppedFiles`) |
+| Apps tab: shared apps list, Share dialog, Open, Copy, Open in browser | `src/renderer/src/routes/-components/` (`apps-panel.tsx`, `share-app-dialog.tsx`), `src/renderer/src/lib/api/forwards.ts` |
+| Open-in-browser link check (`isForwardLink`) and its main-process handler | `src/shared/bridge.ts`, `src/main/ipc.ts` (`openForwardLink`) |
 | Transfer row (the only piece left in `session/`) | `src/renderer/src/routes/session/-components/transfer-row.tsx` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |

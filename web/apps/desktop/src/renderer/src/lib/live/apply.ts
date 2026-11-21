@@ -3,6 +3,7 @@ import { announce } from "../../components/status-region"
 import { keys } from "../api/keys"
 import type {
   ChatMessage,
+  ForwardState,
   LiveEvent,
   SessionState,
   Snapshot,
@@ -93,6 +94,7 @@ export function appendChat(client: QueryClient, message: ChatMessage): void {
 /** Drop what belongs to a session that is over. Chat must never linger. */
 function clearSession(client: QueryClient): void {
   client.removeQueries({ queryKey: keys.chat })
+  client.removeQueries({ queryKey: keys.forwards })
   client.setQueryData<TransferView[]>(keys.transfers, [])
 }
 
@@ -117,6 +119,9 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
         (snapshot.transfers ?? []).map((item) => ({ ...item, sampledAt: now }))
       )
 
+      if (snapshot.forwards)
+        client.setQueryData<ForwardState>(keys.forwards, snapshot.forwards)
+
       // The snapshot carries no chat, so read it again after every socket.
       if (snapshot.session.state === "connected") {
         void client.invalidateQueries({ queryKey: keys.chat })
@@ -138,6 +143,14 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
 
     case "chat.message":
       appendChat(client, event.data as ChatMessage)
+
+      return
+
+    case "forward.changed":
+      client.setQueryData<ForwardState>(
+        keys.forwards,
+        event.data as ForwardState
+      )
 
       return
 

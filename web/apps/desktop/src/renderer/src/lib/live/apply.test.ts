@@ -56,6 +56,37 @@ describe("applyEvent", () => {
     expect(client.getQueryData<TransferView[]>(keys.transfers)).toHaveLength(1)
   })
 
+  it("keeps shared apps from the snapshot and live changes, then clears them", () => {
+    const client = new QueryClient()
+    const app = {
+      id: "a",
+      label: "Web",
+      port: 80,
+      ownerId: "m",
+      ownerName: "Hana",
+      open: false,
+    }
+    const state = { mine: [], others: [app], unsupported: [] }
+
+    applyEvent(client, {
+      seq: 0,
+      type: "snapshot",
+      data: { session: connected, transfers: [], forwards: state },
+    })
+    expect(client.getQueryData(keys.forwards)).toEqual(state)
+
+    const next = { ...state, others: [] }
+    applyEvent(client, { seq: 1, type: "forward.changed", data: next })
+    expect(client.getQueryData(keys.forwards)).toEqual(next)
+
+    applyEvent(client, {
+      seq: 2,
+      type: "session.state",
+      data: { state: "idle" },
+    })
+    expect(client.getQueryData(keys.forwards)).toBeUndefined()
+  })
+
   it("replaces the session on session.state", () => {
     const client = new QueryClient()
     client.setQueryData(keys.session, { state: "idle" })
