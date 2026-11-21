@@ -113,7 +113,7 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
         <p className="text-sm text-muted-foreground">
           Share a web app or any local port with the room.
         </p>
@@ -139,7 +139,7 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
           Loading apps…
         </p>
       ) : mine.length + others.length === 0 ? (
-        <Empty className="flex-1">
+        <Empty className="min-h-0 flex-1 gap-2 p-4">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <AppWindowIcon />

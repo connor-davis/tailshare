@@ -20,7 +20,13 @@ function label(member: SessionMember): string {
  * The right column: who is in the room, with the host marked in words, and
  * the one person waiting to be let in. The host can remove anyone else.
  */
-export function MembersPanel({ session }: { session: SessionState }) {
+export function MembersPanel({
+  session,
+  embedded = false,
+}: {
+  session: SessionState
+  embedded?: boolean
+}) {
   const members = session.members ?? []
   const remove = useRemoveMember()
   const [target, setTarget] = useState<SessionMember | null>(null)
@@ -36,15 +42,20 @@ export function MembersPanel({ session }: { session: SessionState }) {
       aria-label="Members"
       className="flex h-full min-h-0 flex-col bg-card"
     >
-      {/* Rightmost column: it sits under the Windows caption buttons. */}
-      <DragBar reserveCaption className="pl-3">
-        <h2 className="text-sm font-semibold">
-          Members
-          <span className="ml-2 font-normal text-muted-foreground tabular-nums">
-            {members.length}
-          </span>
-        </h2>
-      </DragBar>
+      {embedded ? (
+        <p className="border-b px-3 py-2 text-xs text-muted-foreground">
+          {members.length} of 8 seats
+        </p>
+      ) : (
+        <DragBar reserveCaption className="pl-3">
+          <h2 className="text-sm font-semibold">
+            Members
+            <span className="ml-2 font-normal text-muted-foreground tabular-nums">
+              {members.length}
+            </span>
+          </h2>
+        </DragBar>
+      )}
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 px-3 py-2">
           {session.join && isHost ? (

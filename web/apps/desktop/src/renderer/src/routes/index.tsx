@@ -3,25 +3,19 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useSettings } from "@/components/settings/use-settings"
 import { announce } from "@/components/status-region"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
 import { useHost, useJoin, useLeave, useSession } from "@/lib/api/session"
-import { EmptyState } from "./-components/empty-state"
+import { HomeBoard } from "./-components/home-board"
 import { DownloadsAlert } from "./-components/downloads-alert"
-import { MembersPanel } from "./-components/members-panel"
 import { MainBar } from "./-components/main-bar"
-import { usePanelLayout, usePanelOpen } from "./-components/panel-layout"
+import { usePanelOpen } from "./-components/panel-layout"
 import { rememberRoom } from "./-components/recent-rooms"
 import { NewRoomDialog } from "./-components/new-room-dialog"
 import { RoomSidebar } from "./-components/room-sidebar"
 import { RoomView } from "./-components/room-view"
 
 /**
- * The app shell: rooms on the left, the room in the middle, members on the
- * right. Today there is one room at a time.
+ * The Spaces shell: black room rail, home cards and the active room board.
+ * Today there is one room at a time.
  */
 export const Route = createFileRoute("/")({ component: Shell })
 
@@ -35,15 +29,9 @@ function Shell() {
   const leave = useLeave()
   // The open room, saved to the recent list once this computer is out of it.
   const openRoom = useRef<{ roomName?: string; code: string } | null>(null)
+  const [home, setHome] = useState(false)
   const [naming, setNaming] = useState(false)
   const [roomsOpen, toggleRooms] = usePanelOpen("rooms")
-  const [membersOpen, toggleMembers] = usePanelOpen("members")
-  // Each mix of shown columns keeps its own saved sizes.
-  const layout = usePanelLayout("app", [
-    ...(roomsOpen ? ["rooms"] : []),
-    "content",
-    ...(membersOpen ? ["members"] : []),
-  ])
   const [startedAt, setStartedAt] = useState<number | null>(null)
   // True once this computer ended the room itself, so no notice shows.
   const [ownEnd, setOwnEnd] = useState(false)
@@ -78,6 +66,7 @@ function Shell() {
   const joinCode = (code: string) =>
     join.mutate(code, {
       onSuccess: (next) => {
+        setHome(false)
         announce("Connected.")
         setJoinedCode(code)
         openRoom.current = { roomName: next.roomName, code }
@@ -146,13 +135,13 @@ function Shell() {
       .catch(noop)
   }, [state, role])
 
-  // A request waiting inside a hidden Members column would go unseen.
+  // Requests need an announcement even while another tile or Home is open.
   const joinWaiting = session?.role === "host" && !!session.join
   const joinId = joinWaiting ? session?.join?.id : undefined
   useEffect(() => {
-    if (joinId !== undefined && !membersOpen)
-      announce("Someone wants to join. Open Members to answer.", "assertive")
-  }, [joinId, membersOpen])
+    if (joinId !== undefined)
+      announce("Someone wants to join. Open People to answer.", "assertive")
+  }, [joinId])
 
   useEffect(() => {
     if (state !== "idle" || !openRoom.current) return
@@ -168,52 +157,25 @@ function Shell() {
     )
   }
 
-  const idle = session.state === "idle"
-  const ready = idle
   const busy =
     host.isPending || join.isPending || session.state === "connecting"
   const error = host.error ?? join.error ?? leave.error
   const createRoom = (name: string) =>
-    host.mutate(name, { onSuccess: () => setStartedAt(Date.now()) })
+    host.mutate(name, {
+      onSuccess: () => {
+        setHome(false)
+        setStartedAt(Date.now())
+      },
+    })
   const leaveRoom = () => {
     setOwnEnd(true)
     leave.mutate(undefined, { onError: () => setOwnEnd(false) })
   }
 
-  let content = (
-    <EmptyState
-      enabled={ready}
-      busy={busy}
-      onCreate={() => setNaming(true)}
-      onJoin={joinCode}
-    />
-  )
-  // Hosting goes straight into the room: the other side just has no peer yet.
-  if (
+  const showHome = home && !joinWaiting
+  const active =
     session.state === "hosting" ||
-    (session.state === "connected" && session.peer)
-  ) {
-    content = (
-      <RoomView
-        peer={session.peer}
-        roomName={session.roomName}
-        host={session.role === "host"}
-        leaving={leave.isPending}
-        code={
-          session.role === "host"
-            ? (session.code ?? hostCode ?? undefined)
-            : undefined
-        }
-        roomCode={
-          session.role === "host"
-            ? (session.code ?? hostCode ?? undefined)
-            : (joinedCode ?? undefined)
-        }
-        startedAt={startedAt}
-        onLeave={leaveRoom}
-      />
-    )
-  }
+    (session.state === "connected" && !!session.peer)
 
   return (
     <main className="h-full min-h-0">
@@ -224,67 +186,74 @@ function Shell() {
         busy={busy}
         onCreate={createRoom}
       />
-      <ResizablePanelGroup
-        key={`${roomsOpen}-${membersOpen}`}
-        id="app"
-        orientation="horizontal"
-        {...layout}
-      >
+      <div className="flex h-full min-h-0">
         {roomsOpen ? (
-          <>
-            <ResizablePanel
-              id="rooms"
-              defaultSize={260}
-              minSize={200}
-              maxSize="50%"
-            >
-              <RoomSidebar
-                session={session}
-                busy={busy}
-                onNewRoom={() => setNaming(true)}
-                onJoin={joinCode}
-                onRejoin={joinCode}
-              />
-            </ResizablePanel>
-            <ResizableHandle />
-          </>
-        ) : null}
-        <ResizablePanel id="content" minSize={400}>
-          <div className="flex h-full min-h-0 flex-col">
-            <MainBar
-              roomsOpen={roomsOpen}
-              onToggleRooms={toggleRooms}
-              membersOpen={membersOpen}
-              onToggleMembers={toggleMembers}
-              joinWaiting={joinWaiting}
+          <div className="w-[72px] shrink-0">
+            <RoomSidebar
+              compact
+              homeActive={!active || showHome}
+              session={session}
+              busy={busy}
+              onHome={() => setHome(true)}
+              onOpenRoom={() => setHome(false)}
+              onNewRoom={() => setNaming(true)}
+              onJoin={joinCode}
+              onRejoin={joinCode}
             />
-            <DownloadsAlert />
-            {notice || error ? (
-              <Alert
-                role="status"
-                variant={notice ? "default" : "destructive"}
-                className="rounded-none border-x-0 border-t-0"
-              >
-                <AlertDescription>{notice ?? error?.message}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="min-h-0 flex-1">{content}</div>
           </div>
-        </ResizablePanel>
-        {membersOpen ? (
-          <>
-            <ResizableHandle />
-            <ResizablePanel
-              id="members"
-              defaultSize={240}
-              minSize={200}
-              maxSize="40%"
-            >
-              <MembersPanel session={session} />
-            </ResizablePanel>
-          </>
         ) : null}
-      </ResizablePanelGroup>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <MainBar roomsOpen={roomsOpen} onToggleRooms={toggleRooms} />
+          <DownloadsAlert />
+          {notice || error ? (
+            <Alert
+              role="status"
+              variant={notice ? "default" : "destructive"}
+              className="rounded-none border-x-0 border-t-0"
+            >
+              <AlertDescription>{notice ?? error?.message}</AlertDescription>
+            </Alert>
+          ) : null}
+          <div
+            hidden={active && !showHome}
+            className={`min-h-0 flex-1 ${active && !showHome ? "hidden" : ""}`}
+          >
+            <HomeBoard
+              session={session}
+              busy={busy}
+              onCreate={() => setNaming(true)}
+              onJoin={joinCode}
+              onOpenRoom={() => setHome(false)}
+            />
+          </div>
+          {active ? (
+            <div
+              hidden={showHome}
+              className={`min-h-0 flex-1 ${showHome ? "hidden" : ""}`}
+            >
+              <RoomView
+                session={session}
+                peer={session.peer}
+                roomName={session.roomName}
+                host={session.role === "host"}
+                leaving={leave.isPending}
+                code={
+                  session.role === "host"
+                    ? (session.code ?? hostCode ?? undefined)
+                    : undefined
+                }
+                roomCode={
+                  session.role === "host"
+                    ? (session.code ?? hostCode ?? undefined)
+                    : (joinedCode ?? undefined)
+                }
+                startedAt={startedAt}
+                onLeave={leaveRoom}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
     </main>
   )
 }

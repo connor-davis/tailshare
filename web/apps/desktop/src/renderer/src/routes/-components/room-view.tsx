@@ -1,23 +1,22 @@
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { PeerInfo } from "@/lib/api/types"
+import { useState, type ReactNode } from "react"
+import { Maximize2Icon, Minimize2Icon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import type { PeerInfo, SessionState } from "@/lib/api/types"
 import { AppsPanel } from "./apps-panel"
-import { usePanelLayout, usePanelOpen } from "./panel-layout"
+import { MembersPanel } from "./members-panel"
 import { RoomChat } from "./room-chat"
+import { RoomFiles } from "./room-files"
 import { RoomHeader } from "./room-header"
 import { TransfersPanel } from "./transfers-panel"
 
-/**
- * The middle of the app while connected: header, the chat with its composer, and
- * the transfers panel at the bottom. Fills its panel and scrolls inside. The
- * transfers panel never collapses by dragging; its button hides it down to
- * the header, and that choice is saved.
- */
+type Tile = "Files" | "People" | "Chat" | "Transfers" | "Apps"
+
+/** The five-tile room board keeps each owner mounted while a tile is expanded. */
 export function RoomView({
+  session,
   peer,
   roomName,
   host,
@@ -27,6 +26,8 @@ export function RoomView({
   roomCode,
   startedAt,
 }: {
+  /** Live membership and approval state. */
+  session: SessionState
   /** True when this computer is the host. */
   host?: boolean
   /** The other computer; missing while the host waits for someone. */
@@ -44,10 +45,48 @@ export function RoomView({
   /** Epoch milliseconds the room opened, for the code countdown. */
   startedAt?: number | null
 }) {
-  const [transfersOpen, toggleTransfers] = usePanelOpen("transfers")
-  const layout = usePanelLayout(
-    "room-main",
-    transfersOpen ? ["chat", "transfers"] : ["chat"]
+  const [expanded, setExpanded] = useState<Tile | null>(null)
+  const connected = peer !== undefined
+
+  const tile = (name: Tile, children: ReactNode) => (
+    <Card
+      key={name}
+      hidden={!!expanded && expanded !== name}
+      aria-label={`${name} tile`}
+      className={`spaces-tile spaces-tile-${name.toLowerCase()} gap-0 overflow-hidden py-0 ${expanded && expanded !== name ? "hidden" : ""}`}
+    >
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+        <span aria-hidden className="size-2.5 shrink-0 bg-primary" />
+        <h2 className="mr-auto text-xs font-extrabold tracking-widest uppercase">
+          {name}
+        </h2>
+        {name === "People" && session.role === "host" && session.join ? (
+          <Badge
+            role="status"
+            variant="secondary"
+            className="whitespace-normal"
+          >
+            Someone wants to join
+          </Badge>
+        ) : null}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={
+            expanded === name ? "Return to room board" : `Expand ${name}`
+          }
+          aria-expanded={expanded === name}
+          onClick={() => setExpanded(expanded === name ? null : name)}
+        >
+          {expanded === name ? (
+            <Minimize2Icon aria-hidden />
+          ) : (
+            <Maximize2Icon aria-hidden />
+          )}
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1">{children}</div>
+    </Card>
   )
 
   return (
@@ -62,52 +101,34 @@ export function RoomView({
         roomCode={roomCode}
         startedAt={startedAt}
       />
-      <div className="min-h-0 flex-1">
-        <ResizablePanelGroup
-          key={transfersOpen ? "split" : "chat-only"}
-          id="room-main"
-          orientation="vertical"
-          {...layout}
+      {/* People may be below the fold or hidden by another expanded tile. */}
+      {session.role === "host" && session.join && expanded !== "People" ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2"
         >
-          <ResizablePanel id="chat" minSize={160}>
-            <Tabs defaultValue="chat" className="h-full min-h-0 gap-0">
-              <TabsList variant="line" className="px-2">
-                <TabsTrigger value="chat">Chat</TabsTrigger>
-                <TabsTrigger value="apps">Apps</TabsTrigger>
-              </TabsList>
-              {/* forceMount keeps the chat alive (and scrolled) on the Apps tab. */}
-              <TabsContent
-                value="chat"
-                forceMount
-                className="min-h-0 flex-1 data-[state=inactive]:hidden"
-              >
-                <RoomChat connected={peer !== undefined} />
-              </TabsContent>
-              <TabsContent value="apps" className="min-h-0 flex-1">
-                <AppsPanel connected={peer !== undefined} />
-              </TabsContent>
-            </Tabs>
-          </ResizablePanel>
-          {transfersOpen ? (
-            <>
-              <ResizableHandle />
-              <ResizablePanel
-                id="transfers"
-                defaultSize={180}
-                minSize={120}
-                maxSize="70%"
-              >
-                <TransfersPanel collapsed={false} onToggle={toggleTransfers} />
-              </ResizablePanel>
-            </>
-          ) : null}
-        </ResizablePanelGroup>
-      </div>
-      {transfersOpen ? null : (
-        <div className="h-10 shrink-0">
-          <TransfersPanel collapsed onToggle={toggleTransfers} />
+          <p className="mr-auto">Someone wants to join.</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setExpanded("People")
+            }}
+          >
+            Review join request
+          </Button>
         </div>
-      )}
+      ) : null}
+      <ScrollArea className="min-h-0 flex-1">
+        <div
+          className={`spaces-board ${expanded ? "spaces-board-expanded" : ""}`}
+        >
+          {tile("Files", <RoomFiles connected={connected} />)}
+          {tile("People", <MembersPanel session={session} embedded />)}
+          {tile("Chat", <RoomChat connected={connected} />)}
+          {tile("Transfers", <TransfersPanel />)}
+          {tile("Apps", <AppsPanel connected={connected} />)}
+        </div>
+      </ScrollArea>
     </div>
   )
 }
