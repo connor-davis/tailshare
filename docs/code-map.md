@@ -244,6 +244,18 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |
 | Backend audit regressions, offline network abuse checks and actual Windows short alias | `internal/services/{share,peer,mesh,session,transfer}/audit*_test.go`, `internal/api/audit_test.go` |
 
+## Phone (Android, built in CI)
+
+| Job | Owner |
+| --- | --- |
+| gomobile facade: join by code, wait for host approval, list the host's shared folder as JSON, leave (every path through `share.Localize` and `peer.List`) | `mobile/tailshare/client.go` (`Client`, `NewClient`) |
+| Offline facade tests on the local relay (join, list, bad paths, cancel) | `mobile/tailshare/client_test.go` |
+| Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |
+| Android build, unsigned PR artifact, signing and release upload (reusable, not a required check) | `.github/workflows/android.yml`; called from `nightly.yml` and `release.yml` |
+| Expo app, version name and code from CI env, `applicationId connor.davis.tailshare` | `web/apps/mobile/app.config.ts`, `App.tsx` |
+| Phone strings (one catalog) and Polyphron light/dark colours | `web/apps/mobile/src/strings.ts`, `src/theme.ts` |
+| JS side and Kotlin bridge to the Go library | `web/apps/mobile/modules/tailshare-core/` (`index.ts`, `android/.../TailshareCoreModule.kt`) |
+
 ## Desktop language catalogs
 
 Paths below are under `web/apps/desktop/src/`.

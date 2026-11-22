@@ -1,0 +1,33 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.tailsharecore'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.tailsharecore"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+// A library module may not depend on a local .aar file directly, so the
+// gomobile output is served from a flat folder repo that every project sees.
+// The app then pulls the .aar in through this module's dependency.
+def goLibs = "${projectDir}/libs"
+rootProject.allprojects {
+  repositories {
+    flatDir { dirs goLibs }
+  }
+}
+
+dependencies {
+  // Built by `task mobile:aar` (gomobile bind) before Gradle runs.
+  implementation(name: 'tailshare', ext: 'aar')
+}

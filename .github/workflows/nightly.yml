@@ -10,6 +10,8 @@ concurrency:
 jobs:
   nightly:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -64,3 +66,12 @@ jobs:
           }
           gh release create "v$env:VERSION" --target $env:RELEASE_SHA --title "Tailshare $env:VERSION" --prerelease --latest=false --generate-notes @assets
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  android:
+    needs: nightly
+    uses: ./.github/workflows/android.yml
+    with:
+      version: ${{ needs.nightly.outputs.version }}
+      upload: true
+    secrets: inherit
+    permissions:
+      contents: write

@@ -33,6 +33,8 @@ no-account WireGuard library.
   Tailcat keys and an address; `session` hosts or joins by code, gates joins
   with local approval and owns mesh links; `peer` is the conversation over the
   tunnel; `share` is the guarded shared folder; `transfer` is the queue, resume and checksums.
+- `mobile/tailshare` - the gomobile facade the phone app binds. It sits
+  outside `internal/` because gomobile cannot bind an internal package.
 - `internal/api` - the Fiber v3 local API and its WebSocket; `tailshare serve` runs it.
 - `internal/platform` - shared pieces: `config` (every setting, from env), `apperr`
   (errors the screen may see).
@@ -174,6 +176,12 @@ Add short notes here when something surprises you, under the closest group.
 - `key.NodePrivateFromRaw32` and `NodePublic.Raw32` are deprecated. Read
   raw bytes with `AppendTo`; build a node key with
   `UnmarshalText("privkey:" + hex)`.
+
+### Phone
+
+- `gomobile bind` refuses packages under `internal/` ("use of internal
+  package not allowed"), so the facade lives in `mobile/tailshare`.
+- `gomobile init` has no `-ndk` flag; it reads `ANDROID_NDK_HOME`.
 
 ### Windows and tooling
 

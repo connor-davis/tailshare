@@ -11,6 +11,9 @@ export default defineConfig([
     "**/routeTree.gen.ts",
     "**/src/renderer/src/components/ui/**",
     "**/.turbo/**",
+    "apps/mobile/android/**",
+    "apps/mobile/ios/**",
+    "apps/mobile/.expo/**",
   ]),
   {
     files: ["**/*.{ts,tsx}"],
