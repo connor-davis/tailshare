@@ -1,7 +1,16 @@
 name: Desktop Linux and macOS
 # Builds the Linux AppImage and the two unsigned macOS dmgs. Nightly and Release call this
 # after the Windows job created the release, so a failure here never blocks the Windows files.
+# Pull requests that touch packaging only build and keep the files as workflow artifacts.
 on:
+  pull_request:
+    paths:
+      - web/apps/desktop/electron-builder.yml
+      - web/apps/desktop/build/**
+      - web/apps/desktop/package.json
+      - web/package-lock.json
+      - Taskfile.yml
+      - .github/workflows/desktop-unix.yml
   workflow_call:
     inputs:
       version:
@@ -60,8 +69,8 @@ jobs:
         working-directory: web
       - name: Build without publishing
         env:
-          VERSION: ${{ inputs.version }}
-          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ inputs.version || format('0.0.0-pr.{0}', github.run_number) }}
+          CHANNEL: ${{ inputs.channel || 'nightly' }}
           GOOS_TARGET: ${{ matrix.goos }}
           GOARCH_TARGET: ${{ matrix.goarch }}
           TARGETS: ${{ matrix.targets }}
@@ -69,7 +78,7 @@ jobs:
       - name: Collect the release files
         env:
           NAME: ${{ matrix.name }}
-          CHANNEL: ${{ inputs.channel }}
+          CHANNEL: ${{ inputs.channel || 'nightly' }}
         run: |
           mkdir -p upload
           shopt -s nullglob
