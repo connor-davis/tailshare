@@ -3,11 +3,15 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 	"github.com/fasthttp/websocket"
 )
 
@@ -317,4 +321,47 @@ func TestRemovedEventReachesLiveSocket(t *testing.T) {
 	if got := string(mustJSON(event.Data)); !strings.Contains(got, `"ids":["a","b"]`) {
 		t.Fatalf("removed event = %s", got)
 	}
+}
+
+func TestSharedFolderChangeBecomesFilesChanged(t *testing.T) {
+	f := newFixture(t, config.Config{}, nil)
+	fake := f.connectPipe()
+	local := f.server.peer
+	go f.server.forwardChat(local, local.Subscribe())
+	live := f.dialLive()
+	defer live.Close()
+	next(t, live)
+
+	if err := fake.Notify(peer.MethodShareChanged, peer.ShareChanged{}); err != nil {
+		t.Fatal(err)
+	}
+
+	event := until(t, live, "files.changed", nil)
+	if string(mustJSON(event.Data)) != "{}" {
+		t.Fatalf("data = %s", mustJSON(event.Data))
+	}
+}
+
+func TestAddingRoomFilesTellsTheJoiner(t *testing.T) {
+	derp := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
+	cfg := config.Config{Region: tailcattest.RegionID, DERPMapURL: derp}
+	host, join := newFixture(t, cfg, nil), newFixture(t, cfg, nil)
+	hosted := host.send("POST", "/api/session/host", nil)
+	hosted.expect(t, 201, "")
+	t.Cleanup(func() { host.server.leave(); join.server.leave() })
+
+	joinWithApproval(t, host, join, hosted.Body["code"].(string)).expect(t, 200, "")
+
+	live := join.dialLive()
+	defer live.Close()
+	next(t, live)
+
+	source := filepath.Join(t.TempDir(), "fresh.txt")
+	if err := os.WriteFile(source, []byte("fresh"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	host.send("POST", "/api/room/files", map[string]any{"paths": []string{source}}, mainHeader).
+		expect(t, 200, "")
+	until(t, live, "files.changed", nil)
 }

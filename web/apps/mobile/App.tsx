@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -71,6 +71,23 @@ export default function App() {
       setLoading(false)
     }
   }, [])
+
+  // Pushed by the host: list the current folder again, or go back when the room ends.
+  useEffect(() => {
+    if (room === null) return
+    return core.onRoomEvent((event) => {
+      if (event.type === "files.changed") {
+        void open(path)
+      } else {
+        // The room is over: release this phone's side too.
+        core.leave().catch(() => {})
+        setRoom(null)
+        setEntries([])
+        setPath("")
+        setCode("")
+      }
+    })
+  }, [room, path, open])
 
   const join = async () => {
     if (code.trim() === "") {

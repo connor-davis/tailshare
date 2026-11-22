@@ -209,3 +209,31 @@ func TestLostPairDropsBothEnds(t *testing.T) {
 	outgoing, incoming := dataPair(t, third, host)
 	exchange(t, outgoing, incoming, "unrelated link survives")
 }
+
+func TestNotifyShareChangedReachesMembers(t *testing.T) {
+	options := localSettings(t)
+	host, code := startHost(t, options)
+	second := connectJoiner(t, host, code, options)
+	third := connectJoiner(t, host, code, options)
+
+	for _, member := range []*Session{second, third} {
+		control, _ := host.Control(member.mesh.Self().ID)
+		hostLink, ok := member.Control(host.mesh.Self().ID)
+		if !ok || control == nil {
+			t.Fatal("link missing")
+		}
+		subscription := hostLink.Subscribe()
+		defer subscription.Close()
+
+		host.NotifyShareChanged()
+
+		select {
+		case event := <-subscription.Events:
+			if event.Kind != peer.EventShare || event.Method != peer.MethodShareChanged {
+				t.Fatalf("unexpected event: %+v", event)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("share.changed not delivered")
+		}
+	}
+}

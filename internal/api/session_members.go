@@ -43,6 +43,7 @@ func (server *Server) replacePeer(sess *session.Session, other *peer.Peer, manag
 	server.phase = phaseHosting
 	next := transfer.New(server.root)
 	next.SetDownloadRoot(server.downloadRoot)
+	next.OnRoomChanged(server.announceShareChanged)
 	if err := sess.SetHandlers(next.Handlers()); err != nil {
 		server.mu.Unlock()
 		_ = next.Close()

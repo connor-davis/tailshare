@@ -194,6 +194,26 @@ func (session *Session) Tunnel(id string) (*mesh.Tunnel, bool) {
 	return session.mesh.Tunnel(id)
 }
 
+// NotifyShareChanged tells every connected member this computer's shared
+// folder changed, so they list it again. A member that cannot be reached
+// is skipped.
+//
+// ponytail: this only fires for changes the app makes itself (files added in
+// the app, uploads received). Files dropped into the folder in Explorer are
+// not seen; fsnotify on the room folder is the upgrade path.
+func (session *Session) NotifyShareChanged() {
+	session.mu.Lock()
+	controls := make([]*peer.Peer, 0, len(session.controls))
+	for _, control := range session.controls {
+		controls = append(controls, control)
+	}
+	session.mu.Unlock()
+
+	for _, control := range controls {
+		_ = control.Notify(peer.MethodShareChanged, peer.ShareChanged{})
+	}
+}
+
 // Leave delivers a leave event before releasing the local share.
 func (session *Session) Leave() error {
 	session.mu.Lock()

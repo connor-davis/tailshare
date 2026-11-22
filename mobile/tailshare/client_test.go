@@ -174,3 +174,77 @@ func TestWithDetailsShowsHiddenCause(t *testing.T) {
 		t.Fatal("a plain error should pass through unchanged")
 	}
 }
+
+func TestNextEvent(t *testing.T) {
+	mapURL := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
+	host, code := startHost(t, mapURL)
+
+	client := NewClient("Phone", mapURL, int(tailcattest.RegionID))
+	t.Cleanup(func() { _ = client.Leave() })
+
+	joined := make(chan error, 1)
+	go func() { joined <- client.Join(code) }()
+	approve(t, host)
+	if err := <-joined; err != nil {
+		t.Fatal(err)
+	}
+
+	type result struct {
+		event string
+		err   error
+	}
+	read := func() chan result {
+		out := make(chan result, 1)
+		go func() {
+			event, err := client.NextEvent()
+			out <- result{event, err}
+		}()
+		return out
+	}
+	wait := func(out chan result) result {
+		select {
+		case got := <-out:
+			return got
+		case <-time.After(5 * time.Second):
+			t.Fatal("NextEvent did not return")
+			return result{}
+		}
+	}
+
+	// The first call subscribes and reports once, since changes may have been missed.
+	if got := wait(read()); got.err != nil || got.event != `{"type":"files.changed"}` {
+		t.Fatalf("first = %+v", got)
+	}
+
+	// The host registers the phone's control a moment after the join returns;
+	// a notice sent before that reaches nobody.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, ok := host.Control(client.session.SelfID()); ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("host never registered the phone")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	pending := read()
+	host.NotifyShareChanged()
+	if got := wait(pending); got.err != nil || got.event != `{"type":"files.changed"}` {
+		t.Fatalf("changed = %+v", got)
+	}
+
+	// Leave wakes a blocked call, which reports the close once and then errors.
+	pending = read()
+	time.Sleep(100 * time.Millisecond)
+	if err := client.Leave(); err != nil {
+		t.Fatal(err)
+	}
+	if got := wait(pending); got.err != nil || got.event != `{"type":"closed"}` {
+		t.Fatalf("closed = %+v", got)
+	}
+	if got := wait(read()); got.err == nil {
+		t.Fatalf("after close = %+v, want an error", got)
+	}
+}

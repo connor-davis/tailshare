@@ -206,6 +206,12 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
       return
     }
 
+    case "files.changed":
+      // The other computer's shared folder changed: list its folders again.
+      void client.invalidateQueries({ queryKey: [...keys.files, "peer"] })
+
+      return
+
     default:
       // Unknown types come from a newer sidecar; ignoring them is safe.
       return

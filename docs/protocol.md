@@ -104,6 +104,7 @@ Until hello is done, any other request gets `not_ready`.
 | `share.links` | request | Prepares one fresh dialing key per existing member. |
 | `share.admit` | request | The admitter authorizes one expected incoming link. |
 | `share.leave` | event | The authenticated member leaves. |
+| `share.changed` | event | The sender's shared folder changed. |
 
 `transfer.accept` is not a method. It is the payload of the reply to
 `transfer.offer`.
@@ -125,8 +126,9 @@ computer.
 ### Events
 
 After hello, `transfer.*` events are published as `EventTransfer` and valid
-`share.leave` events as `EventShare`. Unknown events are ignored. Leave must
-carry an empty JSON object; claimed IDs and oversized payloads are ignored.
+`share.leave` and `share.changed` events as `EventShare`. Unknown events are
+ignored, so older builds skip `share.changed` and the version stays 2. Both
+must carry an empty JSON object; claimed IDs and oversized payloads are ignored.
 The subscriber supplies the sender's authenticated link identity to mesh.
 
 ### Limits
@@ -146,6 +148,7 @@ details before local approval. Ordinary mesh peers get only `share.admit`.
 | `share.links` | `{links:[{id,linkKey}]}` | `{removed?:[id]}` after preparing reachable members; removed links must be closed and skipped. |
 | `share.admit` | `{joinerId,joinerName,joinerAddress,joinOrder,linkKey}` | `{}` after recording the member and allowing the key. |
 | `share.leave` | `{}` | Event; no reply. Its sender is the authenticated member on the link. |
+| `share.changed` | `{}` | Event; no reply. Sent to every connected member after this member's shared folder changes (files added in the app, uploads received). Files dropped in by Explorer are not seen. |
 
 - At most eight people in total. Every ID is the canonical nonzero public node
   key of that member's mesh server. Its Tailcat address must parse and contain

@@ -48,6 +48,9 @@ type ShareAdmit struct {
 // ShareLeave has no claimed identity: the authenticated link names its sender.
 type ShareLeave struct{}
 
+// ShareChanged is empty: the link names its sender, and listeners just list again.
+type ShareChanged struct{}
+
 // ShareLinksResult optionally names members removed while preparing admission.
 type ShareLinksResult struct {
 	Removed []string `json:"removed,omitempty"`

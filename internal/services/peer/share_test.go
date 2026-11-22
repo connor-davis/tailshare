@@ -60,3 +60,39 @@ func TestV1HelloReplyHasVersionError(t *testing.T) {
 		t.Fatalf("v1 hello reply = %v", err)
 	}
 }
+
+func TestShareChangedEvents(t *testing.T) {
+	raw, conversation := startAgainstRaw(t, Options{DisplayName: "Real"}, goodHello)
+	subscription := conversation.Subscribe()
+	defer subscription.Close()
+	greet(t, raw, 2)
+	if reply := raw.read(t); reply.Error != nil {
+		t.Fatal(reply.Error)
+	}
+
+	send := func(params string) {
+		raw.send(t, envelope{
+			Version: 1, Kind: KindEvent, Method: MethodShareChanged, Params: json.RawMessage(params),
+		})
+	}
+
+	// Anything but an empty object is dropped.
+	send(`{"id":"someone-else"}`)
+	send("null")
+	send(`{"padding":"` + strings.Repeat("x", MaxSharePayload) + `"}`)
+	send("{}")
+
+	select {
+	case event := <-subscription.Events:
+		if event.Kind != EventShare || event.Method != MethodShareChanged {
+			t.Fatalf("unexpected event: %+v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("share.changed not published")
+	}
+	select {
+	case event := <-subscription.Events:
+		t.Fatalf("invalid share.changed leaked: %+v", event)
+	case <-time.After(100 * time.Millisecond):
+	}
+}

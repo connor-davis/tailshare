@@ -31,7 +31,7 @@ const (
 	EventChat EventKind = "chat"
 	// EventTransfer is a transfer.* event from the other computer.
 	EventTransfer EventKind = "transfer"
-	// EventShare carries a validated share.leave event.
+	// EventShare carries a validated share.leave or share.changed event.
 	EventShare EventKind = "share"
 	// EventClosed means the conversation has ended. It is the last event.
 	EventClosed EventKind = "closed"

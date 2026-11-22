@@ -33,6 +33,10 @@ type Client struct {
 	region  int
 	cancel  context.CancelFunc
 	session *session.Session
+	// events is the one subscription NextEvent reads; nil until the first call.
+	events *peer.Subscription
+	// eventsEnded is set once NextEvent has reported the room closed.
+	eventsEnded bool
 }
 
 // NewClient makes a client that shows name to the host. An empty relayMapURL
@@ -180,14 +184,97 @@ func (client *Client) ListRemote(dir string) (string, error) {
 	return string(body), nil
 }
 
+// errNoEvents is what NextEvent returns once the room has closed, so the
+// caller's loop ends.
+var errNoEvents = errors.New("The room has closed.")
+
+// NextEvent blocks until the host says something the screen should show, and
+// returns it as JSON: {"type":"files.changed"} when the host's shared folder
+// changed, or {"type":"closed"} once, when the room ends. After that it
+// returns an error. Call it in a loop on a background thread. The first call
+// and every re-subscribe report files.changed, because events may have been
+// missed in between. Leave makes a blocked call return.
+func (client *Client) NextEvent() (string, error) {
+	client.mu.Lock()
+	joined := client.session
+	subscription := client.events
+	ended := client.eventsEnded
+	client.mu.Unlock()
+	if joined == nil || ended {
+		return "", errNoEvents
+	}
+
+	if subscription == nil {
+		members := joined.Members()
+		if len(members) == 0 {
+			return closedEvent(client)
+		}
+
+		// The host is first in the roster.
+		control, ok := joined.Control(members[0].ID)
+		if !ok {
+			return closedEvent(client)
+		}
+
+		subscription = control.Subscribe()
+		client.mu.Lock()
+		client.events = subscription
+		client.mu.Unlock()
+
+		return `{"type":"files.changed"}`, nil
+	}
+
+	for event := range subscription.Events {
+		if event.Kind == peer.EventShare && event.Method == peer.MethodShareChanged {
+			return `{"type":"files.changed"}`, nil
+		}
+	}
+
+	// The channel closes when the conversation ends or this reader fell more than 64 events behind.
+	subscription.Close()
+	client.mu.Lock()
+	left := client.session != joined
+	client.events = nil
+	client.mu.Unlock()
+
+	// Leave clears the session first, so a left phone is closed even before Done.
+	select {
+	case <-joined.Done():
+		return closedEvent(client)
+	default:
+		if left {
+			return closedEvent(client)
+		}
+	}
+
+	// Still open: the next call subscribes again and reports files.changed.
+	return client.NextEvent()
+}
+
+// closedEvent marks the event stream finished and says so once.
+func closedEvent(client *Client) (string, error) {
+	client.mu.Lock()
+	// After Leave there is no session and the next call errors anyway; a later
+	// Join must start with a clean flag.
+	client.eventsEnded = client.session != nil
+	client.mu.Unlock()
+
+	return `{"type":"closed"}`, nil
+}
+
 // Leave closes the room on this phone. Calling it again is safe.
 func (client *Client) Leave() error {
 	client.mu.Lock()
 	joined := client.session
 	client.session = nil
+	events := client.events
+	client.events, client.eventsEnded = nil, false
 	client.mu.Unlock()
 	if joined == nil {
 		return nil
+	}
+	if events != nil {
+		events.Close()
 	}
 
 	return joined.Leave()

@@ -58,6 +58,7 @@ type Manager struct {
 	mu              sync.Mutex
 	root            *share.Root
 	downloadRoot    *share.Root
+	roomChanged     func()
 	renameDownloads bool
 	tunnel          Tunnel
 	peer            *peer.Peer
@@ -97,6 +98,14 @@ func New(root *share.Root) *Manager {
 		waiters:      make(map[string]chan net.Conn),
 		subscribers:  make(map[*Subscription]struct{}),
 	}
+}
+
+// OnRoomChanged sets a function run after a received file lands in the shared
+// folder, never after a download into another folder. Set it before Attach.
+func (manager *Manager) OnRoomChanged(changed func()) {
+	manager.mu.Lock()
+	manager.roomChanged = changed
+	manager.mu.Unlock()
 }
 
 // Done closes when the manager stops, including peer loss.
