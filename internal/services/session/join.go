@@ -13,6 +13,18 @@ import (
 	"tailscale.com/types/key"
 )
 
+// StepError is a join failure whose screen text hides a cause kept for diagnostics.
+// It has no Unwrap on purpose: callers that match on errors keep seeing only Text.
+type StepError struct {
+	Text  string
+	Cause error
+}
+
+// Error returns the screen text only.
+func (e *StepError) Error() string {
+	return e.Text
+}
+
 // Join waits for local approval and connects every member. Close owns the returned lifetime.
 func Join(ctx context.Context, input string, cfg config.Config, name string, options Options) (*Session, error) {
 	identity, err := cfg.IdentityKey()
@@ -121,7 +133,7 @@ func join(ctx context.Context, input string, options settings) (*Session, error)
 	_ = control.Close()
 
 	if err := session.dialAll(ctx, links); err != nil {
-		return nil, errors.New("Could not connect everyone in the share.")
+		return nil, &StepError{Text: "Could not connect everyone in the share.", Cause: err}
 	}
 	success = true
 	return session, nil

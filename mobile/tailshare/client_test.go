@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -154,5 +155,22 @@ func TestCancelStopsJoin(t *testing.T) {
 		}
 	case <-time.After(20 * time.Second):
 		t.Fatal("join did not stop")
+	}
+}
+
+func TestWithDetailsShowsHiddenCause(t *testing.T) {
+	step := &session.StepError{Text: "Could not connect everyone in the share.", Cause: errors.New("open link: timeout")}
+	if got := withDetails(step).Error(); got != "Could not connect everyone in the share.\n\nDetails: open link: timeout" {
+		t.Fatalf("step details = %q", got)
+	}
+
+	remote := &peer.RemoteError{Code: peer.CodeJoinFailed, Message: "Could not connect everyone in the share."}
+	if got := withDetails(remote).Error(); !strings.Contains(got, `answered "`+peer.CodeJoinFailed+`"`) {
+		t.Fatalf("remote details = %q", got)
+	}
+
+	plain := errors.New("plain")
+	if withDetails(plain) != plain {
+		t.Fatal("a plain error should pass through unchanged")
 	}
 }

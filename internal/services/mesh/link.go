@@ -2,6 +2,8 @@ package mesh
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
@@ -102,7 +104,7 @@ func (mesh *Mesh) Dial(ctx context.Context, id string, link *Link) (net.Conn, er
 		}
 		mesh.mu.Unlock()
 		_ = link.Close()
-		return nil, failure()
+		return nil, errors.Join(failure(), fmt.Errorf("open link: %w", err))
 	}
 
 	mesh.mu.Lock()
@@ -111,7 +113,7 @@ func (mesh *Mesh) Dial(ctx context.Context, id string, link *Link) (net.Conn, er
 	mesh.mu.Unlock()
 	if !valid {
 		_ = conn.Close()
-		return nil, failure()
+		return nil, errors.Join(failure(), errors.New("the member left while the link opened"))
 	}
 	return conn, nil
 }

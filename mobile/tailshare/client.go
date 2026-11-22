@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
 	"tailscale.com/tailcfg"
@@ -78,11 +80,27 @@ func (client *Client) Join(code string) error {
 		if cancelled {
 			return errCancelled
 		}
-		return err
+		return withDetails(err)
 	}
 	client.session = joined
 
 	return nil
+}
+
+// withDetails puts the hidden cause under the screen text, so a tester can tell which
+// join step failed. The desktop never shows it.
+func withDetails(err error) error {
+	var step *session.StepError
+	if errors.As(err, &step) && step.Cause != nil {
+		return fmt.Errorf("%s\n\nDetails: %v", step.Text, step.Cause)
+	}
+
+	var remote *peer.RemoteError
+	if errors.As(err, &remote) {
+		return fmt.Errorf("%s\n\nDetails: the other computer answered %q.", err.Error(), remote.Code)
+	}
+
+	return err
 }
 
 // Cancel stops a Join that is still waiting. It does nothing otherwise.
