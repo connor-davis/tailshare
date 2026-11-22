@@ -206,10 +206,17 @@ html.mica body {
   padding-left: 32px;
 }
 
+/* Centre the 16px icon in the 44px box: (44 - 16) / 2. */
+.spaces-rail-compact div:has(> input[type="search"]) > svg {
+  left: 14px;
+  z-index: 21;
+}
+
 .spaces-rail-compact input[type="search"]:focus {
   position: relative;
   z-index: 20;
   width: 220px;
+  padding-left: 36px;
 }
 
 .spaces-rail-compact section > h2,
@@ -254,6 +261,11 @@ html.mica body {
 
 .spaces-rail-compact footer button > span + span {
   display: none;
+}
+
+/* With the name hidden, the avatar sits alone, so centre it. */
+.spaces-rail-compact footer button {
+  justify-content: center;
 }
 
 /* Editing a name needs room even when the rail is compact. */
