@@ -67,7 +67,7 @@ func New(ctx context.Context, options Options) (*Mesh, error) {
 	listener, err := server.Listen(ctx, "tcp", ":80")
 	if err != nil {
 		_ = server.Close()
-		return nil, failure("the share could not listen")
+		return nil, failure("the share could not listen: " + err.Error())
 	}
 
 	self := peer.ShareMember{
