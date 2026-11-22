@@ -136,7 +136,15 @@ func (server *Server) folderTransfer(c fiber.Ctx) error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	if server.peer != other || server.manager == nil || server.ctx.Err() != nil {
+	current := server.activeLocked()
+	if current == nil {
+		if picked != nil {
+			_ = picked.Close()
+		}
+		return errNotConnected()
+	}
+
+	if current.peer != other || current.manager == nil || server.ctx.Err() != nil {
 		if picked != nil {
 			_ = picked.Close()
 		}
@@ -160,7 +168,7 @@ func (server *Server) folderTransfer(c fiber.Ctx) error {
 		}
 	}
 
-	items, err := server.manager.DownloadTree(ctx, path.Base(in.PeerPath), files, root)
+	items, err := current.manager.DownloadTree(ctx, path.Base(in.PeerPath), files, root)
 	server.pruneDownloadRootsLocked()
 	if err != nil {
 		return err

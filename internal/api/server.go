@@ -1,7 +1,7 @@
 // Package api is the local HTTP and WebSocket API the Electron app talks to.
 // It listens on loopback only, and every request needs the per-launch token.
 // Handlers stay thin: the work lives in the services, and the one Server
-// owns the single active session, peer and shared folder.
+// owns the rooms and their sessions, peers and shared folders.
 package api
 
 import (
@@ -16,11 +16,8 @@ import (
 	"time"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
-	"github.com/connor-davis/tailshare/internal/services/forward"
-	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
-	"github.com/connor-davis/tailshare/internal/services/transfer"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -51,23 +48,13 @@ type Server struct {
 	// mu guards everything below. Never hold it across a network call, and
 	// never publish an event while holding it: snapshots read it under the hub.
 	mu            sync.Mutex
-	phase         string
-	role          string
-	code          string
-	roomName      string
-	sess          *session.Session
-	peer          *peer.Peer
-	root          *share.Root
-	manager       *transfer.Manager
+	rooms         map[string]*room
+	active        string
 	downloadRoot  *share.Root
 	downloadRoots []*share.Root
 	relayRegion   string
 	limits        transferLimits
 	trusted       *session.Trusted
-	transfers     Transfers
-	transferDone  chan struct{}
-	ending        chan struct{}
-	forwards      *forward.Forwards
 }
 
 // New builds the API and owns a transfer manager for each connected session.
@@ -86,7 +73,7 @@ func New(cfg config.Config) (*Server, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
-		cfg: cfg, hub: newHub(), ctx: ctx, cancel: cancel, phase: phaseIdle,
+		cfg: cfg, hub: newHub(), ctx: ctx, cancel: cancel, rooms: make(map[string]*room),
 		trusted: session.NewTrusted(),
 	}
 
@@ -123,12 +110,21 @@ func (server *Server) Serve(listener net.Listener) error {
 	return server.app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true})
 }
 
-// Shutdown stops accepting, drops live clients, ends the session and closes
-// the shared folder. After timeout it stops waiting for slow requests.
+// Shutdown stops accepting, drops live clients, ends every room and closes
+// their folders. After timeout it stops waiting for slow requests.
 func (server *Server) Shutdown(timeout time.Duration) error {
 	server.cancel()
 	server.hub.closeAll()
-	server.leave()
+	server.mu.Lock()
+	rooms := make([]*room, 0, len(server.rooms))
+	for _, current := range server.rooms {
+		rooms = append(rooms, current)
+	}
+	server.mu.Unlock()
+
+	for _, current := range rooms {
+		server.endRoom(current, nil)
+	}
 	server.closeFolder()
 	server.mu.Lock()
 	roots := server.downloadRoots
@@ -148,11 +144,16 @@ func (server *Server) closeFolder() {
 	defer server.roomIO.Unlock()
 
 	server.mu.Lock()
-	root := server.root
-	server.root = nil
+	roots := make([]*share.Root, 0, len(server.rooms))
+	for _, current := range server.rooms {
+		if current.root != nil {
+			roots = append(roots, current.root)
+			current.root = nil
+		}
+	}
 	server.mu.Unlock()
 
-	if root != nil {
+	for _, root := range roots {
 		_ = root.Close()
 	}
 }

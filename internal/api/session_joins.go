@@ -28,7 +28,13 @@ func (server *Server) decideJoin(c fiber.Ctx, allow bool) error {
 		return err
 	}
 	server.mu.Lock()
-	sess := server.sess
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return apperr.Conflict("conflict", "Nobody is waiting to join.")
+	}
+
+	sess := current.sess
 	server.mu.Unlock()
 	if sess == nil {
 		return apperr.Conflict("conflict", "Nobody is waiting to join.")

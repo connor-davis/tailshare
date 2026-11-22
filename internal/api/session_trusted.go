@@ -33,7 +33,13 @@ func (server *Server) joinKey(c fiber.Ctx) error {
 	}
 
 	server.mu.Lock()
-	sess := server.sess
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return apperr.Conflict("conflict", "Nobody is waiting to join.")
+	}
+
+	sess := current.sess
 	server.mu.Unlock()
 	if sess == nil {
 		return apperr.Conflict("conflict", "Nobody is waiting to join.")

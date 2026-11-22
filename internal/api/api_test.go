@@ -48,7 +48,10 @@ func newFixture(t *testing.T, cfg config.Config, transfers Transfers) *fixture {
 		t.Fatal(err)
 	}
 
-	server.transfers = transfers
+	if transfers != nil {
+		server.active = "7K3Q-9PXM"
+		server.rooms[server.active] = &room{code: server.active, phase: phaseIdle, transfers: transfers}
+	}
 	if transfers != nil {
 		events, stop := transfers.Subscribe()
 		go server.forwardTransfers(events, stop)
@@ -147,7 +150,11 @@ func (f *fixture) chooseFolder(files ...string) string {
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	f.server.root = root
+	if f.server.activeLocked() == nil {
+		f.server.active = "7K3Q-9PXM"
+		f.server.rooms[f.server.active] = &room{code: f.server.active, phase: phaseIdle}
+	}
+	f.server.activeLocked().root = root
 
 	return dir
 }
@@ -171,7 +178,11 @@ func (f *fixture) connectPipe(remoteFiles ...string) *peer.Peer {
 	f.t.Cleanup(func() { _ = remoteRoot.Close() })
 
 	f.server.mu.Lock()
-	root := f.server.root
+	if f.server.activeLocked() == nil {
+		f.server.active = "7K3Q-9PXM"
+		f.server.rooms[f.server.active] = &room{code: f.server.active, phase: phaseIdle}
+	}
+	root := f.server.activeLocked().root
 	f.server.mu.Unlock()
 
 	left, right := net.Pipe()
@@ -194,9 +205,9 @@ func (f *fixture) connectPipe(remoteFiles ...string) *peer.Peer {
 	f.t.Cleanup(func() { _ = local.Close(); _ = other.Close() })
 
 	f.server.mu.Lock()
-	f.server.peer = local
-	f.server.phase = phaseConnected
-	f.server.role = roleJoiner
+	f.server.activeLocked().peer = local
+	f.server.activeLocked().phase = phaseConnected
+	f.server.activeLocked().role = roleJoiner
 	f.server.mu.Unlock()
 
 	return other

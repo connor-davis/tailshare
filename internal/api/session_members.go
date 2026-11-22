@@ -9,7 +9,13 @@ import (
 
 func (server *Server) removeMember(c fiber.Ctx) error {
 	server.mu.Lock()
-	sess := server.sess
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return errNotConnected()
+	}
+
+	sess := current.sess
 	server.mu.Unlock()
 	if sess == nil {
 		return errNotConnected()
@@ -33,25 +39,26 @@ func (server *Server) replacePeer(sess *session.Session, other *peer.Peer, manag
 
 	_ = manager.Close()
 	server.mu.Lock()
-	if server.sess != sess || server.peer != other || server.ending != nil {
+	current := server.sessionRoomLocked(sess)
+	if current == nil || current.sess != sess || current.peer != other || current.ending != nil {
 		server.mu.Unlock()
 		return
 	}
 
-	server.peer = nil
-	server.transfers = nil
-	server.phase = phaseHosting
-	next := transfer.New(server.root)
+	current.peer = nil
+	current.transfers = nil
+	current.phase = phaseHosting
+	next := transfer.New(current.root)
 	next.SetDownloadRoot(server.downloadRoot)
-	next.OnRoomChanged(server.announceShareChanged)
+	next.OnRoomChanged(func() { server.announceRoomChanged(current) })
 	if err := sess.SetHandlers(next.Handlers()); err != nil {
 		server.mu.Unlock()
 		_ = next.Close()
 		server.end(sess)
 		return
 	}
-	server.manager = next
+	current.manager = next
 	server.mu.Unlock()
-	server.publishSession()
+	server.publishSessionFor(sess)
 	go server.awaitJoiner(sess, next)
 }

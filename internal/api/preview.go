@@ -159,7 +159,13 @@ func (server *Server) roomPreview(c fiber.Ctx) error {
 	server.roomIO.RLock()
 	defer server.roomIO.RUnlock()
 	server.mu.Lock()
-	root := server.root
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return errNotConnected()
+	}
+
+	root := current.root
 	server.mu.Unlock()
 	if root == nil {
 		return errNotConnected()

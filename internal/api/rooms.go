@@ -36,23 +36,32 @@ func applyLimits(manager *transfer.Manager, limits transferLimits) {
 	_ = manager.SetLimits(limits.uploadKiB, limits.downloadKiB)
 }
 
-func (server *Server) roomManager(root *share.Root) *transfer.Manager {
+func (server *Server) roomManager(root *share.Root) (*room, *transfer.Manager, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
+	current := server.rooms[root.Name()]
+	if current == nil || server.ctx.Err() != nil {
+		return current, nil, errNotConnected()
+	}
+
 	manager := transfer.New(root)
 	manager.SetDownloadRoot(server.downloadRoot)
-	manager.OnRoomChanged(server.announceShareChanged)
+	manager.OnRoomChanged(func() { server.announceRoomChanged(current) })
 	applyLimits(manager, server.limits)
-	server.manager = manager
-	return manager
+	current.manager = manager
+	return current, manager, nil
 }
 
-// announceShareChanged tells every connected member the room changed, so their
-// views list it again. It does nothing when there is no session.
-func (server *Server) announceShareChanged() {
+// announceRoomChanged keeps manager callbacks attached to their original room.
+func (server *Server) announceRoomChanged(current *room) {
 	server.mu.Lock()
-	sess := server.sess
+	if current == nil || server.rooms[current.code] != current {
+		server.mu.Unlock()
+		return
+	}
+
+	sess := current.sess
 	server.mu.Unlock()
 
 	if sess != nil {

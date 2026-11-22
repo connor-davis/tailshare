@@ -10,14 +10,23 @@ import (
 )
 
 // newForwards makes the room's port forwards. Their changes go to the live socket.
-func (server *Server) newForwards() *forward.Forwards {
-	return forward.New(func() { server.hub.publish("forward.changed", server.forwardState()) })
+func (server *Server) newForwards(current *room) *forward.Forwards {
+	return forward.New(func() {
+		server.hub.publish("forward.changed", server.roomForwardState(current))
+	})
 }
 
 // attachForwards starts the forwards on a new session and keeps them for its lifetime.
 func (server *Server) attachForwards(sess *session.Session, forwards *forward.Forwards) {
 	server.mu.Lock()
-	server.forwards = forwards
+	current := server.sessionRoomLocked(sess)
+	if current == nil {
+		server.mu.Unlock()
+		forwards.Close()
+		return
+	}
+
+	current.forwards = forwards
 	server.mu.Unlock()
 
 	if err := forwards.Attach(sess); err != nil {
@@ -29,7 +38,13 @@ func (server *Server) attachForwards(sess *session.Session, forwards *forward.Fo
 // syncRoomFeatures follows room membership for apps.
 func (server *Server) syncRoomFeatures() {
 	server.mu.Lock()
-	forwards := server.forwards
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return
+	}
+
+	forwards := current.forwards
 	server.mu.Unlock()
 
 	if forwards != nil {
@@ -39,7 +54,18 @@ func (server *Server) syncRoomFeatures() {
 
 func (server *Server) forwardState() forward.State {
 	server.mu.Lock()
-	forwards := server.forwards
+	current := server.activeLocked()
+	server.mu.Unlock()
+
+	return server.roomForwardState(current)
+}
+
+func (server *Server) roomForwardState(current *room) forward.State {
+	server.mu.Lock()
+	var forwards *forward.Forwards
+	if current != nil && server.rooms[current.code] == current {
+		forwards = current.forwards
+	}
 	server.mu.Unlock()
 
 	if forwards == nil {
@@ -54,11 +80,16 @@ func (server *Server) currentForwards() (*forward.Forwards, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	if server.forwards == nil {
+	current := server.activeLocked()
+	if current == nil {
 		return nil, errNotConnected()
 	}
 
-	return server.forwards, nil
+	if current.forwards == nil {
+		return nil, errNotConnected()
+	}
+
+	return current.forwards, nil
 }
 
 func (server *Server) listForwards(c fiber.Ctx) error {
