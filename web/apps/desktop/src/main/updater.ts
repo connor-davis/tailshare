@@ -144,6 +144,7 @@ export function releaseNotesToMarkdown(value: unknown): string {
 /** Starts one packaged updater; development never touches the network or timers. */
 export function createUpdater(options: {
   packaged: boolean
+  isPortable?: boolean
   adapter: UpdaterAdapter
   channel: UpdateChannel
   send: (status: UpdateStatus) => void
@@ -151,8 +152,12 @@ export function createUpdater(options: {
   every?: (callback: () => void, milliseconds: number) => () => void
   log?: (error: unknown) => void
 }) {
+  const enabled = options.packaged && !options.isPortable
+  const disabledStatus: UpdateStatus = options.isPortable
+    ? { state: "disabled", reason: "portable" }
+    : { state: "disabled" }
   const adapter = options.adapter
-  let status: UpdateStatus = { state: "disabled" }
+  let status: UpdateStatus = disabledStatus
   let desired = options.channel
   let configured = desired
   let active = false
@@ -177,7 +182,7 @@ export function createUpdater(options: {
   }
 
   async function check() {
-    if (!options.packaged || stopped || active || installing) return
+    if (!enabled || stopped || active || installing) return
     // A downloaded update waits for Restart; checking again would hide it.
     if (status.state === "ready" || status.state === "downloading") return
     active = true
@@ -213,7 +218,7 @@ export function createUpdater(options: {
     listeners.clear()
   }
 
-  if (options.packaged) {
+  if (enabled) {
     adapter.autoDownload = false
     // Installation always passes through the sidecar shutdown below.
     adapter.autoInstallOnAppQuit = false
@@ -263,7 +268,7 @@ export function createUpdater(options: {
     status: (): UpdateStatus => ({ ...status }),
     setChannel(channel: UpdateChannel) {
       desired = channel
-      status = { state: options.packaged ? "checking" : "disabled" }
+      status = enabled ? { state: "checking" } : disabledStatus
       options.send({ ...status })
       if (active) recheck = true
       else void check()
@@ -275,7 +280,7 @@ export function createUpdater(options: {
     /** Downloads only the release the user has chosen to fetch. */
     async download() {
       if (
-        !options.packaged ||
+        !enabled ||
         stopped ||
         active ||
         installing ||
@@ -301,7 +306,7 @@ export function createUpdater(options: {
     },
     async restart() {
       if (
-        !options.packaged ||
+        !enabled ||
         stopped ||
         installing ||
         status.state !== "ready" ||

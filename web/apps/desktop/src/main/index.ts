@@ -14,9 +14,9 @@ import {
   shell,
   type Tray,
 } from "electron"
-import { lstatSync, rmSync } from "node:fs"
+import { lstatSync, mkdirSync, rmSync } from "node:fs"
 import { release } from "node:os"
-import { join, resolve } from "node:path"
+import { join } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
 import updaterPackage from "electron-updater"
 import { CHANNELS } from "../shared/ipc-schema"
@@ -51,6 +51,12 @@ import { openRecentRooms } from "./recent-rooms"
 import { callMainApi, registerRoomIpc } from "./room-ipc"
 import type { AddFilesResult } from "../shared/bridge"
 import { findProfile } from "./profile"
+import {
+  isPortableRun,
+  portableDataPath,
+  registerRoomProtocol,
+} from "./portable"
+import { configureWindowsArmUpdates } from "./update-provider"
 import { openSettings } from "./settings"
 import { createTray, trayIconPaths, trayMenuTemplate } from "./tray"
 import { createUpdater } from "./updater"
@@ -108,13 +114,14 @@ async function main() {
   // Dev runs the generic Electron binary, which must be told the app script.
   // Windows may still ask the user which app opens tailshare: links.
   // A side profile leaves tailshare: links to the main copy.
-  if (!profile) {
-    if (process.defaultApp && process.argv.length >= 2)
-      app.setAsDefaultProtocolClient("tailshare", process.execPath, [
-        resolve(process.argv[1]!),
-      ])
-    else app.setAsDefaultProtocolClient("tailshare")
-  }
+  registerRoomProtocol({
+    isPortable,
+    profile,
+    defaultApp: Boolean(process.defaultApp),
+    argv: process.argv,
+    execPath: process.execPath,
+    register: (...args) => app.setAsDefaultProtocolClient(...args),
+  })
 
   const binary = resolveSidecarPath({
     packaged: app.isPackaged,
@@ -243,6 +250,7 @@ async function main() {
   const loginItem = (enabled: boolean) =>
     applyLoginItem(enabled, {
       packaged: app.isPackaged,
+      isPortable,
       execPath: process.execPath,
       host: app,
     })
@@ -277,8 +285,15 @@ async function main() {
     return shutdownPromise
   }
 
+  configureWindowsArmUpdates(
+    updaterPackage.autoUpdater,
+    process.platform,
+    process.arch
+  )
+
   const updater = createUpdater({
     packaged: app.isPackaged,
+    isPortable,
     adapter: updaterPackage.autoUpdater,
     channel: settings.get().updateChannel,
     send: (status) => {
@@ -496,6 +511,7 @@ async function main() {
       .then(() =>
         applyExplorerMenu(enabled, {
           packaged: app.isPackaged,
+          isPortable,
           execPath: process.execPath,
         })
       )
@@ -600,10 +616,20 @@ app.on("window-all-closed", () => {
   if (quitWhenAllClosed({ platform: process.platform, closeToTray })) app.quit()
 })
 
+// Choose portable storage before Electron takes its single-copy lock.
+const isPortable = isPortableRun(process.env)
+const portableData = portableDataPath(process.env)
+if (portableData) {
+  mkdirSync(portableData, { recursive: true })
+  app.setPath("userData", portableData)
+}
+
 // Each profile gets its own folder. The single-copy lock lives in that
 // folder, so a profile runs beside the main copy instead of focusing it.
 const profile = findProfile(process.argv)
 if (profile) app.setPath("userData", `${app.getPath("userData")}-${profile}`)
+// Chromium caches and session state must travel with the portable profile too.
+if (isPortable) app.setPath("sessionData", app.getPath("userData"))
 
 // One copy per profile: a second launch just brings the first window forward.
 if (!app.requestSingleInstanceLock()) {

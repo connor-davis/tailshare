@@ -47,6 +47,23 @@ afterEach(() => {
 })
 
 describe("Updates card", () => {
+  it("explains portable updates and opens the releases page", async () => {
+    render(<UpdatesCard settings={stable} save={save} saving={false} />)
+    await screen.findByText("No update available.")
+    act(() => listener({ state: "disabled", reason: "portable" }))
+    expect(screen.getByRole("status").textContent).toBe(
+      "Portable copies do not update themselves. Download the new version from the releases page."
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Releases page" }))
+    await waitFor(() =>
+      expect(openReleaseLink).toHaveBeenCalledExactlyOnceWith(
+        "https://github.com/connor-davis/tailshare/releases"
+      )
+    )
+    expect(checkForUpdates).not.toHaveBeenCalled()
+    expect(downloadUpdate).not.toHaveBeenCalled()
+  })
+
   it("shows Stable and saves a change to Nightly", async () => {
     render(<UpdatesCard settings={stable} save={save} saving={false} />)
     await screen.findByText("No update available.")

@@ -12,11 +12,12 @@ export async function applyExplorerMenu(
   enabled: boolean,
   options: {
     packaged: boolean
+    isPortable?: boolean
     execPath: string
     run?: (args: string[]) => Promise<void>
   }
 ) {
-  if (!options.packaged) return
+  if (!options.packaged || options.isPortable) return
 
   const run =
     options.run ??

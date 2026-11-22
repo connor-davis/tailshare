@@ -193,3 +193,6 @@ Add short notes here when something surprises you, under the closest group.
   `GOFLAGS=-p=1` so packages run one at a time.
 - Task ignores `dir:` on a single `cmd:` entry, so the command runs from
   the repo root. Write `cd web/apps/desktop && ...` instead.
+- Task does not pass a caller task's `env` into nested `task:` calls. Pass
+  cross-build values as explicit subtask variables and apply them in the
+  subtask's `env`; check the packaged sidecar's PE machine type too.

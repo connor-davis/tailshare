@@ -1,3 +1,12 @@
+import type { RequestOptions } from "node:http"
+import type { AppUpdater } from "electron-updater"
+import { GitHubProvider } from "electron-updater/out/providers/GitHubProvider.js"
+import type { ProviderRuntimeOptions } from "electron-updater/out/providers/Provider.js"
+import {
+  Arm64GitHubProvider,
+  configureWindowsArmUpdates,
+  windowsUpdateChannel,
+} from "./update-provider"
 import { EventEmitter } from "node:events"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
@@ -7,7 +16,7 @@ import {
   type UpdaterAdapter,
 } from "./updater"
 
-function setup(packaged = true) {
+function setup(packaged = true, isPortable = false) {
   const events = new EventEmitter()
   let channel = "latest"
   const adapter: UpdaterAdapter = {
@@ -32,6 +41,7 @@ function setup(packaged = true) {
   const send = vi.fn()
   const controller = createUpdater({
     packaged,
+    isPortable,
     adapter,
     channel: "latest",
     shutdown,
@@ -45,6 +55,25 @@ const settle = () =>
   new Promise<void>((resolve) => queueMicrotask(() => queueMicrotask(resolve)))
 
 describe("updater", () => {
+  it("keeps portable copies off the feed across channel changes and explicit actions", async () => {
+    vi.useFakeTimers()
+    const { adapter, controller, events } = setup(true, true)
+    controller.setChannel("nightly")
+    controller.checkNow()
+    await controller.download()
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS * 5)
+    expect(controller.status()).toEqual({
+      state: "disabled",
+      reason: "portable",
+    })
+    expect(events.eventNames()).toEqual([])
+    expect(adapter.checkForUpdates).not.toHaveBeenCalled()
+    expect(adapter.downloadUpdate).not.toHaveBeenCalled()
+    await expect(controller.restart()).rejects.toThrow("No update")
+    expect(adapter.quitAndInstall).not.toHaveBeenCalled()
+    controller.stop()
+  })
+
   it("does nothing in development", async () => {
     vi.useFakeTimers()
     const { adapter, controller, events } = setup(false)
@@ -352,5 +381,114 @@ describe("release notes as Markdown", () => {
 
   it("caps notes at 20,000 characters", () => {
     expect(releaseNotesToMarkdown("x".repeat(21_000))).toHaveLength(20_000)
+  })
+})
+
+describe("Windows update feeds", () => {
+  it.each([
+    ["latest", "x64", "latest"],
+    ["nightly", "x64", "nightly"],
+    ["latest", "arm64", "latest-arm64"],
+    ["nightly", "arm64", "nightly-arm64"],
+  ])("selects %s for %s as %s", (channel, arch, expected) => {
+    expect(windowsUpdateChannel(channel, arch)).toBe(expected)
+  })
+
+  it("keeps the x64 provider configuration untouched", () => {
+    const updater = { setFeedURL: vi.fn() }
+    configureWindowsArmUpdates(updater, "win32", "x64")
+    configureWindowsArmUpdates(updater, "darwin", "arm64")
+    expect(updater.setFeedURL).not.toHaveBeenCalled()
+    configureWindowsArmUpdates(updater, "win32", "arm64")
+    expect(updater.setFeedURL).toHaveBeenCalledExactlyOnceWith({
+      provider: "custom",
+      updateProvider: Arm64GitHubProvider,
+    })
+  })
+
+  it.each(["latest", "nightly"] as const)(
+    "resolves real GitHub %s tags to separate per-arch manifests",
+    async (channel) => {
+      vi.useFakeTimers()
+      const { adapter, controller } = setup()
+      await settle()
+      controller.setChannel(channel)
+      await settle()
+      expect(adapter.channel).toBe(channel)
+      expect(adapter.allowPrerelease).toBe(channel === "nightly")
+      const version =
+        channel === "nightly" ? "0.1.4-nightly.202611221200" : "0.1.4"
+      const tag = `v${version}`
+      const atom = `<feed><entry><title>Tailshare</title><link href="https://github.com/connor-davis/tailshare/releases/tag/${tag}"/><content>Notes</content></entry></feed>`
+      for (const arch of ["x64", "arm64"]) {
+        const manifest = `${windowsUpdateChannel(channel, arch)}.yml`
+        const request = vi.fn(async (options: RequestOptions) => {
+          if (options.path?.endsWith(".atom")) return atom
+          if (options.path?.endsWith("/latest"))
+            return JSON.stringify({ tag_name: tag })
+          if (options.path?.endsWith(`/${manifest}`))
+            return `version: ${version}\npath: Tailshare-Setup-${version}${arch === "arm64" ? "-arm64" : ""}.exe\nsha512: abc\nreleaseNotes: Notes\n`
+          throw new Error(`Unexpected request: ${options.path}`)
+        })
+        const updater = {
+          channel: adapter.channel,
+          allowPrerelease: adapter.allowPrerelease,
+          fullChangelog: false,
+        } as AppUpdater
+        const runtime = {
+          platform: "win32",
+          isUseMultipleRangeRequest: false,
+          executor: { request },
+        } as unknown as ProviderRuntimeOptions
+        const provider =
+          arch === "arm64"
+            ? new Arm64GitHubProvider({ provider: "custom" }, updater, runtime)
+            : new GitHubProvider(
+                {
+                  provider: "github",
+                  owner: "connor-davis",
+                  repo: "tailshare",
+                },
+                updater,
+                runtime
+              )
+        const info = await provider.getLatestVersion()
+        expect(info.version).toBe(version)
+        expect(request.mock.calls.map(([options]) => options.path)).toEqual([
+          "/connor-davis/tailshare/releases.atom",
+          ...(channel === "latest"
+            ? ["/connor-davis/tailshare/releases/latest"]
+            : []),
+          `/connor-davis/tailshare/releases/download/${tag}/${manifest}`,
+        ])
+        expect(provider.resolveFiles(info)[0]!.url.pathname).toContain(
+          arch === "arm64" ? "-arm64.exe" : `${version}.exe`
+        )
+      }
+      controller.stop()
+    }
+  )
+
+  it("keeps nightly fallback on the ARM64 feed", async () => {
+    const tag = "v0.1.4-nightly.202611221200"
+    const request = vi.fn(async (options: RequestOptions) => {
+      if (options.path?.endsWith(".atom"))
+        return `<feed><entry><title>Tailshare</title><link href="https://github.com/connor-davis/tailshare/releases/tag/${tag}"/><content>Notes</content></entry></feed>`
+      if (options.path?.endsWith("/nightly-arm64.yml"))
+        throw new Error("missing")
+      if (options.path?.endsWith("/latest-arm64.yml"))
+        return "version: 0.1.4\nreleaseNotes: Notes\n"
+      throw new Error("Wrong architecture feed")
+    })
+    const provider = new Arm64GitHubProvider(
+      { provider: "custom" },
+      { channel: "nightly", allowPrerelease: true } as AppUpdater,
+      {
+        platform: "win32",
+        executor: { request },
+      } as unknown as ProviderRuntimeOptions
+    )
+    expect((await provider.getLatestVersion()).version).toBe("0.1.4")
+    expect(request).toHaveBeenCalledTimes(3)
   })
 })

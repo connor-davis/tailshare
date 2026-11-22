@@ -23,28 +23,47 @@ tasks:
     vars:
       VERSION: '{{.VERSION | default "dev"}}'
       VERSION_FLAG: -X github.com/connor-davis/tailshare/internal/platform/config.Version={{.VERSION}}
+    # Task does not carry a caller task's environment into a nested task.
+    # Empty GO values preserve the Go tool's native defaults for ordinary builds.
+    env:
+      GOOS: '{{.GOOS | default ""}}'
+      GOARCH: '{{.GOARCH | default ""}}'
+      CGO_ENABLED: '{{.CGO_ENABLED | default ""}}'
     cmds:
       - go build -trimpath -ldflags "{{.VERSION_FLAG}}" -o {{.BIN}} ./cmd/tailshare
 
   dist:
-    desc: Build the Windows x64 sidecar and desktop NSIS installer
+    desc: Build a sidecar and desktop package (Windows x64 NSIS by default)
     vars:
       RELEASE_VERSION: '{{.VERSION | default .PACKAGE_VERSION}}'
       CHANNEL: '{{.CHANNEL | default "latest"}}'
+      GOOS: '{{.GOOS | default "windows"}}'
+      GOARCH: '{{.GOARCH | default "amd64"}}'
+      TARGETS: '{{.TARGETS | default "nsis"}}'
+      BUILDER_OS: '{{if eq .GOOS "windows"}}win{{else if eq .GOOS "darwin"}}mac{{else}}{{.GOOS}}{{end}}'
+      BUILDER_ARCH: '{{if eq .GOARCH "amd64"}}x64{{else}}{{.GOARCH}}{{end}}'
+      SIDECAR: 'bin/tailshare{{if eq .GOOS "windows"}}.exe{{end}}'
+      FEED_CHANNEL: '{{.CHANNEL}}{{if and (eq .GOOS "windows") (eq .GOARCH "arm64")}}-arm64{{end}}'
     preconditions:
       - sh: 'test "{{.CHANNEL}}" = latest || test "{{.CHANNEL}}" = nightly'
         msg: CHANNEL must be latest or nightly
     env:
-      GOOS: windows
-      GOARCH: amd64
+      GOOS: '{{.GOOS}}'
+      GOARCH: '{{.GOARCH}}'
+      CGO_ENABLED: "0"
+      TAILSHARE_SIDECAR_NAME: 'tailshare{{if eq .GOOS "windows"}}.exe{{end}}'
+      TAILSHARE_ARTIFACT_SUFFIX: '{{if eq .GOARCH "arm64"}}-arm64{{end}}'
     cmds:
       - task: build
         vars:
-          BIN: bin/tailshare.exe
+          BIN: "{{.SIDECAR}}"
           VERSION: "{{.RELEASE_VERSION}}"
+          GOOS: "{{.GOOS}}"
+          GOARCH: "{{.GOARCH}}"
+          CGO_ENABLED: "0"
       - task: build:web
       - task: icons
-      - cd web/apps/desktop && npx electron-builder --win nsis --x64 --publish never -c.extraMetadata.version={{.RELEASE_VERSION}} -c.publish.channel={{.CHANNEL}}
+      - cd web/apps/desktop && npx electron-builder --{{.BUILDER_OS}} {{.TARGETS}} --{{.BUILDER_ARCH}} --publish never -c.extraMetadata.version={{.RELEASE_VERSION}} -c.publish.channel={{.FEED_CHANNEL}}
 
   icons:
     desc: Export and verify the Tailshare app and tray icons from logo.svg

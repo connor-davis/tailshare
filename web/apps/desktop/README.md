@@ -1,6 +1,6 @@
 # Tailshare desktop
 
-Download the Windows x64 installer from
+Download the Windows x64 or ARM64 installer from
 [Tailshare releases](https://github.com/connor-davis/tailshare/releases).
 The assisted installer installs for the current user, lets you choose a folder,
 and creates desktop and Start menu shortcuts. It needs no elevation and adds no
@@ -9,7 +9,7 @@ firewall rules. Uninstalling preserves app data.
 ## Updates and channels
 
 **Settings → Updates** selects **Stable** (the default) or **Nightly**.
-Packaged builds check on start and every four hours. When an update is
+Installed builds check on start and every two minutes. When an update is
 available, the top bar shows **Update available** with the release notes, and
 Settings shows a **Download** button. Nothing downloads until you choose to.
 Once downloaded, the top bar shows a restart icon and Settings shows
@@ -17,7 +17,8 @@ Once downloaded, the top bar shows a restart icon and Settings shows
 Restart stops the sidecar before running the installer. Closing the app alone
 does not install a downloaded update.
 
-Stable follows normal GitHub Releases through `latest.yml`. Nightly users
+Windows ARM64 uses `latest-arm64.yml` and `nightly-arm64.yml`; x64 keeps its
+existing feed names. Stable follows normal GitHub Releases through `latest.yml`. Nightly users
 follow nightlies only, through `nightly.yml`, with prereleases enabled. Nightly
 versions are the base stable version with patch+1 and `-nightly.<UTC yyyymmddhhmm>`.
 Switching from Nightly to Stable waits until a newer stable is available;
@@ -29,12 +30,35 @@ file defaults to Stable; writes replace the file atomically. Chat remains in
 memory. Update failures do not interrupt sharing; the next scheduled check
 tries again. Development builds do not check or install updates.
 
+## Portable Windows copies
+
+Choose `Tailshare-Portable-<version>-x64.exe`, or the `-arm64.exe` copy on a
+Windows ARM computer. Run it from a writable folder. Settings, identity,
+trusted computers, rooms and browser data live in `Tailshare Data` beside the
+original executable, so move that folder with the executable. Downloads still
+use the save folder in Settings; choose a folder on the drive if they should
+travel too. Use an NTFS drive: file publication relies on hard links, which
+FAT32 and exFAT do not support.
+
+Portable copies never register Start with Windows, the Explorer menu or
+`tailshare:` links. Type or paste a room code to join. They do not update
+themselves: **Settings → Updates → Releases page** opens the download page.
+Close the copy before replacing its executable. The same SmartScreen warning
+as the installer can appear on first launch.
+
 ## Build and release
 
 From the repository root on Windows, run `task web:install`, then `task check`
 and `task dist`. This builds the Go sidecar, desktop bundles and NSIS installer
 in root `dist/`. The default version comes from this package's `package.json`.
 Ordinary `task build` uses version `dev`.
+
+`task dist GOARCH=arm64` builds the ARM64 installer. Add `"TARGETS=nsis portable"`
+to build both Windows package types for that architecture, or `TARGETS=portable`
+for just the portable copy. GOOS defaults to `windows`, GOARCH to `amd64` and
+TARGETS to `nsis`. The OS and architecture flags also select the matching Go
+sidecar; later platform packaging can use `GOOS=linux TARGETS=AppImage` or
+`GOOS=darwin TARGETS=dmg`. Those desktop targets are not shipped yet.
 
 `task dist VERSION=0.1.1-nightly.202611201200 CHANNEL=nightly` overrides both
 the Go linker version and electron-builder's `extraMetadata.version` without
@@ -46,9 +70,11 @@ CI runs on PRs and pushes to develop/main. Branch flow permits only
 to main publishes `v<desktop version>` only when that release does not exist.
 A push to develop builds a timestamped nightly prerelease. Workflows build
 locally, then use `gh release create` against that exact commit with the
-installer, blockmap and channel manifest. No manual tag is required.
+installers, blockmaps, architecture-specific channel manifests and portable
+copies for x64 and ARM64. No manual tag is required.
 Release workflows copy the local installer and blockmap to names with hyphens
-(`Tailshare-Setup-<version>.exe`) before upload, matching builder's GitHub manifest.
+(`Tailshare-Setup-<version>.exe`, with `-arm64` before `.exe` for ARM64) before
+upload, matching builder's GitHub manifest.
 
 App identity is `connor.davis.Tailshare` in builder and Electron's Windows
 AppUserModelID. Keep it stable for installed users.

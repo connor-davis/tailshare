@@ -46,21 +46,31 @@ jobs:
       - name: Build without publishing
         env:
           VERSION: ${{ steps.version.outputs.value }}
-        run: task dist VERSION=$env:VERSION CHANNEL=nightly
+        shell: pwsh
+        run: |
+          task dist VERSION=$env:VERSION CHANNEL=nightly GOARCH=amd64 "TARGETS=nsis portable"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          task dist VERSION=$env:VERSION CHANNEL=nightly GOARCH=arm64 "TARGETS=nsis portable"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish nightly prerelease
         shell: pwsh
         env:
           VERSION: ${{ steps.version.outputs.value }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          # Builder's GitHub manifest uses safe names with hyphens.
-          $installer = "Tailshare-Setup-$env:VERSION.exe"
-          Copy-Item -LiteralPath "dist/Tailshare Setup $env:VERSION.exe" -Destination "dist/$installer"
-          Copy-Item -LiteralPath "dist/Tailshare Setup $env:VERSION.exe.blockmap" -Destination "dist/$installer.blockmap"
-          if (!(Select-String -LiteralPath dist/nightly.yml -SimpleMatch "path: $installer")) {
-            throw 'Installer name does not match the update manifest.'
+          # Keep the x64 asset names compatible with installed copies.
+          $assets = @()
+          foreach ($arch in @('x64', 'arm64')) {
+            $suffix = if ($arch -eq 'arm64') { '-arm64' } else { '' }
+            $installer = "Tailshare-Setup-$env:VERSION$suffix.exe"
+            Copy-Item -LiteralPath "dist/Tailshare Setup $env:VERSION$suffix.exe" -Destination "dist/$installer"
+            Copy-Item -LiteralPath "dist/Tailshare Setup $env:VERSION$suffix.exe.blockmap" -Destination "dist/$installer.blockmap"
+            $manifest = "dist/nightly$suffix.yml"
+            if (!(Select-String -LiteralPath $manifest -SimpleMatch "path: $installer")) {
+              throw "Installer name does not match $manifest."
+            }
+            $assets += @("dist/$installer", "dist/$installer.blockmap", $manifest, "dist/Tailshare-Portable-$env:VERSION-$arch.exe")
           }
-          $assets = @("dist/$installer", "dist/$installer.blockmap", 'dist/nightly.yml')
           foreach ($asset in $assets) {
             if (!(Test-Path -LiteralPath $asset)) { throw "Missing nightly asset: $asset" }
           }

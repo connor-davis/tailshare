@@ -11,8 +11,8 @@ directories:
 files:
   - out/**
 extraResources:
-  - from: ../../../bin/tailshare.exe
-    to: tailshare.exe
+  - from: ../../../bin/${env.TAILSHARE_SIDECAR_NAME}
+    to: ${env.TAILSHARE_SIDECAR_NAME}
   - from: build/tray-16.png
     to: tray-16.png
   - from: build/tray-32.png
@@ -23,11 +23,16 @@ protocols:
 win:
   target:
     - target: nsis
-      arch: [x64]
+      arch: [x64, arm64]
+    - target: portable
+      arch: [x64, arm64]
   icon: build/icon.ico
   verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker
+portable:
+  artifactName: Tailshare-Portable-${version}-${arch}.${ext}
 nsis:
+  artifactName: Tailshare Setup ${version}${env.TAILSHARE_ARTIFACT_SUFFIX}.${ext}
   include: build/installer.nsh
   oneClick: false
   perMachine: false
