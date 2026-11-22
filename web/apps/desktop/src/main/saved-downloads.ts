@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { lstatSync } from "node:fs"
 import { join } from "node:path"
 import { Effect } from "effect"
@@ -99,12 +100,12 @@ export function registerSavedIpc(
 ) {
   const idFrom = async (senderOk: boolean, args: unknown[]) => {
     if (!senderOk || args.length !== 1)
-      throw new Error("Tailshare could not read that request.")
+      throw new Error(t("savedDownloads.tailshareCouldNotReadThatRequest"))
 
     try {
       return await Effect.runPromise(check(TransferIdSchema, args[0]))
     } catch {
-      throw new Error("Tailshare could not read that request.")
+      throw new Error(t("savedDownloads.tailshareCouldNotReadThatRequest"))
     }
   }
 

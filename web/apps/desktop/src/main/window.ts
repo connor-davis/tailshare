@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import type { BrowserWindowConstructorOptions } from "electron"
 import type { WindowState } from "../shared/bridge"
 
@@ -72,7 +73,7 @@ export function windowOptions(
   look: WindowLook = { material: "none", dark: false }
 ): BrowserWindowConstructorOptions {
   return {
-    title: "Tailshare",
+    title: t("window.tailshare"),
     width: 1100,
     height: 760,
     // Rooms 200 + room 400 + members 200 side by side, and the room's stacked

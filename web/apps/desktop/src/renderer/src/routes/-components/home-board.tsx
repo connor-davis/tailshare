@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -25,6 +26,8 @@ export function HomeBoard({
   onReopen: (room: { name: string; code: string }) => void
   onOpenRoom: () => void
 }) {
+  const t = useT()
+
   const rooms = useRecentRooms()
   const [query, setQuery] = useState("")
   const [error, setError] = useState(false)
@@ -33,7 +36,7 @@ export function HomeBoard({
   const needle = query.trim().toLowerCase()
   const matches = (name: string, code = "") =>
     `${name} ${code}`.toLowerCase().includes(needle)
-  const name = session.roomName ?? "Current room"
+  const name = session.roomName ?? t("homeBoard.currentRoom")
   const count = session.members?.length ?? 0
   const shown = rooms.filter((room) => matches(room.name, room.code))
 
@@ -46,12 +49,17 @@ export function HomeBoard({
           onCreate={onCreate}
           onJoin={onJoin}
         />
-        <section aria-label="Your rooms" className="flex flex-col gap-3">
+        <section
+          aria-label={t("homeBoard.yourRooms")}
+          className="flex flex-col gap-3"
+        >
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="mr-auto text-xl font-semibold">Your rooms</h2>
+            <h2 className="me-auto text-xl font-semibold">
+              {t("homeBoard.yourRooms")}
+            </h2>
             <Input
-              aria-label="Search home rooms"
-              placeholder="Search rooms"
+              aria-label={t("homeBoard.searchHomeRooms")}
+              placeholder={t("homeBoard.searchRooms")}
               value={query}
               className="w-full sm:w-60"
               onChange={(event) => setQuery(event.target.value)}
@@ -65,15 +73,17 @@ export function HomeBoard({
               <Card
                 className="gap-0 overflow-hidden py-0"
                 role="region"
-                aria-label={`Current room: ${name}`}
+                aria-label={t("homeBoard.currentRoomName2", { name: name })}
               >
                 <RoomCardHeader
                   name={name}
                   detail={
-                    session.role === "host" ? "You are the host" : "You joined"
+                    session.role === "host"
+                      ? t("homeBoard.youAreTheHost")
+                      : t("homeBoard.youJoined")
                   }
                   active
-                  status="Open now"
+                  status={t("homeBoard.openNow")}
                 />
                 <div className="flex flex-col gap-3 p-4">
                   <div className="flex flex-wrap items-center gap-2">
@@ -85,10 +95,10 @@ export function HomeBoard({
                         />
                       ))}
                     </span>
-                    <span>{count} of 8 seats</span>
+                    <span>{t("homeBoard.of8Seats", { count: count })}</span>
                   </div>
                   <Button className="self-start" onClick={onOpenRoom}>
-                    Open room
+                    {t("homeBoard.openRoom")}
                   </Button>
                 </div>
               </Card>
@@ -98,41 +108,49 @@ export function HomeBoard({
                 key={room.code}
                 className="gap-0 overflow-hidden py-0"
                 role="region"
-                aria-label={`Saved room: ${room.name}`}
+                aria-label={t("homeBoard.savedRoom", { name: room.name })}
               >
                 <RoomCardHeader
                   name={room.name}
-                  detail="Saved on this computer"
-                  status="Recent"
+                  detail={t("homeBoard.savedOnThisComputer")}
+                  status={t("homeBoard.recent")}
                 />
                 <div className="flex flex-col gap-3 p-4">
                   <p className="text-muted-foreground">
-                    Last seen {formatAgo(room.lastSeen)}
+                    {t("homeBoard.lastSeen", {
+                      time: formatAgo(room.lastSeen),
+                    })}
                   </p>
                   {!idle ? (
                     <p className="text-xs text-muted-foreground">
-                      Leave this room first to rejoin another.
+                      {t("homeBoard.leaveThisRoomFirstToRejoinAnother")}
                     </p>
                   ) : null}
                   <div className="flex flex-wrap gap-2">
                     <Button
                       disabled={!idle || busy}
-                      aria-label={`Rejoin ${room.name}`}
+                      aria-label={t("homeBoard.rejoinLabel", {
+                        name: room.name,
+                      })}
                       onClick={() => onJoin(room.code)}
                     >
-                      Rejoin
+                      {t("homeBoard.rejoin")}
                     </Button>
                     <Button
                       variant="outline"
                       disabled={!idle || busy}
-                      aria-label={`Reopen ${room.name}`}
+                      aria-label={t("homeBoard.reopenLabel", {
+                        name: room.name,
+                      })}
                       onClick={() => onReopen(room)}
                     >
-                      Reopen
+                      {t("homeBoard.reopen")}
                     </Button>
                     <Button
                       variant="ghost"
-                      aria-label={`Forget ${room.name}`}
+                      aria-label={t("homeBoard.forgetLabel", {
+                        name: room.name,
+                      })}
                       onClick={() => {
                         setError(false)
                         void window.tailshare
@@ -140,7 +158,7 @@ export function HomeBoard({
                           .catch(() => setError(true))
                       }}
                     >
-                      Forget
+                      {t("homeBoard.forget")}
                     </Button>
                   </div>
                 </div>
@@ -150,13 +168,13 @@ export function HomeBoard({
           {shown.length === 0 && !(active && matches(name, session.code)) ? (
             <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
               {needle
-                ? "No rooms match. Try another name or code."
-                : "No recent rooms. Rooms you leave show up here."}
+                ? t("homeBoard.noRoomsMatchTryAnotherNameOr")
+                : t("homeBoard.noRecentRoomsRoomsYouLeaveShow")}
             </p>
           ) : null}
           {error ? (
             <p role="alert" className="text-destructive">
-              Could not forget that room. Try again.
+              {t("homeBoard.couldNotForgetThatRoomTryAgain")}
             </p>
           ) : null}
         </section>
@@ -185,7 +203,11 @@ function RoomCardHeader({
         {Array.from(name)[0]?.toUpperCase()}
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-base font-semibold" title={name}>
+        <h3
+          className="truncate text-base font-semibold"
+          title={name}
+          dir="auto"
+        >
           {name}
         </h3>
         <p className="text-xs text-chrome-muted">{detail}</p>

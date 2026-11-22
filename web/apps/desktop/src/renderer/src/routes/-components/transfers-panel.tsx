@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import { ArrowDownUpIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,22 +20,24 @@ function summary(items: TransferView[]): string {
   const count = (states: string[]) =>
     items.filter((item) => states.includes(item.state)).length
   const parts = [
-    [count(["queued", "starting", "running"]), "active"],
-    [count(["paused"]), "paused"],
-    [count(["failed"]), "failed"],
-    [count(["done"]), "done"],
-    [count(["canceled"]), "canceled"],
+    [count(["queued", "starting", "running"]), "transfersPanel.activeCount"],
+    [count(["paused"]), "transfersPanel.pausedCount"],
+    [count(["failed"]), "transfersPanel.failedCount"],
+    [count(["done"]), "transfersPanel.doneCount"],
+    [count(["canceled"]), "transfersPanel.canceledCount"],
   ] as const
 
   const text = parts
     .filter(([number]) => number > 0)
-    .map(([number, word]) => `${number} ${word}`)
+    .map(([number, word]) => t(word, { count: number }))
 
-  return text.length > 0 ? text.join(" · ") : "No transfers yet"
+  return text.length > 0 ? text.join(" · ") : t("transfersPanel.noTransfersYet")
 }
 
 /** The transfer queue inside a tile, with counts and local Clear actions. */
 export function TransfersPanel() {
+  const t = useT()
+
   const { data = [] } = useTransfers()
   const clear = useClearTransfers()
   const items = data
@@ -41,7 +45,7 @@ export function TransfersPanel() {
 
   return (
     <section
-      aria-label="Transfer list"
+      aria-label={t("transfersPanel.transferList")}
       className="flex h-full min-h-0 flex-col bg-card"
     >
       <header className="flex min-h-10 shrink-0 flex-wrap items-center gap-2 px-3 py-2">
@@ -55,7 +59,7 @@ export function TransfersPanel() {
             disabled={clear.isPending}
             onClick={() => clear.mutate()}
           >
-            Clear finished
+            {t("transfersPanel.clearFinished")}
           </Button>
         ) : null}
       </header>
@@ -70,9 +74,9 @@ export function TransfersPanel() {
             <EmptyMedia variant="icon">
               <ArrowDownUpIcon aria-hidden />
             </EmptyMedia>
-            <EmptyTitle>No transfers yet</EmptyTitle>
+            <EmptyTitle>{t("transfersPanel.noTransfersYet")}</EmptyTitle>
             <EmptyDescription>
-              Files you download show up here.
+              {t("transfersPanel.filesYouDownloadShowUpHere")}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

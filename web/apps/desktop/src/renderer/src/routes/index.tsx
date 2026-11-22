@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useRef, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useSettings } from "@/components/settings/use-settings"
@@ -22,6 +23,8 @@ export const Route = createFileRoute("/")({ component: Shell })
 const noop = () => {}
 
 function Shell() {
+  const t = useT()
+
   const { data: session } = useSession()
   const { settings } = useSettings()
   const host = useHost(settings?.displayName)
@@ -55,10 +58,9 @@ function Shell() {
       setOwnEnd(false)
       setNotice(null)
     } else if (state === "idle" && !ownEnd) {
-      if (previous === "hosting")
-        setNotice("That code ran out. Show a new code.")
+      if (previous === "hosting") setNotice(t("index.thatCodeRanOutShowANew"))
       if (previous === "connected")
-        setNotice("The other computer left the room.")
+        setNotice(t("index.theOtherComputerLeftTheRoom"))
     }
   }
 
@@ -66,7 +68,7 @@ function Shell() {
     join.mutate(code, {
       onSuccess: (next) => {
         setHome(false)
-        announce("Connected.")
+        announce(t("index.connected"))
         setJoinedCode(code)
         openRoom.current = { roomName: next.roomName, code }
       },
@@ -81,7 +83,7 @@ function Shell() {
     onLink.current = (code) => {
       if (state === undefined) pendingLink.current = code
       else if (state === "idle") joinCode(code)
-      else announce("Leave the open room first.", "assertive")
+      else announce(t("index.leaveTheOpenRoomFirst"), "assertive")
     }
   })
   useEffect(
@@ -139,8 +141,8 @@ function Shell() {
   const joinId = joinWaiting ? session?.join?.id : undefined
   useEffect(() => {
     if (joinId !== undefined)
-      announce("Someone wants to join. Open People to answer.", "assertive")
-  }, [joinId])
+      announce(t("index.someoneWantsToJoinOpenPeopleTo"), "assertive")
+  }, [joinId, t])
 
   // The notice bar appears already filled, which screen readers can miss.
   useEffect(() => {
@@ -165,9 +167,10 @@ function Shell() {
     if (!before) return
 
     for (const [id, name] of now)
-      if (!before.has(id)) announce(`${name} joined.`)
-    for (const [id, name] of before) if (!now.has(id)) announce(`${name} left.`)
-  }, [members, state])
+      if (!before.has(id)) announce(t("index.joined", { name: name }))
+    for (const [id, name] of before)
+      if (!now.has(id)) announce(t("index.left", { name: name }))
+  }, [members, state, t])
 
   useEffect(() => {
     if (state !== "idle" || !openRoom.current) return
@@ -178,7 +181,7 @@ function Shell() {
   if (!session) {
     return (
       <p aria-busy="true" role="status" className="p-8">
-        Checking Tailshare…
+        {t("index.checkingTailshare")}
       </p>
     )
   }
@@ -201,7 +204,8 @@ function Shell() {
     const hosting = session.role === "host"
     setOwnEnd(true)
     leave.mutate(undefined, {
-      onSuccess: () => announce(hosting ? "Room ended." : "You left the room."),
+      onSuccess: () =>
+        announce(hosting ? t("index.roomEnded") : t("index.youLeftTheRoom")),
       onError: () => setOwnEnd(false),
     })
   }
@@ -216,7 +220,9 @@ function Shell() {
       <NewRoomDialog
         open={naming}
         onOpenChange={setNaming}
-        defaultName={`${settings?.displayName ?? "My"}'s room`.slice(0, 64)}
+        defaultName={t("index.defaultRoomName", {
+          owner: settings?.displayName ?? t("common.my"),
+        }).slice(0, 64)}
         busy={busy}
         onCreate={createRoom}
       />

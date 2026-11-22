@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { Effect } from "effect"
 import type { NotifyKind } from "../shared/bridge"
 import { CHANNELS, NotifySchema } from "../shared/ipc-schema"
@@ -31,23 +32,27 @@ export function toastText(kind: NotifyKind, name: string) {
   switch (kind) {
     case "send":
       return {
-        title: "Send with Tailshare",
-        body: "Open a room, then send again.",
+        title: t("notify.sendWithTailshare"),
+        body: t("notify.openARoomThenSendAgain"),
       }
     case "join":
       return {
-        title: "Someone wants to join",
-        body: `${clean || "Someone"} is asking to join your room.`,
+        title: t("notify.someoneWantsToJoin"),
+        body: t("notify.joinRequest", {
+          name: clean || t("common.someone"),
+        }),
       }
     case "done":
       return {
-        title: "Transfer finished",
-        body: `${clean || "A file"} is done.`,
+        title: t("notify.transferFinished"),
+        body: t("notify.transferDone", { name: clean || t("common.file") }),
       }
     case "failed":
       return {
-        title: "Transfer failed",
-        body: `${clean || "A file"} did not finish.`,
+        title: t("notify.transferFailed"),
+        body: t("notify.transferFailedBody", {
+          name: clean || t("common.file"),
+        }),
       }
   }
 }
@@ -56,13 +61,13 @@ export function toastText(kind: NotifyKind, name: string) {
 export function registerNotifyIpc(host: IpcHost, notify: NotifyHost) {
   host.handle(CHANNELS.notify, async (senderOk, args) => {
     if (!senderOk || args.length !== 1)
-      throw new Error("Tailshare could not read that request.")
+      throw new Error(t("notify.tailshareCouldNotReadThatRequest"))
 
     let request: { kind: NotifyKind; name: string }
     try {
       request = await Effect.runPromise(check(NotifySchema, args[0]))
     } catch {
-      throw new Error("Tailshare could not read that request.")
+      throw new Error(t("notify.tailshareCouldNotReadThatRequest"))
     }
 
     if (!notify.enabled() || notify.windowActive()) return

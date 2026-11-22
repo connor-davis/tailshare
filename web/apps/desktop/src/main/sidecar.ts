@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { Context, Data, Effect, Layer, Schedule } from "effect"
 import type { ConnectionInfo, SidecarStatus } from "../shared/bridge"
 import { ReadyScanner } from "./ready-line"
@@ -101,7 +102,7 @@ export const makeSidecar = (deps: SidecarDeps, timings: SidecarTimings) =>
             try: () => deps.spawn(token),
             catch: (error) =>
               new SidecarError({
-                message: `Could not start: ${String(error)}`,
+                message: t("sidecar.couldNotStart", { details: String(error) }),
               }),
           }),
           (started) => stopChild(started, timings.stopMs)
@@ -116,7 +117,7 @@ export const makeSidecar = (deps: SidecarDeps, timings: SidecarTimings) =>
             orElse: () =>
               Effect.fail(
                 new SidecarError({
-                  message: "The sidecar did not start in time.",
+                  message: t("sidecar.theSidecarDidNotStartInTime"),
                 })
               ),
           })
@@ -128,7 +129,9 @@ export const makeSidecar = (deps: SidecarDeps, timings: SidecarTimings) =>
         const reason = yield* exited(child)
         if (Date.now() - startedAt >= timings.stableMs) return
 
-        return yield* new SidecarError({ message: `The sidecar ${reason}.` })
+        return yield* new SidecarError({
+          message: t("sidecar.theSidecar", { reason: reason }),
+        })
       })
     )
 
@@ -170,8 +173,7 @@ export const makeSidecar = (deps: SidecarDeps, timings: SidecarTimings) =>
             resume(
               Effect.fail(
                 new SidecarError({
-                  message:
-                    "The sidecar could not be started. Restart Tailshare.",
+                  message: t("sidecar.theSidecarCouldNotBeStartedRestart"),
                 })
               )
             )
@@ -193,7 +195,9 @@ export const makeSidecar = (deps: SidecarDeps, timings: SidecarTimings) =>
         duration: timings.waitMs,
         orElse: () =>
           Effect.fail(
-            new SidecarError({ message: "The sidecar is not answering yet." })
+            new SidecarError({
+              message: t("sidecar.theSidecarIsNotAnsweringYet"),
+            })
           ),
       })
     )
@@ -225,7 +229,7 @@ const readyLine = (child: SidecarChild) =>
         resume(
           Effect.fail(
             new SidecarError({
-              message: `The sidecar sent a ${result.reason}.`,
+              message: t("sidecar.theSidecarSentA", { reason: result.reason }),
             })
           )
         )
@@ -235,7 +239,9 @@ const readyLine = (child: SidecarChild) =>
       resume(
         Effect.fail(
           new SidecarError({
-            message: `The sidecar ${reason} before it was ready.`,
+            message: t("sidecar.theSidecarBeforeItWasReady", {
+              reason: reason,
+            }),
           })
         )
       )
@@ -257,7 +263,9 @@ const waitHealthy = (
   Effect.tryPromise({
     try: () => deps.health(baseUrl, token),
     catch: (error) =>
-      new SidecarError({ message: `Health check failed: ${String(error)}` }),
+      new SidecarError({
+        message: t("sidecar.healthCheckFailed", { details: String(error) }),
+      }),
   }).pipe(Effect.retry(Schedule.spaced(retryMs)))
 
 // Polite stop first: closing stdin makes the sidecar exit by itself. Kill only

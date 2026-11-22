@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import type { FilePreview as Preview } from "../../../../shared/bridge"
 
 /** The only picture types a preview may show. SVG is left out: it can carry script. */
@@ -16,6 +17,8 @@ export function FilePreview({
   /** The file name, for the picture's label. */
   name: string
 }) {
+  const t = useT()
+
   if (!preview || preview.kind === "none") return null
 
   if (preview.kind === "image") {
@@ -23,7 +26,7 @@ export function FilePreview({
 
     return (
       <img
-        alt={`Preview of ${name}`}
+        alt={t("filePreview.previewOf", { name: name })}
         src={`data:${preview.mime};base64,${preview.data}`}
         className="size-16 rounded-md border border-border object-cover"
       />
@@ -32,8 +35,9 @@ export function FilePreview({
 
   return (
     <p
+      dir="auto"
       className="line-clamp-2 rounded-md bg-muted px-2 py-1 text-xs break-words text-muted-foreground"
-      aria-label={`Start of ${name}`}
+      aria-label={t("filePreview.startOf", { name: name })}
     >
       {preview.text}
       {preview.cut ? "…" : ""}

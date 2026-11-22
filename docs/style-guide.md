@@ -78,10 +78,38 @@ if err := json.Unmarshal(body, &in); err != nil {
 
 ## What `task check` tests
 
-| Rule | Tool |
-|---|---|
-| Go format | `gofmt` in `task vet` |
+| Rule                      | Tool                                     |
+| ------------------------- | ---------------------------------------- |
+| Go format                 | `gofmt` in `task vet`                    |
 | Go mistakes and dead code | `go vet` and `staticcheck` in `task vet` |
-| Doc comments, file size | `tests/style_test.go` |
-| TypeScript types | `tsc -b` in `task lint:web` |
-| TypeScript lint | ESLint in `task lint:web` |
+| Doc comments, file size   | `tests/style_test.go`                    |
+| TypeScript types          | `tsc -b` in `task lint:web`              |
+| TypeScript lint           | ESLint in `task lint:web`                |
+
+## Adding a string
+
+Add renderer text to `web/apps/desktop/src/renderer/src/i18n/en.ts` with a semantic
+key for its surface and purpose. In a React component, get `t` from `useT()`
+(`i18n/provider.tsx`) so settings changes rerender the text. Outside React, import
+`t` from `i18n/index.ts`. Pass named parameters for complete sentences; do not
+join translated grammar or build singular/plural suffixes. A plural entry supplies
+every category returned by `Intl.PluralRules(locale)` and receives a numeric
+`count`; Intl selects the category. Arabic needs `zero`, `one`, `two`, `few`,
+`many` and `other`; French and Spanish also have a `many` form.
+The English source infers required parameter names and types.
+
+Main uses its separate `src/main/i18n/en.ts` catalog and `t` from `main/i18n`; it
+never imports renderer code. Keep paths, protocol identifiers, user names and
+other data outside catalogs. Format numbers, sizes, dates and relative time
+through `renderer/src/lib/format.ts`. Go remains English: map stable API error
+codes in `lib/api/error-message.ts`, preserving the safe English message for
+unknown or coarse codes. Update each locale's separate file on both sides when
+adding keys. The es/fr/de/ar catalogs were machine-drafted and need a native
+speaker check before we claim reviewed translations.
+
+The development/test locale `en-XA` wraps and expands text by about 35%, preserving
+named parameters. It is excluded from saved language preferences and the picker.
+Catalog tests check exact keys, parameters and plural forms; the renderer guard
+rejects literal JSX text and user-facing attributes. Pseudo-render tests cover
+the home board, join form, room dialog and App settings. These catch extraction
+regressions; a native speaker still needs to check grammar and tone.

@@ -1,4 +1,6 @@
+import { t } from "../../i18n/index"
 import type { ConnectionInfo } from "../../../../shared/bridge"
+import { errorMessage } from "./error-message"
 
 /** An error whose message is already a plain sentence for the screen. */
 export class ApiError extends Error {
@@ -9,7 +11,7 @@ export class ApiError extends Error {
 
   /** Build an error from the sidecar's `{code, message}` body. */
   constructor(code: string, message: string, status = 0) {
-    super(message)
+    super(errorMessage(code, message))
     this.name = "ApiError"
     this.code = code
     this.status = status
@@ -33,7 +35,7 @@ export function getConnection(): Promise<ConnectionInfo> {
       const message =
         reason instanceof Error
           ? reason.message
-          : "Tailshare is not responding."
+          : t("client.tailshareIsNotResponding")
       throw new ApiError("unavailable", message)
     })
 
@@ -68,7 +70,7 @@ export async function apiFetch<T>(
         options.body === undefined ? undefined : JSON.stringify(options.body),
     })
   } catch {
-    throw new ApiError("unavailable", "Tailshare is not responding.")
+    throw new ApiError("unavailable", t("client.tailshareIsNotResponding"))
   }
 
   // The token changes when the sidecar restarts, so ask for it again next time.
@@ -87,7 +89,7 @@ export async function apiFetch<T>(
     const message =
       typeof body?.message === "string"
         ? body.message
-        : "Something went wrong. Try again."
+        : t("client.somethingWentWrongTryAgain")
     const code = typeof body?.code === "string" ? body.code : "internal"
     throw new ApiError(code, message, response.status)
   }

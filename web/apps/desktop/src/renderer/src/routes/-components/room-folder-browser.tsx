@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useRef, useState } from "react"
 import {
   ChevronDownIcon,
@@ -21,6 +22,8 @@ function Directory({
   folder: BrowseFolder
   depth?: number
 }) {
+  const t = useT()
+
   const [open, setOpen] = useState(depth === 0)
 
   const [filter, setFilter] = useState("")
@@ -58,10 +61,10 @@ function Directory({
             {open ? (
               <ChevronDownIcon aria-hidden />
             ) : (
-              <ChevronRightIcon aria-hidden />
+              <ChevronRightIcon aria-hidden className="rtl:-scale-x-100" />
             )}
             <FolderIcon aria-hidden className="text-primary" />
-            <span className="truncate" title={folder.name}>
+            <span className="truncate" title={folder.name} dir="auto">
               {folder.name}
             </span>
           </Button>
@@ -70,7 +73,9 @@ function Directory({
               variant="outline"
               size="sm"
               disabled={!downloadsOk || start.isPending}
-              aria-label={`Download ${folder.name}`}
+              aria-label={t("roomFolderBrowser.downloadLabel", {
+                name: folder.name,
+              })}
               onClick={() =>
                 start.mutate({
                   direction: "download",
@@ -80,36 +85,41 @@ function Directory({
                 })
               }
             >
-              Download
+              {t("roomFolderBrowser.download")}
             </Button>
           ) : null}
         </div>
       ) : null}
       {open ? (
-        <div className={depth ? "ml-3 min-w-0 border-l pl-3" : "min-w-0"}>
+        <div className={depth ? "ms-3 min-w-0 border-s ps-3" : "min-w-0"}>
           <Input
-            aria-label={`Filter ${folder.name}`}
-            placeholder="Filter loaded names"
+            aria-label={t("roomFolderBrowser.filter", { name: folder.name })}
+            placeholder={t("roomFolderBrowser.filterLoadedNames")}
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           />
           <p className="py-2 text-xs text-muted-foreground">
-            {entries.length} of {page.data?.pages[0]?.total ?? 0} entries loaded
+            {t("folderBrowser.loadedCount", {
+              count: entries.length,
+              total: page.data?.pages[0]?.total ?? 0,
+            })}
           </p>
-          {page.isPending ? <p role="status">Loading folder…</p> : null}
+          {page.isPending ? (
+            <p role="status">{t("roomFolderBrowser.loadingFolder")}</p>
+          ) : null}
           {page.error ? (
             <div role="alert">
               <p>{page.error.message}</p>
               <Button variant="outline" onClick={() => void page.refetch()}>
-                Try again
+                {t("roomFolderBrowser.tryAgain")}
               </Button>
             </div>
           ) : null}
           {!page.isPending && !page.error && !shown.length ? (
             <p className="py-3 text-muted-foreground">
               {entries.length
-                ? "No loaded names match."
-                : "This folder is empty."}
+                ? t("roomFolderBrowser.noLoadedNamesMatch")
+                : t("roomFolderBrowser.thisFolderIsEmpty")}
             </p>
           ) : null}
           {shown.map((entry) =>
@@ -132,7 +142,11 @@ function Directory({
                   aria-hidden
                   className="size-4 shrink-0 text-primary"
                 />
-                <span className="min-w-0 flex-1 truncate" title={entry.name}>
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  title={entry.name}
+                  dir="auto"
+                >
                   {entry.name}
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">
@@ -143,10 +157,12 @@ function Directory({
                     size="sm"
                     variant="outline"
                     disabled={!downloadsOk || start.isPending}
-                    aria-label={`Download ${entry.name}`}
+                    aria-label={t("roomFolderBrowser.downloadLabel", {
+                      name: entry.name,
+                    })}
                     onClick={() => download(entry)}
                   >
-                    Download
+                    {t("roomFolderBrowser.download")}
                   </Button>
                 ) : null}
               </div>
@@ -156,10 +172,14 @@ function Directory({
             <Button
               variant="outline"
               disabled={page.isFetchingNextPage}
-              aria-label={`Load more in ${folder.name}`}
+              aria-label={t("roomFolderBrowser.loadMoreIn", {
+                name: folder.name,
+              })}
               onClick={() => void page.fetchNextPage()}
             >
-              {page.isFetchingNextPage ? "Loading…" : "Load more"}
+              {page.isFetchingNextPage
+                ? t("roomFolderBrowser.loading")
+                : t("roomFolderBrowser.loadMore")}
             </Button>
           ) : null}
         </div>
@@ -181,6 +201,8 @@ export function RoomFolderBrowser({
   folder: BrowseFolder
   onClose: () => void
 }) {
+  const t = useT()
+
   // Browse came from another tile that is now hidden, so focus follows to the
   // folder name. Fields the person is typing in are left alone.
   const heading = useRef<HTMLHeadingElement>(null)
@@ -195,13 +217,14 @@ export function RoomFolderBrowser({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-3 border-b p-3">
         <Button variant="outline" onClick={onClose}>
-          Shared files
+          {t("roomFolderBrowser.sharedFiles")}
         </Button>
         <h3
           ref={heading}
           tabIndex={-1}
           className="min-w-0 truncate font-semibold outline-none"
           title={folder.name}
+          dir="auto"
         >
           {folder.name}
         </h3>

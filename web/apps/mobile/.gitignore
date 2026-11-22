@@ -1,5 +1,5 @@
 # Expo prebuild output and the Go library are generated in CI.
-android/
-ios/
-.expo/
+/android/
+/ios/
+/.expo/
 modules/tailshare-core/android/libs/*.aar

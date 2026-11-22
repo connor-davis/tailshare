@@ -1,8 +1,11 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useState } from "react"
 import type { UpdateStatus } from "../../../shared/bridge"
 
 /** Follows update events, keeping a late initial read from replacing newer state. */
 export function useUpdateStatus() {
+  const t = useT()
+
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [error, setError] = useState("")
 
@@ -20,16 +23,14 @@ export function useUpdateStatus() {
       })
       .catch(() => {
         if (alive)
-          setError(
-            "Could not check for updates. Reopen Tailshare to try again."
-          )
+          setError(t("useUpdateStatus.couldNotCheckForUpdatesReopenTailshare"))
       })
 
     return () => {
       alive = false
       unsubscribe()
     }
-  }, [])
+  }, [t])
 
   return { status, error }
 }
@@ -40,6 +41,8 @@ export function useUpdateStatus() {
  * so it stays pending.
  */
 export function useUpdateActions() {
+  const t = useT()
+
   const [pending, setPending] = useState<"download" | "restart" | null>(null)
   const [error, setError] = useState("")
 
@@ -50,7 +53,7 @@ export function useUpdateActions() {
     try {
       await window.tailshare.downloadUpdate()
     } catch {
-      setError("Could not download the update. Try again.")
+      setError(t("useUpdateStatus.couldNotDownloadTheUpdateTryAgain"))
     } finally {
       setPending(null)
     }
@@ -63,7 +66,7 @@ export function useUpdateActions() {
     try {
       await window.tailshare.restartToUpdate()
     } catch {
-      setError("Could not restart to update. Try again.")
+      setError(t("useUpdateStatus.couldNotRestartToUpdateTryAgain"))
       setPending(null)
     }
   }

@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +24,8 @@ export function JoinForm({
   /** Joins with the bare code. */
   onJoin: (code: string) => void
 }) {
+  const t = useT()
+
   const [text, setText] = useState("")
   const [blurred, setBlurred] = useState(false)
   const code = codeFromInput(text)
@@ -30,24 +33,25 @@ export function JoinForm({
 
   return (
     <form
-      className="flex w-full flex-col gap-2 text-left"
+      className="flex w-full flex-col gap-2 text-start"
       onSubmit={(event) => {
         event.preventDefault()
         if (code && enabled && !busy) onJoin(code)
       }}
     >
-      <Label htmlFor={id}>Join with a code or link</Label>
+      <Label htmlFor={id}>{t("joinForm.joinWithACodeOrLink")}</Label>
       <div className="flex gap-2">
         <Input
           id={id}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onBlur={() => setBlurred(true)}
-          placeholder="7K3Q-9PXM or tailshare://join/…"
+          placeholder={t("joinForm.7k3q9PXMOrTailshareJoin")}
           aria-invalid={problem}
           aria-describedby={problem ? `${id}-hint` : undefined}
           autoComplete="off"
           spellCheck={false}
+          dir="ltr"
           disabled={!enabled || busy}
         />
         <Button
@@ -55,12 +59,12 @@ export function JoinForm({
           variant="outline"
           disabled={!enabled || busy || code === null}
         >
-          Join
+          {t("joinForm.join")}
         </Button>
       </div>
       {problem ? (
         <p id={`${id}-hint`} className="text-sm text-destructive">
-          Codes are 8 letters or numbers, like 7K3Q-9PXM.
+          {t("joinForm.codesAre8LettersOrNumbersLike")}
         </p>
       ) : null}
     </form>

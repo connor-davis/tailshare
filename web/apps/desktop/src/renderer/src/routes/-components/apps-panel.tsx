@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import { useState, type ReactNode } from "react"
 import {
   AppWindowIcon,
@@ -27,7 +29,9 @@ import type { ForwardItem } from "@/lib/api/types"
 import { ShareAppDialog } from "./share-app-dialog"
 
 const message = (error: unknown) =>
-  error instanceof Error ? error.message : "Something went wrong. Try again."
+  error instanceof Error
+    ? error.message
+    : t("appsPanel.somethingWentWrongTryAgain")
 
 /** One line: name, who shares it and its buttons. */
 function Row({
@@ -39,12 +43,17 @@ function Row({
   mine?: boolean
   children: ReactNode
 }) {
+  const t = useT()
+
   return (
     <li className="flex flex-wrap items-center gap-3 border-b px-4 py-2 text-sm">
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{item.label}</p>
         <p className="truncate text-muted-foreground">
-          {mine ? "You" : item.ownerName} · port {item.port}
+          {t("appsPanel.ownerPort", {
+            owner: mine ? t("common.you") : item.ownerName,
+            port: item.port,
+          })}
         </p>
       </div>
       {children}
@@ -54,6 +63,8 @@ function Row({
 
 /** Where an opened app can be reached, with Copy and Open in browser. */
 function Address({ localPort, label }: { localPort: number; label: string }) {
+  const t = useT()
+
   const address = `127.0.0.1:${localPort}`
   const [error, setError] = useState<string>()
 
@@ -63,30 +74,32 @@ function Address({ localPort, label }: { localPort: number; label: string }) {
       <Button
         size="sm"
         variant="outline"
-        aria-label={`Copy address for ${label}`}
+        aria-label={t("appsPanel.copyAddressFor", { label: label })}
         onClick={() => {
           setError(undefined)
           // Promise.resolve also covers a clipboard that throws before returning.
           void Promise.resolve()
             .then(() => navigator.clipboard.writeText(address))
-            .then(() => announce("Address copied."))
-            .catch(() => setError("Could not copy the address."))
+            .then(() => announce(t("appsPanel.addressCopied")))
+            .catch(() => setError(t("appsPanel.couldNotCopyTheAddress")))
         }}
       >
-        <CopyIcon /> Copy
+        <CopyIcon />
+        {t("appsPanel.copy")}
       </Button>
       <Button
         size="sm"
         variant="outline"
-        aria-label={`Open ${label} in browser`}
+        aria-label={t("appsPanel.openInBrowser", { label: label })}
         onClick={() => {
           setError(undefined)
           void window.tailshare
             .openForwardLink(`http://${address}/`)
-            .catch(() => setError("Could not open the browser."))
+            .catch(() => setError(t("appsPanel.couldNotOpenTheBrowser")))
         }}
       >
-        <ExternalLinkIcon /> Open in browser
+        <ExternalLinkIcon />
+        {t("appsPanel.openInBrowser2")}
       </Button>
       {error ? (
         <p role="alert" className="w-full text-destructive">
@@ -102,6 +115,8 @@ function Address({ localPort, label }: { localPort: number; label: string }) {
  * The list comes live from the sidecar; nothing here polls.
  */
 export function AppsPanel({ connected = true }: { connected?: boolean }) {
+  const t = useT()
+
   const { data, error, isPending } = useForwards(connected)
   const share = useShareApp()
   const stop = useStopApp()
@@ -117,10 +132,11 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
         <p className="text-sm text-muted-foreground">
-          Share a web app or any local port with the room.
+          {t("appsPanel.shareAWebAppOrAnyLocal")}
         </p>
         <Button size="sm" onClick={() => setDialog(true)} disabled={!connected}>
-          <PlusIcon /> Share an app
+          <PlusIcon />
+          {t("appsPanel.shareAnApp")}
         </Button>
       </div>
       {failure ? (
@@ -131,14 +147,15 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
       {data?.unsupported?.length ? (
         <Alert className="m-4 w-auto">
           <AlertDescription>
-            {data.unsupported.join(", ")}: this build of Tailshare cannot share
-            apps. Update it to see their apps.
+            {t("appsPanel.unsupportedPeer", {
+              name: data.unsupported.join(", "),
+            })}
           </AlertDescription>
         </Alert>
       ) : null}
       {isPending && connected ? (
         <p role="status" className="p-4 text-sm text-muted-foreground">
-          Loading apps…
+          {t("appsPanel.loadingApps")}
         </p>
       ) : mine.length + others.length === 0 ? (
         <Empty className="min-h-0 flex-1 gap-2 p-4">
@@ -146,25 +163,25 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
             <EmptyMedia variant="icon">
               <AppWindowIcon />
             </EmptyMedia>
-            <EmptyTitle>No apps shared</EmptyTitle>
+            <EmptyTitle>{t("appsPanel.noAppsShared")}</EmptyTitle>
             <EmptyDescription>
-              Share a local port and the room can open it.
+              {t("appsPanel.shareALocalPortAndTheRoom")}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <ul aria-label="Shared apps">
+          <ul aria-label={t("appsPanel.sharedApps")}>
             {mine.map((item) => (
               <Row key={item.id} item={item} mine>
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={stop.isPending}
-                  aria-label={`Stop ${item.label}`}
+                  aria-label={t("appsPanel.stopLabel2", { label: item.label })}
                   onClick={() => stop.mutate(item.id)}
                 >
-                  Stop
+                  {t("appsPanel.stop")}
                 </Button>
               </Row>
             ))}
@@ -177,20 +194,24 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
                       size="sm"
                       variant="outline"
                       disabled={close.isPending}
-                      aria-label={`Close ${item.label}`}
+                      aria-label={t("appsPanel.closeLabel2", {
+                        label: item.label,
+                      })}
                       onClick={() => close.mutate(item.id)}
                     >
-                      Close
+                      {t("appsPanel.close")}
                     </Button>
                   </>
                 ) : (
                   <Button
                     size="sm"
                     disabled={open.isPending}
-                    aria-label={`Open ${item.label}`}
+                    aria-label={t("appsPanel.openLabel2", {
+                      label: item.label,
+                    })}
                     onClick={() => open.mutate(item.id)}
                   >
-                    Open
+                    {t("appsPanel.open")}
                   </Button>
                 )}
               </Row>
