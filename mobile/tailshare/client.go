@@ -44,6 +44,9 @@ func NewClient(name, relayMapURL string, relayRegion int) *Client {
 	return &Client{name: name, mapURL: relayMapURL, region: relayRegion}
 }
 
+// errCancelled is what Join returns after Cancel, and only then.
+var errCancelled = errors.New("Joining was cancelled.")
+
 // Join connects by share code and waits for the host to approve on the desktop.
 // It blocks, so call it off the main thread. Cancel stops the wait.
 func (client *Client) Join(code string) error {
@@ -64,13 +67,16 @@ func (client *Client) Join(code string) error {
 
 	joined, err := session.Join(ctx, code, cfg, client.name, session.Options{})
 
+	// Read this before cancel() below, or every failure would look like Cancel.
+	cancelled := ctx.Err() != nil
+
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	client.cancel = nil
 	cancel()
 	if err != nil {
-		if ctx.Err() != nil {
-			return errors.New("Joining was cancelled.")
+		if cancelled {
+			return errCancelled
 		}
 		return err
 	}

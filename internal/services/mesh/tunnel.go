@@ -28,7 +28,12 @@ func (mesh *Mesh) Tunnel(id string) (*Tunnel, bool) {
 func (mesh *Mesh) tunnelLocked(id string) *Tunnel {
 	tunnel := mesh.tunnels[id]
 	if tunnel == nil {
-		tunnel = &Tunnel{mesh: mesh, id: id, incoming: make(chan net.Conn, 8), streams: make(chan net.Conn, 8), done: make(chan struct{})}
+		// A forward can admit a burst before its consumer runs. Keep every admitted
+		// session stream queued; acceptLoop already bounds their total lifetime count.
+		tunnel = &Tunnel{
+			mesh: mesh, id: id, incoming: make(chan net.Conn, 8),
+			streams: make(chan net.Conn, maxIncoming), done: make(chan struct{}),
+		}
 		mesh.tunnels[id] = tunnel
 	}
 	return tunnel
