@@ -9,7 +9,7 @@ vars:
   PACKAGE_VERSION:
     sh: node -p "JSON.parse(require('node:fs').readFileSync('web/apps/desktop/package.json', 'utf8')).version"
   # Name the Go roots so go never walks into web/ node_modules.
-  GO_PKGS: ./cmd/... ./internal/... ./tests/...
+  GO_PKGS: ./cmd/... ./internal/... ./mobile/... ./tests/...
 
 tasks:
   default:
@@ -54,12 +54,12 @@ tasks:
   fmt:
     desc: Format Go code
     cmds:
-      - gofmt -w cmd internal tests
+      - gofmt -w cmd internal mobile tests
 
   fmt:check:
     desc: Fail if any Go file is not gofmt-clean
     cmds:
-      - test -z "$(gofmt -l cmd internal tests)" || (gofmt -l cmd internal tests && exit 1)
+      - test -z "$(gofmt -l cmd internal mobile tests)" || (gofmt -l cmd internal mobile tests && exit 1)
 
   vet:
     desc: go vet and staticcheck
@@ -118,7 +118,7 @@ tasks:
   mobile:aar:
     desc: Build the Go phone library (CI only; needs gomobile, JDK 17 and the Android NDK)
     cmds:
-      - gomobile bind -target=android/arm64,android/amd64 -androidapi 24 -o web/apps/mobile/modules/tailshare-core/android/libs/tailshare.aar ./internal/mobile/tailshare
+      - gomobile bind -target=android/arm64,android/amd64 -androidapi 24 -o web/apps/mobile/modules/tailshare-core/android/libs/tailshare.aar ./mobile/tailshare
 
   mobile:apk:
     desc: Build the Android APK from the Go library and the Expo app (CI only, never in check)

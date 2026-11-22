@@ -95,7 +95,7 @@ func TestExportedNamesHaveDocComments(t *testing.T) {
 			continue
 		}
 
-		if !strings.HasPrefix(name, "cmd/") && !strings.HasPrefix(name, "internal/") {
+		if !strings.HasPrefix(name, "cmd/") && !strings.HasPrefix(name, "internal/") && !strings.HasPrefix(name, "mobile/") {
 			continue
 		}
 

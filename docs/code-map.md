@@ -248,8 +248,8 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 
 | Job | Owner |
 | --- | --- |
-| gomobile facade: join by code, wait for host approval, list the host's shared folder as JSON, leave (every path through `share.Localize` and `peer.List`) | `internal/mobile/tailshare/client.go` (`Client`, `NewClient`) |
-| Offline facade tests on the local relay (join, list, bad paths, cancel) | `internal/mobile/tailshare/client_test.go` |
+| gomobile facade: join by code, wait for host approval, list the host's shared folder as JSON, leave (every path through `share.Localize` and `peer.List`) | `mobile/tailshare/client.go` (`Client`, `NewClient`) |
+| Offline facade tests on the local relay (join, list, bad paths, cancel) | `mobile/tailshare/client_test.go` |
 | Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |
 | Android build, unsigned PR artifact, signing and release upload (reusable, not a required check) | `.github/workflows/android.yml`; called from `nightly.yml` and `release.yml` |
 | Expo app, version name and code from CI env, `applicationId connor.davis.tailshare` | `web/apps/mobile/app.config.ts`, `App.tsx` |

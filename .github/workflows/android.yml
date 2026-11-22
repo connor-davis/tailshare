@@ -4,7 +4,7 @@ name: Android
 on:
   pull_request:
     paths:
-      - internal/mobile/**
+      - mobile/**
       - web/apps/mobile/**
       - web/package-lock.json
       - go.mod
