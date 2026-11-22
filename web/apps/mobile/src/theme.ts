@@ -1,35 +1,47 @@
 import { useColorScheme } from "react-native"
 
-/** Polyphron orange on black, with a light twin. */
+const chrome = {
+  chrome: "#000000",
+  chromeText: "#FFFFFF",
+  chromeMuted: "#B8B8BD",
+  primary: "#FA7A00",
+} as const
+
 const palettes = {
   dark: {
-    background: "#0a0a0a",
-    surface: "#171717",
-    text: "#f5f5f5",
-    muted: "#a3a3a3",
-    border: "#262626",
-    primary: "#fa7a00",
-    heading: "#fa7a00",
-    onPrimary: "#0a0a0a",
-    statusBar: "light-content",
-    error: "#ff6b6b",
+    ...chrome,
+    background: "#0F0F10",
+    surface: "#171718",
+    secondary: "#1E1E20",
+    text: "#EDEDEE",
+    muted: "#A1A1A7",
+    border: "#262629",
+    input: "#6B6B72",
+    field: "#09090A",
+    link: "#FA7A00",
+    onPrimary: "#0F0F10",
+    error: "#FF7B72",
   },
   light: {
-    background: "#ffffff",
-    surface: "#f5f5f5",
-    text: "#111111",
-    muted: "#555555",
-    border: "#e5e5e5",
-    primary: "#fa7a00",
-    // Orange text on white needs the darker brand shade to stay readable.
-    heading: "#b85600",
-    onPrimary: "#111111",
-    statusBar: "dark-content",
-    error: "#c62828",
+    ...chrome,
+    background: "#FAF9F6",
+    surface: "#FFFFFF",
+    secondary: "#FFFFFF",
+    text: "#000000",
+    muted: "#3D4650",
+    border: "#D0D0CE",
+    input: "#858585",
+    field: "#EFEEE9",
+    link: "#B85600",
+    onPrimary: "#000000",
+    error: "#D3212C",
   },
 } as const
 
-/** The colours for the phone's current light or dark setting. */
-export function useTheme() {
+/** The phone's semantic Spaces colours in either system appearance. */
+export type Theme = (typeof palettes)[keyof typeof palettes]
+
+/** Uses the same light and dark tokens as the desktop Spaces shell. */
+export function useTheme(): Theme {
   return useColorScheme() === "light" ? palettes.light : palettes.dark
 }

@@ -255,6 +255,12 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |
 | Android build, unsigned PR artifact, signing and release upload (reusable, not a required check) | `.github/workflows/android.yml`; called from `nightly.yml` and `release.yml` |
 | Expo app, version name and code from CI env, `applicationId connor.davis.tailshare` | `web/apps/mobile/app.config.ts`, `App.tsx` |
+| Phone native connection, pushed room/transfer events and Home/room navigation | `web/apps/mobile/App.tsx` |
+| Phone Join card and single connected-room card | `web/apps/mobile/src/screens/home.tsx` |
+| Phone room header and five-tab content composition | `web/apps/mobile/src/screens/room.tsx` |
+| Phone host folder browser and file actions | `web/apps/mobile/src/screens/files.tsx` |
+| Phone transfer sentences, progress and queue list | `web/apps/mobile/src/screens/transfers.tsx` |
+| Phone accessible actions and five-tab navigation | `web/apps/mobile/src/components/button.tsx`, `src/components/tab-bar.tsx` |
 | Phone strings (one catalog) and Polyphron light/dark colours | `web/apps/mobile/src/strings.ts`, `src/theme.ts` |
 | JS side and Kotlin bridge to the Go library | `web/apps/mobile/modules/tailshare-core/` (`index.ts`, `android/.../TailshareCoreModule.kt`) |
 

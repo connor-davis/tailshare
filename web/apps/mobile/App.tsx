@@ -1,76 +1,20 @@
 import * as DocumentPicker from "expo-document-picker"
 import { useCallback, useEffect, useState } from "react"
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native"
+import { StatusBar, StyleSheet, Text, View } from "react-native"
 
-import {
-  core,
-  type RemoteEntry,
-  type TransferEvent,
-} from "./modules/tailshare-core"
+import { core, type RemoteEntry } from "./modules/tailshare-core"
+import type { RoomTab } from "./src/components/tab-bar"
+import { HomeScreen } from "./src/screens/home"
+import { RoomScreen } from "./src/screens/room"
+import type { Transfer } from "./src/screens/transfers"
 import { strings } from "./src/strings"
 import { useTheme } from "./src/theme"
 
-type Theme = ReturnType<typeof useTheme>
-type Transfer = Extract<TransferEvent, { type: "transfer" }>
-
-/** One plain sentence for a transfer: progress while it runs, the outcome after. */
-function transferLine(item: Transfer): string {
-  if (item.state === "done") {
-    return item.direction === "download"
-      ? `${strings.savedTo} ${item.saved ?? item.name}`
-      : `${strings.sent} ${item.name}`
-  }
-  if (item.state === "failed" || item.state === "canceled") {
-    return `${strings.failed}: ${item.name}${item.reason ? ` (${item.reason})` : ""}`
-  }
-  const verb = item.direction === "download" ? strings.getting : strings.sending
-
-  return `${verb} ${item.name}  ${item.done}/${item.size} ${strings.bytes}`
-}
-
-function Button(props: {
-  theme: Theme
-  label: string
-  onPress: () => void
-  quiet?: boolean
-}) {
-  const { theme, label, onPress, quiet } = props
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={[
-        styles.button,
-        quiet
-          ? { borderColor: theme.border, borderWidth: 1 }
-          : { backgroundColor: theme.primary },
-      ]}
-    >
-      <Text
-        style={[
-          styles.buttonText,
-          { color: quiet ? theme.text : theme.onPrimary },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  )
-}
-
-/** The phone app: join a desktop room by code, then browse its files. */
+/** Owns the single native connection, pushed events and local phone navigation. */
 export default function App() {
   const theme = useTheme()
+  const [inRoom, setInRoom] = useState(false)
+  const [tab, setTab] = useState<RoomTab>("files")
   const [code, setCode] = useState("")
   const [joining, setJoining] = useState(false)
   const [room, setRoom] = useState<string | null>(null)
@@ -79,6 +23,18 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [transfers, setTransfers] = useState<Record<string, Transfer>>({})
+
+  // Back to an empty Home, after Leave or when the host ends the room.
+  const reset = useCallback(() => {
+    setInRoom(false)
+    setTab("files")
+    setError("")
+    setRoom(null)
+    setEntries([])
+    setPath("")
+    setCode("")
+    setTransfers({})
+  }, [])
 
   const open = useCallback(async (dir: string) => {
     setLoading(true)
@@ -103,14 +59,10 @@ export default function App() {
       } else {
         // The room is over: release this phone's side too.
         core.leave().catch(() => {})
-        setRoom(null)
-        setEntries([])
-        setPath("")
-        setCode("")
-        setTransfers({})
+        reset()
       }
     })
-  }, [room, path, open])
+  }, [room, path, open, reset])
 
   // Progress from the Go core, pushed as it happens.
   useEffect(() => {
@@ -158,6 +110,7 @@ export default function App() {
       setRoom(core.roomName())
       await core.enableTransfers()
       await open("")
+      setInRoom(true)
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure))
     } finally {
@@ -167,148 +120,64 @@ export default function App() {
 
   const leave = async () => {
     await core.leave()
-    setRoom(null)
-    setEntries([])
-    setPath("")
-    setCode("")
-    setTransfers({})
+    reset()
   }
 
-  const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""
-
   return (
-    // Android 15 draws apps edge to edge, so keep clear of the status bar.
-    <View
-      style={[
-        styles.screen,
-        {
-          backgroundColor: theme.background,
-          paddingTop: (StatusBar.currentHeight ?? 0) + 16,
-        },
-      ]}
-    >
-      <StatusBar barStyle={theme.statusBar} />
-      <Text style={[styles.title, { color: theme.heading }]}>
-        {strings.title}
-      </Text>
-
-      {room === null ? (
-        <View style={styles.body}>
-          <Text style={{ color: theme.muted }}>{strings.codeHint}</Text>
-          <TextInput
-            accessibilityLabel={strings.codeLabel}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            editable={!joining}
-            onChangeText={setCode}
-            placeholder="7K3Q-9PXM"
-            placeholderTextColor={theme.muted}
-            style={[
-              styles.input,
-              {
-                borderColor: theme.border,
-                backgroundColor: theme.surface,
-                color: theme.text,
-              },
-            ]}
-            value={code}
-          />
-          {joining ? (
-            <View style={styles.row}>
-              <ActivityIndicator color={theme.primary} />
-              <Text style={{ color: theme.text }}>{strings.waiting}</Text>
-            </View>
-          ) : null}
-          {joining ? (
-            <Button
-              theme={theme}
-              label={strings.cancel}
-              onPress={() => core.cancel()}
-              quiet
-            />
-          ) : (
-            <Button theme={theme} label={strings.join} onPress={join} />
-          )}
-        </View>
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle="light-content" />
+      <View
+        style={[
+          styles.hero,
+          {
+            backgroundColor: theme.chrome,
+            paddingTop: (StatusBar.currentHeight ?? 0) + 16,
+          },
+        ]}
+      >
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { color: theme.chromeText }]}
+        >
+          {strings.title}
+        </Text>
+      </View>
+      {room !== null && inRoom ? (
+        <RoomScreen
+          theme={theme}
+          room={room}
+          tab={tab}
+          path={path}
+          entries={entries}
+          loading={loading}
+          error={error}
+          transfers={Object.values(transfers)}
+          onTab={setTab}
+          onHome={() => setInRoom(false)}
+          onLeave={() => void leave().catch(fail)}
+          onOpen={open}
+          onDownload={download}
+          onSend={send}
+        />
       ) : (
-        <View style={styles.body}>
-          <Text style={[styles.heading, { color: theme.text }]}>{room}</Text>
-          <Text style={{ color: theme.muted }}>/{path}</Text>
-          {path !== "" ? (
-            <Button
-              theme={theme}
-              label={strings.up}
-              onPress={() => open(parent)}
-              quiet
-            />
-          ) : null}
-          <Button theme={theme} label={strings.send} onPress={send} quiet />
-          {loading ? <ActivityIndicator color={theme.primary} /> : null}
-          <FlatList
-            data={entries}
-            keyExtractor={(entry) => entry.name}
-            ListEmptyComponent={
-              loading ? undefined : (
-                <Text style={{ color: theme.muted }}>{strings.empty}</Text>
-              )
-            }
-            renderItem={({ item }) => (
-              <Pressable
-                onPress={() =>
-                  item.isDir
-                    ? open(path === "" ? item.name : `${path}/${item.name}`)
-                    : download(item)
-                }
-                style={[styles.item, { borderColor: theme.border }]}
-              >
-                <Text style={{ color: theme.text }}>{item.name}</Text>
-                <Text style={{ color: theme.muted }}>
-                  {item.isDir
-                    ? strings.folder
-                    : `${item.size} ${strings.bytes}`}
-                </Text>
-              </Pressable>
-            )}
-          />
-          {Object.values(transfers).map((item) => (
-            <Text
-              key={item.id}
-              style={{
-                color:
-                  item.state === "failed" || item.state === "canceled"
-                    ? theme.error
-                    : theme.muted,
-              }}
-            >
-              {transferLine(item)}
-            </Text>
-          ))}
-          <Button theme={theme} label={strings.leave} onPress={leave} quiet />
-        </View>
+        <HomeScreen
+          theme={theme}
+          room={room}
+          code={code}
+          joining={joining}
+          error={error}
+          onCodeChange={setCode}
+          onJoin={join}
+          onCancel={() => core.cancel()}
+          onOpenRoom={() => setInRoom(true)}
+        />
       )}
-
-      {error !== "" ? (
-        <Text style={[styles.error, { color: theme.error }]}>{error}</Text>
-      ) : null}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 16, paddingBottom: 32 },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 16 },
-  body: { flex: 1, gap: 12 },
-  heading: { fontSize: 20, fontWeight: "600" },
-  row: { flexDirection: "row", gap: 12, alignItems: "center" },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 20,
-    letterSpacing: 2,
-  },
-  button: { borderRadius: 8, padding: 14, alignItems: "center" },
-  buttonText: { fontSize: 16, fontWeight: "600" },
-  item: { borderBottomWidth: 1, paddingVertical: 12, gap: 2 },
-  error: { marginTop: 8 },
+  screen: { flex: 1 },
+  hero: { paddingHorizontal: 16, paddingBottom: 16 },
+  title: { fontSize: 28, fontWeight: "700" },
 })
