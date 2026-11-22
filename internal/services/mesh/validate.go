@@ -17,8 +17,13 @@ func invalid() *peer.RemoteError {
 	return &peer.RemoteError{Code: peer.CodeBadRequest, Message: "The share details are not valid."}
 }
 
-func failure() *peer.RemoteError {
-	return &peer.RemoteError{Code: peer.CodeJoinFailed, Message: "Could not connect everyone in the share."}
+// failure names which step refused in the message. The desktop shows only the code's own
+// text, so the reason reaches just the phone's details line.
+func failure(why string) *peer.RemoteError {
+	return &peer.RemoteError{
+		Code:    peer.CodeJoinFailed,
+		Message: "Could not connect everyone in the share. (" + why + ")",
+	}
 }
 
 func full() *peer.RemoteError {

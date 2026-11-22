@@ -23,6 +23,7 @@ type Admission struct {
 	joiner   peer.ShareMember
 	roster   peer.ShareRoster
 	closed   bool
+	closedBy string // why the slot closed, for the joiner's details line
 	timer    *time.Timer
 	keys     map[string]key.NodePublic
 	deadline time.Time
@@ -51,7 +52,7 @@ func (mesh *Mesh) BeginAdmission(joiner peer.ShareMember) (*Admission, error) {
 
 	last := max(mesh.lastOrder, mesh.nextOrder)
 	if last == math.MaxUint64 {
-		return nil, failure()
+		return nil, failure("no join order left")
 	}
 	joiner.JoinOrder = last + 1
 	if err := validateMember(joiner); err != nil {
@@ -80,7 +81,12 @@ func (mesh *Mesh) BeginAdmission(joiner peer.ShareMember) (*Admission, error) {
 	}
 	mesh.nextOrder = joiner.JoinOrder
 	mesh.pending = admission
-	admission.timer = time.AfterFunc(AdmissionTimeout, admission.Close)
+	admission.timer = time.AfterFunc(AdmissionTimeout, func() {
+		admission.mu.Lock()
+		defer admission.mu.Unlock()
+
+		admission.closeLocked("the join took longer than 30 seconds after Allow")
+	})
 	return admission, nil
 }
 
@@ -97,10 +103,14 @@ func (admission *Admission) Close() {
 	admission.mu.Lock()
 	defer admission.mu.Unlock()
 
-	admission.closeLocked()
+	admission.closeLocked("the join stream to the host ended")
 }
 
-func (admission *Admission) closeLocked() {
+// closeLocked keeps the first reason, so a later close cannot hide why the slot shut.
+func (admission *Admission) closeLocked(why string) {
+	if !admission.closed {
+		admission.closedBy = why
+	}
 	admission.closed = true
 	if admission.timer != nil {
 		admission.timer.Stop()
@@ -131,8 +141,11 @@ func (admission *Admission) handleRoster(_ context.Context, raw json.RawMessage)
 	admission.mesh.mu.Lock()
 	current := admission.currentLocked()
 	admission.mesh.mu.Unlock()
-	if admission.closed || !current {
-		return nil, failure()
+	if admission.closed {
+		return nil, failure(admission.closedBy)
+	}
+	if !current {
+		return nil, failure("the share changed before the roster was sent")
 	}
 	roster := peer.ShareRoster{
 		Members: append([]peer.ShareMember(nil), admission.roster.Members...),
@@ -146,7 +159,7 @@ func (admission *Admission) handleLinks(ctx context.Context, raw json.RawMessage
 	defer admission.mu.Unlock()
 
 	if admission.closed {
-		return nil, failure()
+		return nil, failure(admission.closedBy)
 	}
 	var links peer.ShareLinks
 	if err := decode(raw, &links); err != nil {
@@ -156,7 +169,7 @@ func (admission *Admission) handleLinks(ctx context.Context, raw json.RawMessage
 	mesh.mu.Lock()
 	if !admission.currentLocked() {
 		mesh.mu.Unlock()
-		return nil, failure()
+		return nil, failure("the share changed before the links arrived")
 	}
 	keys, err := admission.checkLinksLocked(links)
 	controls := make(map[string]*peer.Peer)
@@ -196,14 +209,14 @@ func (admission *Admission) handleLinks(ctx context.Context, raw json.RawMessage
 	mesh.mu.Lock()
 	if !admission.currentLocked() {
 		mesh.mu.Unlock()
-		admission.closeLocked()
-		return nil, failure()
+		admission.closeLocked("")
+		return nil, failure("the share changed while the links were prepared")
 	}
 	err = mesh.admitLocked(mesh.self.ID, admission.payload(keys[mesh.self.ID]))
 	mesh.mu.Unlock()
-	admission.closeLocked()
+	admission.closeLocked("")
 	if err != nil {
-		return nil, failure()
+		return nil, failure("the host could not add the link: " + err.Error())
 	}
 	return peer.ShareLinksResult{Removed: removed}, nil
 }

@@ -341,6 +341,11 @@ func TestClosedAdmissionCannotPrepareLinks(t *testing.T) {
 	wantCode(t, err, peer.CodeJoinFailed)
 	_, err = admission.Handlers()[peer.MethodShareLinks](t.Context(), raw(peer.ShareLinks{}))
 	wantCode(t, err, peer.CodeJoinFailed)
+
+	// The phone shows this reason, so a tester can tell which step refused.
+	if !strings.Contains(err.Error(), "the join stream to the host ended") {
+		t.Fatalf("message = %q, want the close reason", err.Error())
+	}
 }
 
 func TestIsAdmitter(t *testing.T) {
