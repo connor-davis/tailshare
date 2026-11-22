@@ -2,6 +2,7 @@ package tailshare
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,8 +113,12 @@ func TestJoinAndList(t *testing.T) {
 
 func TestJoinBadCode(t *testing.T) {
 	client := NewClient("Phone", "", 0)
-	if err := client.Join("nope"); err == nil {
+	err := client.Join("nope")
+	if err == nil {
 		t.Fatal("bad code accepted")
+	}
+	if errors.Is(err, errCancelled) {
+		t.Fatal("a failed join was reported as cancelled")
 	}
 	if client.Connected() {
 		t.Fatal("connected with a bad code")
@@ -144,8 +149,8 @@ func TestCancelStopsJoin(t *testing.T) {
 
 	select {
 	case err := <-joined:
-		if err == nil {
-			t.Fatal("join succeeded after cancel")
+		if !errors.Is(err, errCancelled) {
+			t.Fatalf("want the cancelled error, got %v", err)
 		}
 	case <-time.After(20 * time.Second):
 		t.Fatal("join did not stop")
