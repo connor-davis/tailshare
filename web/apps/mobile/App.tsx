@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -102,11 +101,18 @@ export default function App() {
   const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""
 
   return (
-    <SafeAreaView
-      style={[styles.screen, { backgroundColor: theme.background }]}
+    // Android 15 draws apps edge to edge, so keep clear of the status bar.
+    <View
+      style={[
+        styles.screen,
+        {
+          backgroundColor: theme.background,
+          paddingTop: (StatusBar.currentHeight ?? 0) + 16,
+        },
+      ]}
     >
-      <StatusBar barStyle="default" />
-      <Text style={[styles.title, { color: theme.primary }]}>
+      <StatusBar barStyle={theme.statusBar} />
+      <Text style={[styles.title, { color: theme.heading }]}>
         {strings.title}
       </Text>
 
@@ -193,12 +199,12 @@ export default function App() {
       {error !== "" ? (
         <Text style={[styles.error, { color: theme.error }]}>{error}</Text>
       ) : null}
-    </SafeAreaView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 16 },
+  screen: { flex: 1, padding: 16, paddingBottom: 32 },
   title: { fontSize: 28, fontWeight: "700", marginBottom: 16 },
   body: { flex: 1, gap: 12 },
   heading: { fontSize: 20, fontWeight: "600" },

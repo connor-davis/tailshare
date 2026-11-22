@@ -9,7 +9,9 @@ const palettes = {
     muted: "#a3a3a3",
     border: "#262626",
     primary: "#fa7a00",
+    heading: "#fa7a00",
     onPrimary: "#0a0a0a",
+    statusBar: "light-content",
     error: "#ff6b6b",
   },
   light: {
@@ -19,10 +21,13 @@ const palettes = {
     muted: "#555555",
     border: "#e5e5e5",
     primary: "#fa7a00",
+    // Orange text on white needs the darker brand shade to stay readable.
+    heading: "#b85600",
     onPrimary: "#111111",
+    statusBar: "dark-content",
     error: "#c62828",
   },
-}
+} as const
 
 /** The colours for the phone's current light or dark setting. */
 export function useTheme() {
