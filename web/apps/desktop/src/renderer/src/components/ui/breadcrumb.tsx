@@ -1,12 +1,14 @@
+import { useT } from "@/i18n/provider"
 import * as React from "react"
 import { cn } from "cn"
 import { Slot } from "radix-ui"
 import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
+  const t = useT()
   return (
     <nav
-      aria-label="breadcrumb"
+      aria-label={t("breadcrumb.navigation")}
       data-slot="breadcrumb"
       className={cn(className)}
       {...props}
@@ -90,6 +92,8 @@ function BreadcrumbEllipsis({
   className,
   ...props
 }: React.ComponentProps<"span">) {
+  const t = useT()
+
   return (
     <span
       data-slot="breadcrumb-ellipsis"
@@ -102,7 +106,7 @@ function BreadcrumbEllipsis({
       {...props}
     >
       <MoreHorizontalIcon />
-      <span className="sr-only">More</span>
+      <span className="sr-only">{t("breadcrumb.more")}</span>
     </span>
   )
 }

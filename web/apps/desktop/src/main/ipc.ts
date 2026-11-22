@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { Effect, Schema } from "effect"
 import {
   CHANNELS,
@@ -32,7 +33,7 @@ export interface IpcHost {
 }
 
 // A plain sentence for the page. Detail stays in main.
-const refuse = (what: string) => new Error(`Tailshare could not ${what}.`)
+const refuse = (what: string) => new Error(what)
 
 /** Checks a value with its schema. Fails with a SchemaError if it is wrong. */
 export const check = <S extends Schema.Constraint>(schema: S, value: unknown) =>
@@ -44,9 +45,9 @@ export const check = <S extends Schema.Constraint>(schema: S, value: unknown) =>
 // The shared front door: right sender, no extra arguments.
 const guard = (senderOk: boolean, args: unknown[]) =>
   Effect.gen(function* () {
-    if (!senderOk) return yield* Effect.fail(refuse("answer this window"))
+    if (!senderOk) return yield* Effect.fail(refuse(t("ipc.answerThisWindow")))
     yield* check(NoArgs, args).pipe(
-      Effect.mapError(() => refuse("read that request"))
+      Effect.mapError(() => refuse(t("ipc.readThatRequest")))
     )
   })
 
@@ -76,37 +77,37 @@ export function registerUpdateIpc(
   }
 
   host.handle(CHANNELS.openReleaseLink, async (senderOk, args) => {
-    if (!senderOk) throw refuse("answer this window")
+    if (!senderOk) throw refuse(t("ipc.answerThisWindow"))
     if (args.length !== 1 || !isReleaseLink(args[0]))
-      throw refuse("read that request")
+      throw refuse(t("ipc.readThatRequest"))
 
     try {
       await openExternal(args[0])
     } catch {
-      throw refuse("open this release link. Try again")
+      throw refuse(t("ipc.openThisReleaseLinkTryAgain"))
     }
   })
 
   host.handle(CHANNELS.openForwardLink, async (senderOk, args) => {
-    if (!senderOk) throw refuse("answer this window")
+    if (!senderOk) throw refuse(t("ipc.answerThisWindow"))
     if (args.length !== 1 || !isForwardLink(args[0]))
-      throw refuse("read that request")
+      throw refuse(t("ipc.readThatRequest"))
 
     try {
       await openExternal(args[0])
     } catch {
-      throw refuse("open this app. Try again")
+      throw refuse(t("ipc.openThisAppTryAgain"))
     }
   })
 
   // The store checks the whole patch before it writes or tells anyone.
   host.handle(CHANNELS.updateSettings, async (senderOk, args) => {
-    if (!senderOk) throw refuse("answer this window")
-    if (args.length !== 1) throw refuse("read that request")
+    if (!senderOk) throw refuse(t("ipc.answerThisWindow"))
+    if (args.length !== 1) throw refuse(t("ipc.readThatRequest"))
 
     // The page may only remove a trusted computer (revokeTrusted), never add one.
     if (args[0] && typeof args[0] === "object" && "trustedComputers" in args[0])
-      throw refuse("read that request")
+      throw refuse(t("ipc.readThatRequest"))
 
     const result = settings.update(args[0])
     return Effect.runPromise(check(SettingsSchema, result))
@@ -135,8 +136,8 @@ export function registerRecentRoomsIpc(
     [CHANNELS.removeRecentRoom, (value: unknown) => recent.remove(value)],
   ] as const) {
     host.handle(channel, async (senderOk, args) => {
-      if (!senderOk) throw refuse("answer this window")
-      if (args.length !== 1) throw refuse("read that request")
+      if (!senderOk) throw refuse(t("ipc.answerThisWindow"))
+      if (args.length !== 1) throw refuse(t("ipc.readThatRequest"))
 
       await reply(action(args[0]))
     })
@@ -184,7 +185,7 @@ export const registerIpc = (host: IpcHost) =>
             Effect.mapError((error) => new Error(error.message))
           )
           return yield* check(ConnectionInfoSchema, info).pipe(
-            Effect.mapError(() => refuse("read the sidecar address"))
+            Effect.mapError(() => refuse(t("ipc.readTheSidecarAddress")))
           )
         })
       )
@@ -197,7 +198,7 @@ export const registerIpc = (host: IpcHost) =>
 
           const picked = yield* Effect.promise(() => host.pickFolder())
           return yield* check(ChosenFolderSchema, picked).pipe(
-            Effect.mapError(() => refuse("read the chosen folder"))
+            Effect.mapError(() => refuse(t("ipc.readTheChosenFolder")))
           )
         })
       )

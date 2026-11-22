@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { Progress } from "@/components/ui/progress"
 import { useContext, useState } from "react"
 import { DownloadIcon, FileIcon, FolderIcon } from "lucide-react"
@@ -24,6 +25,8 @@ export function FileCard({
   /** True when the other computer shared it. */
   fromPeer: boolean
 }) {
+  const t = useT()
+
   const browse = useContext(FolderBrowseContext)
 
   const [folderQueued, setFolderQueued] = useState(false)
@@ -82,11 +85,15 @@ export function FileCard({
 
   const startError = start.error?.message
 
-  let status = <p className="text-xs text-muted-foreground">Shared</p>
+  let status = (
+    <p className="text-xs text-muted-foreground">{t("fileCard.shared")}</p>
+  )
   if (fromPeer) {
     if (attachment.folder && folderQueued) {
       status = (
-        <p className="text-xs text-muted-foreground">Added to transfers</p>
+        <p className="text-xs text-muted-foreground">
+          {t("fileCard.addedToTransfers")}
+        </p>
       )
     } else if (active) {
       const done = percent(transfer.bytes, transfer.size)
@@ -94,25 +101,28 @@ export function FileCard({
         <div className="flex flex-col gap-1">
           <Progress
             className="h-1.5"
-            aria-label={`${attachment.name} progress`}
+            aria-label={t("fileCard.progress", { name: attachment.name })}
             value={done}
           />
           <p className="text-xs text-muted-foreground tabular-nums">
             {transfer.state === "paused"
-              ? `Paused · ${done}%`
-              : `${done}% · ${formatSpeed(transfer.speed)}`}
+              ? t("fileCard.paused", { done: done })
+              : t("fileCard.transferProgress", {
+                  done: done,
+                  speed: formatSpeed(transfer.speed),
+                })}
           </p>
         </div>
       )
     } else if (transfer?.state === "done") {
-      status = <p className="text-xs font-medium">Saved</p>
+      status = <p className="text-xs font-medium">{t("fileCard.saved")}</p>
     } else {
       const failed = transfer?.state === "failed"
 
       const note = failed
-        ? (transfer.error ?? "Could not download this file.")
+        ? (transfer.error ?? t("fileCard.couldNotDownloadThisFile"))
         : transfer?.state === "canceled"
-          ? "Canceled."
+          ? t("fileCard.canceled")
           : startError
 
       status = (
@@ -126,11 +136,15 @@ export function FileCard({
             size="sm"
             variant="outline"
             disabled={start.isPending || !downloadsOk}
-            aria-label={`${note ? "Download again" : "Download"} ${attachment.name}`}
+            aria-label={
+              note
+                ? t("fileCard.downloadFileAgain", { name: attachment.name })
+                : t("fileCard.downloadFile", { name: attachment.name })
+            }
             onClick={download}
           >
             <DownloadIcon aria-hidden data-icon="inline-start" />
-            {note ? "Try again" : "Download"}
+            {note ? t("fileCard.tryAgain") : t("fileCard.download")}
           </Button>
         </div>
       )
@@ -152,7 +166,9 @@ export function FileCard({
           {attachment.name}
         </p>
         <p className="text-xs text-muted-foreground tabular-nums">
-          {attachment.folder ? `${attachment.count ?? 0} files · ` : ""}
+          {attachment.folder
+            ? t("fileCard.fileCount", { count: attachment.count ?? 0 })
+            : ""}
           {formatBytes(attachment.size)}
         </p>
         {!attachment.folder ? (
@@ -162,7 +178,7 @@ export function FileCard({
           <Button
             variant="outline"
             size="sm"
-            aria-label={`Browse ${attachment.name}`}
+            aria-label={t("fileCard.browseLabel", { name: attachment.name })}
             onClick={() =>
               browse({
                 path: attachment.path,
@@ -171,12 +187,12 @@ export function FileCard({
               })
             }
           >
-            Browse
+            {t("fileCard.browse")}
           </Button>
         ) : null}
         {fromPeer && !saved && !attachment.folder ? (
           <p className="text-xs text-muted-foreground">
-            Preview after you download it
+            {t("fileCard.previewAfterYouDownloadIt")}
           </p>
         ) : null}
         {status}

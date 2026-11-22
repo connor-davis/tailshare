@@ -1,8 +1,9 @@
+import { t } from "./i18n/index"
 import { join } from "node:path"
 import { Menu, Tray, nativeImage } from "electron"
 
 /** The words on the tray icon's hover text. */
-export const TRAY_TOOLTIP = "Tailshare"
+export const TRAY_TOOLTIP = t("tray.tailshare")
 
 /** What the tray menu does. */
 export interface TrayActions {
@@ -12,9 +13,9 @@ export interface TrayActions {
 
 /** The tray menu: Open and Quit. A plain list, so tests need no Electron. */
 export const trayMenuTemplate = (actions: TrayActions) => [
-  { label: "Open Tailshare", click: actions.onOpen },
+  { label: t("tray.openTailshare"), click: actions.onOpen },
   { type: "separator" as const },
-  { label: "Quit", click: actions.onQuit },
+  { label: t("tray.quit"), click: actions.onQuit },
 ]
 
 /**

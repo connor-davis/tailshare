@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { announce } from "@/components/status-region"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -9,6 +10,8 @@ import { useDownloadsOk } from "@/components/use-downloads-status"
  * until a folder works, and the button asks for another one in place.
  */
 export function DownloadsAlert() {
+  const t = useT()
+
   const ok = useDownloadsOk()
   const [failed, setFailed] = useState(false)
 
@@ -21,7 +24,7 @@ export function DownloadsAlert() {
       const picked = await window.tailshare.chooseFolder()
       if (picked) {
         await window.tailshare.updateSettings({ saveFolder: picked })
-        announce("Checking the new folder.")
+        announce(t("downloadsAlert.checkingTheNewFolder"))
       }
     } catch {
       setFailed(true)
@@ -36,11 +39,11 @@ export function DownloadsAlert() {
     >
       <AlertDescription className="flex-1">
         {failed
-          ? "Could not change the folder. Try again."
-          : "Downloads are off because Tailshare cannot use your save folder. Choose another folder to turn them on."}
+          ? t("downloadsAlert.couldNotChangeTheFolderTryAgain")
+          : t("downloadsAlert.downloadsAreOffBecauseTailshareCannotUse")}
       </AlertDescription>
       <Button size="sm" variant="outline" onClick={() => void choose()}>
-        Choose another folder
+        {t("downloadsAlert.chooseAnotherFolder")}
       </Button>
     </Alert>
   )

@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useRef, useState, type DragEvent } from "react"
 import { FileIcon, UploadIcon, XIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -9,6 +10,8 @@ import { useShareFiles } from "./use-share-files"
 
 /** Files already shared in this session, using the existing attachment flow. */
 export function RoomFiles({ connected }: { connected: boolean }) {
+  const t = useT()
+
   const { data: messages = [], error } = useChat(connected)
   const share = useShareFiles()
   const depth = useRef(0)
@@ -54,17 +57,18 @@ export function RoomFiles({ connected }: { connected: boolean }) {
           disabled={!connected || share.busy}
           onClick={() => void share.addFiles()}
         >
-          <UploadIcon aria-hidden /> Share files
+          <UploadIcon aria-hidden />
+          {t("roomFiles.shareFiles")}
         </Button>
         <Button
           variant="outline"
           disabled={!connected || share.busy}
           onClick={() => void share.addFolder()}
         >
-          Folder
+          {t("roomFiles.folder")}
         </Button>
         <p className="text-xs text-muted-foreground">
-          {files.length} shared {files.length === 1 ? "file" : "files"}
+          {t("roomFiles.sharedCount", { count: files.length })}
         </p>
       </div>
       <ScrollArea className="min-h-0 flex-1">
@@ -82,12 +86,12 @@ export function RoomFiles({ connected }: { connected: boolean }) {
             <div className="flex min-h-36 w-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
               <FileIcon aria-hidden className="size-7" />
               <p className="font-semibold text-foreground">
-                No shared files yet
+                {t("roomFiles.noSharedFilesYet")}
               </p>
               <p>
                 {connected
-                  ? "Add files or drop them here to share."
-                  : "You can share files once someone else joins."}
+                  ? t("roomFiles.addFilesOrDropThemHereTo")
+                  : t("roomFiles.waitToShare")}
               </p>
             </div>
           ) : null}
@@ -107,13 +111,18 @@ export function RoomFiles({ connected }: { connected: boolean }) {
           <AlertDescription>
             {share.error ??
               share.skipped
-                .map((file) => `${file.name}: ${file.reason}`)
+                .map((file) =>
+                  t("roomFiles.message", {
+                    name: file.name,
+                    reason: file.reason,
+                  })
+                )
                 .join(" ")}
           </AlertDescription>
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label="Dismiss file notice"
+            aria-label={t("roomFiles.dismissFileNotice")}
             className="absolute top-2 right-2"
             onClick={share.dismiss}
           >
@@ -126,7 +135,7 @@ export function RoomFiles({ connected }: { connected: boolean }) {
           role="status"
           className="pointer-events-none absolute inset-2 grid place-items-center rounded-lg border-2 border-dashed border-primary bg-background/95 font-semibold"
         >
-          Drop to share
+          {t("roomFiles.dropToShare")}
         </div>
       ) : null}
     </div>

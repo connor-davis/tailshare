@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import { useEffect, useRef, useState } from "react"
 import {
   HistoryIcon,
@@ -34,9 +36,12 @@ import logo from "../../../../../build/logo.svg"
 /** What the live room is called in the list. */
 function liveName(session: SessionState): string | null {
   if (session.state === "hosting")
-    return session.roomName ?? "Waiting for someone…"
+    return session.roomName ?? t("roomSidebar.waitingForSomeone")
   if (session.state === "connected" && session.peer)
-    return session.roomName ?? `${session.peer.displayName}'s room`
+    return (
+      session.roomName ??
+      t("roomSidebar.sRoom", { displayName: session.peer.displayName })
+    )
 
   return null
 }
@@ -87,6 +92,8 @@ export function RoomSidebar({
   /** Hosts a recent room again under its old code. */
   onReopen: (room: { name: string; code: string }) => void
 }) {
+  const t = useT()
+
   const rooms = useRecentRooms()
   const openSettings = useOpenSettings()
   const [joining, setJoining] = useState(false)
@@ -130,12 +137,12 @@ export function RoomSidebar({
 
   return (
     <aside
-      aria-label="Rooms"
+      aria-label={t("roomSidebar.rooms")}
       className={`spaces-rail flex h-full min-h-0 flex-col ${compact ? "spaces-rail-compact" : ""}`}
     >
       <DragBar className="gap-2 pl-3 text-xs font-medium">
         <img src={logo} alt="" className="size-4" />
-        Tailshare
+        {t("roomSidebar.tailshare")}
       </DragBar>
       {onHome ? (
         <Button
@@ -143,7 +150,7 @@ export function RoomSidebar({
           variant={homeActive ? "default" : "outline"}
           aria-current={homeActive ? "page" : undefined}
           size="icon"
-          aria-label="Home"
+          aria-label={t("roomSidebar.home")}
           onClick={onHome}
         >
           <LayoutGridIcon aria-hidden />
@@ -160,9 +167,9 @@ export function RoomSidebar({
             ref={searchRef}
             type="search"
             value={query}
-            aria-label="Search rooms"
+            aria-label={t("roomSidebar.searchRooms")}
             aria-keyshortcuts="Control+K"
-            placeholder="Search rooms"
+            placeholder={t("roomSidebar.searchRooms")}
             autoComplete="off"
             className="pl-8"
             onChange={(event) => setQuery(event.target.value)}
@@ -177,7 +184,7 @@ export function RoomSidebar({
             <Button
               variant="outline"
               size="icon"
-              aria-label="New room"
+              aria-label={t("roomSidebar.newRoom")}
               aria-disabled={!canStart}
               className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               onClick={() => {
@@ -188,7 +195,9 @@ export function RoomSidebar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {idle ? "New room" : "Leave this room to start another."}
+            {idle
+              ? t("roomSidebar.newRoom")
+              : t("roomSidebar.leaveThisRoomToStartAnother")}
           </TooltipContent>
         </Tooltip>
         <Tooltip>
@@ -197,7 +206,7 @@ export function RoomSidebar({
               variant="outline"
               size="icon"
               ref={joinRef}
-              aria-label="Join room"
+              aria-label={t("roomSidebar.joinRoom")}
               aria-disabled={!canStart}
               className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               onClick={() => {
@@ -208,7 +217,9 @@ export function RoomSidebar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {idle ? "Join room" : "Leave this room to join another."}
+            {idle
+              ? t("roomSidebar.joinRoom")
+              : t("roomSidebar.leaveThisRoomToJoinAnother")}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -226,13 +237,18 @@ export function RoomSidebar({
               aria-labelledby="open-room"
               className="flex flex-col gap-1"
             >
-              <Label id="open-room">Rooms</Label>
+              <Label id="open-room">{t("roomSidebar.rooms")}</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     aria-current={!homeActive ? "page" : undefined}
-                    aria-label={`Open ${live}, ${session.role === "host" ? "host" : "joined"}, current room`}
+                    aria-label={t(
+                      session.role === "host"
+                        ? "roomSidebar.openHostRoom"
+                        : "roomSidebar.openJoinedRoom",
+                      { name: live }
+                    )}
                     onClick={onOpenRoom}
                     className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
                   >
@@ -241,7 +257,9 @@ export function RoomSidebar({
                     </span>
                     <Dot live />
                     <span className="min-w-0 flex-1 truncate">
-                      <span className="sr-only">Open now: </span>
+                      <span className="sr-only">
+                        {t("roomSidebar.openNow")}
+                      </span>
                       {live}
                     </span>
                     {session.members?.length ? (
@@ -252,8 +270,13 @@ export function RoomSidebar({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {live} · {session.role === "host" ? "Host" : "Joined"} · Open
-                  now
+                  {t("roomSidebar.currentDescription", {
+                    name: live,
+                    role:
+                      session.role === "host"
+                        ? t("common.host")
+                        : t("common.joined"),
+                  })}
                 </TooltipContent>
               </Tooltip>
             </section>
@@ -262,7 +285,7 @@ export function RoomSidebar({
             aria-labelledby="recent-rooms"
             className="flex flex-col gap-1"
           >
-            <Label id="recent-rooms">Recent</Label>
+            <Label id="recent-rooms">{t("roomSidebar.recent")}</Label>
             {shown.length === 0 ? (
               <Empty className="flex-none gap-2 p-4">
                 <EmptyHeader>
@@ -274,12 +297,14 @@ export function RoomSidebar({
                     )}
                   </EmptyMedia>
                   <EmptyTitle>
-                    {needle !== "" ? "No rooms match" : "No recent rooms"}
+                    {needle !== ""
+                      ? t("roomSidebar.noRoomsMatch")
+                      : t("roomSidebar.noRecentRooms")}
                   </EmptyTitle>
                   <EmptyDescription>
                     {needle !== ""
-                      ? "Try another name or code."
-                      : "Rooms you leave show up here."}
+                      ? t("roomSidebar.tryAnotherNameOrCode")
+                      : t("roomSidebar.roomsYouLeaveShowUpHere")}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -305,7 +330,7 @@ export function RoomSidebar({
             )}
             {forgetError ? (
               <p role="alert" className="px-2 text-xs text-destructive">
-                Could not forget that room. Try again.
+                {t("roomSidebar.couldNotForgetThatRoomTryAgain")}
               </p>
             ) : null}
           </section>
@@ -316,7 +341,7 @@ export function RoomSidebar({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Settings"
+          aria-label={t("roomSidebar.settings")}
           onClick={openSettings}
         >
           <SettingsIcon aria-hidden />

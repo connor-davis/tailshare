@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useRef, useState } from "react"
 import { useSettings } from "@/components/settings/use-settings"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,8 @@ import {
  * the Settings dialog, so the rules and the error sentence are the same.
  */
 export function NameEditor() {
+  const t = useT()
+
   const { settings, error, save } = useSettings()
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState("")
@@ -35,7 +38,7 @@ export function NameEditor() {
       <div className="min-w-0 flex-1">
         <Input
           autoFocus
-          aria-label="Display name"
+          aria-label={t("nameEditor.displayName")}
           value={text}
           maxLength={64}
           autoComplete="off"
@@ -65,7 +68,9 @@ export function NameEditor() {
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-accent/60"
-            aria-label={`Display name: ${settings.displayName}. Click to edit.`}
+            aria-label={t("nameEditor.displayNameClickToEdit", {
+              displayName: settings.displayName,
+            })}
             onClick={() => {
               cancelled.current = false
               setText(settings.displayName)
@@ -84,7 +89,7 @@ export function NameEditor() {
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          Click to change. Your name takes effect from the next update.
+          {t("nameEditor.clickToChangeYourNameTakesEffect")}
         </TooltipContent>
       </Tooltip>
       {error ? (

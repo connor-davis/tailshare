@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import {
   Dialog,
   DialogContent,
@@ -25,12 +26,14 @@ export function JoinDialog({
   /** Joins with the bare code. */
   onJoin: (code: string) => void
 }) {
+  const t = useT()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col gap-4 p-6">
-        <DialogTitle>Join a room</DialogTitle>
+        <DialogTitle>{t("joinDialog.joinARoom")}</DialogTitle>
         <DialogDescription>
-          Type the code your friend sent, or paste their link.
+          {t("joinDialog.typeTheCodeYourFriendSentOr")}
         </DialogDescription>
         <JoinForm
           id="join-dialog-input"

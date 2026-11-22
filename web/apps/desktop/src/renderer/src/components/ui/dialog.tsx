@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
@@ -53,6 +54,8 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const t = useT()
+
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -73,7 +76,7 @@ function DialogContent({
               size="icon-sm"
             >
               <XIcon />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{t("dialog.close")}</span>
             </Button>
           </DialogPrimitive.Close>
         )}

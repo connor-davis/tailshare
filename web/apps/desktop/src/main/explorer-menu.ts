@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { execFile } from "node:child_process"
 
 /** The only per-user registry keys owned by the Explorer menu. */
@@ -23,7 +24,7 @@ export async function applyExplorerMenu(
       new Promise<void>((resolve, reject) => {
         execFile("reg.exe", args, { windowsHide: true }, (error) =>
           error
-            ? reject(new Error("Could not update the Explorer menu."))
+            ? reject(new Error(t("explorerMenu.couldNotUpdateTheExplorerMenu")))
             : resolve()
         )
       }))
@@ -41,7 +42,7 @@ export async function applyExplorerMenu(
       "/t",
       "REG_SZ",
       "/d",
-      "Send with Tailshare",
+      t("explorerMenu.sendWithTailshare"),
       "/f",
     ])
     await run([

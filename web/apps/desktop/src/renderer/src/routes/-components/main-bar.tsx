@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { PanelLeftIcon } from "lucide-react"
 import { DragBar, NoDrag } from "@/components/drag-bar"
 import { UpdateButton } from "@/components/update-button"
@@ -16,20 +17,22 @@ export function MainBar({
   /** Shows or hides the rooms column. */
   onToggleRooms: () => void
 }) {
+  const t = useT()
+
   return (
     <DragBar reserveCaption className="border-b bg-card">
       <NoDrag>
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Show or hide rooms"
+          aria-label={t("mainBar.showOrHideRooms")}
           aria-expanded={roomsOpen}
           onClick={onToggleRooms}
         >
           <PanelLeftIcon aria-hidden />
         </Button>
       </NoDrag>
-      <span className="ml-2 font-semibold">Tailshare</span>
+      <span className="ml-2 font-semibold">{t("mainBar.tailshare")}</span>
       <div className="ml-auto" />
       <UpdateButton />
     </DragBar>

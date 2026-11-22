@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import { useState } from "react"
 import type { Settings, UpdateStatus } from "../../../../shared/bridge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -16,15 +18,15 @@ import { SettingList, SettingRow } from "./setting-row"
 import { Section } from "./settings-fields"
 import type { SettingsHandle } from "./use-settings"
 
-const messages: Record<UpdateStatus["state"], string> = {
-  disabled: "Updates are off in development builds.",
-  checking: "Checking for updates…",
-  current: "No update available.",
-  available: "An update is available.",
-  downloading: "Downloading an update…",
-  ready: "An update is ready. Restart when your transfers are finished.",
-  error: "Could not update Tailshare. Check for updates to try again.",
-}
+const messages = (): Record<UpdateStatus["state"], string> => ({
+  disabled: t("updatesCard.updatesAreOffInDevelopmentBuilds"),
+  checking: t("updatesCard.checkingForUpdates"),
+  current: t("updatesCard.noUpdateAvailable"),
+  available: t("updatesCard.anUpdateIsAvailable"),
+  downloading: t("updatesCard.downloadingAnUpdate"),
+  ready: t("updatesCard.anUpdateIsReadyRestartWhenYour"),
+  error: t("updatesCard.couldNotUpdateTailshareCheckForUpdates"),
+})
 
 /** Update preferences, the release notes and the download and restart actions, in the settings dialog. */
 export function UpdatesCard({
@@ -39,6 +41,8 @@ export function UpdatesCard({
   /** True while a save runs. */
   saving: boolean
 }) {
+  const t = useT()
+
   const { status, error: statusError } = useUpdateStatus()
   const actions = useUpdateActions()
   const [checkError, setCheckError] = useState("")
@@ -50,24 +54,24 @@ export function UpdatesCard({
     try {
       await window.tailshare.checkForUpdates()
     } catch {
-      setCheckError("Could not check for updates. Try again.")
+      setCheckError(t("updatesCard.couldNotCheckForUpdatesTryAgain"))
     }
   }
 
   return (
     <Section
       id="updates-title"
-      title="Updates"
-      description="Review what’s new, then choose when to download."
+      title={t("updatesCard.updates")}
+      description={t("updatesCard.reviewWhatSNewThenChooseWhen")}
     >
       <SettingList>
         <SettingRow
-          label="Release channel"
+          label={t("updatesCard.releaseChannel")}
           htmlFor="update-channel"
           description={
             settings.updateChannel === "nightly"
-              ? "Nightly follows development builds only. Changes may be unfinished."
-              : "Stable follows tested releases. Returning from Nightly waits for a newer stable release."
+              ? t("updatesCard.nightlyFollowsDevelopmentBuildsOnlyChangesMay")
+              : t("updatesCard.stableFollowsTestedReleasesReturningFromNightly")
           }
         >
           <Select
@@ -82,16 +86,20 @@ export function UpdatesCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="latest">Stable</SelectItem>
-              <SelectItem value="nightly">Nightly</SelectItem>
+              <SelectItem value="latest">{t("updatesCard.stable")}</SelectItem>
+              <SelectItem value="nightly">
+                {t("updatesCard.nightly")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </SettingRow>
         <SettingRow
-          label="Status"
+          label={t("updatesCard.status")}
           description={
             <span role="status">
-              {status ? messages[status.state] : "Checking for updates…"}
+              {status
+                ? messages()[status.state]
+                : t("updatesCard.checkingForUpdates")}
               {status?.state === "downloading" && status.percent !== undefined
                 ? ` ${Math.round(status.percent)}%`
                 : ""}
@@ -104,8 +112,8 @@ export function UpdatesCard({
               onClick={() => void actions.restart()}
             >
               {actions.pending === "restart"
-                ? "Restarting…"
-                : "Restart to update"}
+                ? t("updatesCard.restarting")
+                : t("updatesCard.restartToUpdate")}
             </Button>
           ) : status?.state === "available" ? (
             <Button
@@ -113,8 +121,8 @@ export function UpdatesCard({
               onClick={() => void actions.download()}
             >
               {actions.pending === "download"
-                ? "Starting download…"
-                : "Download"}
+                ? t("updatesCard.startingDownload")
+                : t("updatesCard.download")}
             </Button>
           ) : (
             <Button
@@ -127,7 +135,9 @@ export function UpdatesCard({
               }
               onClick={() => void checkNow()}
             >
-              {status?.state === "checking" ? "Checking…" : "Check for updates"}
+              {status?.state === "checking"
+                ? t("updatesCard.checking")
+                : t("updatesCard.checkForUpdates")}
             </Button>
           )}
         </SettingRow>
@@ -135,14 +145,14 @@ export function UpdatesCard({
       {status?.state === "available" ? (
         <div className="grid min-w-0 gap-3">
           <h3 className="text-sm font-medium">
-            What's new in {status.version}
+            {t("updatesCard.whatSNewIn", { version: status.version ?? "" })}
           </h3>
           <UpdateRelease key={status.version} status={status} />
         </div>
       ) : null}
       {status?.state === "downloading" ? (
         <Progress
-          aria-label="Update download"
+          aria-label={t("updatesCard.updateDownload")}
           aria-valuenow={status.percent ?? 0}
           value={status.percent ?? 0}
         />

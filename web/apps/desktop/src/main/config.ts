@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
@@ -22,9 +23,7 @@ export function resolveSidecarPath(options: {
   const path = join(folder, sidecarFileName())
 
   if (!existsSync(path)) {
-    throw new Error(
-      `The sidecar program is missing at ${path}. Run "task build".`
-    )
+    throw new Error(t("config.theSidecarProgramIsMissingAtRun", { path: path }))
   }
 
   return path

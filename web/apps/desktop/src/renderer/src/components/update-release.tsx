@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import Markdown from "react-markdown"
 import { isReleaseLink, type UpdateStatus } from "../../../shared/bridge"
@@ -30,6 +31,8 @@ const elements = [
  * Settings. Each surface places its own Download button.
  */
 export function UpdateRelease({ status }: { status: UpdateStatus }) {
+  const t = useT()
+
   const [error, setError] = useState("")
 
   return (
@@ -55,7 +58,7 @@ export function UpdateRelease({ status }: { status: UpdateStatus }) {
                           .openReleaseLink(href)
                           .catch(() => {
                             setError(
-                              "Could not open this release link. Try again."
+                              t("updateRelease.couldNotOpenThisReleaseLinkTry")
                             )
                           })
                     }}

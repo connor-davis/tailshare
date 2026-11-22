@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,8 @@ import { Section, type SectionProps } from "./settings-fields"
  * here you only look and remove. A removed computer is asked next time.
  */
 export function TrustedSection({ settings }: SectionProps) {
+  const t = useT()
+
   const [error, setError] = useState("")
   const [removing, setRemoving] = useState("")
 
@@ -21,7 +24,7 @@ export function TrustedSection({ settings }: SectionProps) {
       setError(
         failure instanceof Error
           ? failure.message
-          : "Tailshare could not remove that computer."
+          : t("trustedSection.tailshareCouldNotRemoveThatComputer")
       )
     } finally {
       setRemoving("")
@@ -33,8 +36,8 @@ export function TrustedSection({ settings }: SectionProps) {
   return (
     <Section
       id="settings-trusted"
-      title="Trusted computers"
-      description="These computers join your room without asking. They still need the code. Removing one only affects the next join."
+      title={t("trustedSection.trustedComputers")}
+      description={t("trustedSection.theseComputersJoinYourRoomWithoutAsking")}
     >
       {error ? (
         <Alert variant="destructive">
@@ -44,11 +47,13 @@ export function TrustedSection({ settings }: SectionProps) {
 
       {computers.length === 0 ? (
         <p className="rounded-lg border p-4 text-sm text-muted-foreground">
-          No trusted computers yet. Choose "Trust this computer" when someone
-          asks to join.
+          {t("trustedSection.noTrustedComputersYetChooseTrustThis")}
         </p>
       ) : (
-        <SettingList role="list" aria-label="Trusted computers">
+        <SettingList
+          role="list"
+          aria-label={t("trustedSection.trustedComputers")}
+        >
           {computers.map((computer) => (
             <SettingRow
               key={computer.key}
@@ -57,22 +62,25 @@ export function TrustedSection({ settings }: SectionProps) {
                 <>
                   {computer.fingerprint ? (
                     <>
-                      Fingerprint{" "}
+                      {t("trustedSection.fingerprint")}{" "}
                       <span className="font-mono">{computer.fingerprint}</span>
                       {" · "}
                     </>
                   ) : null}
-                  Added {new Date(computer.addedAt).toLocaleDateString()}
+                  {t("trustedSection.added")}
+                  {new Date(computer.addedAt).toLocaleDateString()}
                 </>
               }
             >
               <Button
                 variant="outline"
                 disabled={removing === computer.key}
-                aria-label={`Remove ${computer.label}`}
+                aria-label={t("trustedSection.removeLabel2", {
+                  label: computer.label,
+                })}
                 onClick={() => void remove(computer.key)}
               >
-                Remove
+                {t("trustedSection.remove")}
               </Button>
             </SettingRow>
           ))}

@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,12 +35,14 @@ export function ShareAppDialog({
   /** Shares the app. */
   onShare: (port: number, label: string) => void
 }) {
+  const t = useT()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col gap-4 p-6">
-        <DialogTitle>Share an app</DialogTitle>
+        <DialogTitle>{t("shareAppDialog.shareAnApp")}</DialogTitle>
         <DialogDescription>
-          Everyone in the room can open it. Only this port is shared.
+          {t("shareAppDialog.everyoneInTheRoomCanOpenIt")}
         </DialogDescription>
         <ShareForm
           busy={busy}
@@ -64,6 +67,8 @@ function ShareForm({
   onShare: (port: number, label: string) => void
   onCancel: () => void
 }) {
+  const t = useT()
+
   const [port, setPort] = useState("")
   const [label, setLabel] = useState("")
   const number = Number(port)
@@ -82,7 +87,7 @@ function ShareForm({
       }}
     >
       <div className="flex flex-col gap-2">
-        <Label htmlFor="share-app-port">Port</Label>
+        <Label htmlFor="share-app-port">{t("shareAppDialog.port")}</Label>
         <Input
           id="share-app-port"
           inputMode="numeric"
@@ -95,11 +100,11 @@ function ShareForm({
         />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="share-app-label">Name</Label>
+        <Label htmlFor="share-app-label">{t("shareAppDialog.name")}</Label>
         <Input
           id="share-app-label"
           value={label}
-          placeholder="Dev server"
+          placeholder={t("shareAppDialog.devServer")}
           maxLength={maxLabel}
           onChange={(event) => setLabel(event.target.value)}
           autoComplete="off"
@@ -112,10 +117,10 @@ function ShareForm({
       ) : null}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
+          {t("shareAppDialog.cancel")}
         </Button>
         <Button type="submit" disabled={!valid || busy}>
-          Share
+          {t("shareAppDialog.share")}
         </Button>
       </div>
     </form>

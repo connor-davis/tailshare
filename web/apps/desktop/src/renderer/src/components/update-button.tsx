@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { RotateCwIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -24,6 +25,8 @@ import { useUpdateActions, useUpdateStatus } from "./use-update-status"
  * the update is ready.
  */
 export function UpdateButton() {
+  const t = useT()
+
   const { status } = useUpdateStatus()
   const actions = useUpdateActions()
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
@@ -35,13 +38,13 @@ export function UpdateButton() {
     <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
       {available ? (
         <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-          Update available
+          {t("updateButton.updateAvailable")}
         </Button>
       ) : null}
       {status?.state === "downloading" ? (
         <Progress
           className="mx-2 w-28"
-          aria-label="Update download"
+          aria-label={t("updateButton.updateDownload")}
           value={status.percent ?? 0}
         />
       ) : null}
@@ -52,7 +55,7 @@ export function UpdateButton() {
               variant="ghost"
               size="icon"
               className="text-primary hover:text-primary"
-              aria-label="Restart to update"
+              aria-label={t("updateButton.restartToUpdate")}
               disabled={actions.pending === "restart"}
               onClick={() => void actions.restart()}
             >
@@ -61,7 +64,9 @@ export function UpdateButton() {
           </TooltipTrigger>
           <TooltipContent>
             {actions.error ||
-              `Restart to update to ${status.version ?? "the new version"}`}
+              t("updateButton.restartVersion", {
+                version: status.version ?? t("common.newVersion"),
+              })}
           </TooltipContent>
         </Tooltip>
       ) : null}
@@ -71,9 +76,11 @@ export function UpdateButton() {
       >
         <DialogContent className="p-6 [-webkit-app-region:no-drag]">
           <DialogHeader className="pr-8">
-            <DialogTitle>What's new in {status?.version}</DialogTitle>
+            <DialogTitle>
+              {t("updateButton.whatSNewIn", { version: status?.version ?? "" })}
+            </DialogTitle>
             <DialogDescription>
-              Review the changes before downloading this update.
+              {t("updateButton.reviewTheChangesBeforeDownloadingThisUpdate")}
             </DialogDescription>
           </DialogHeader>
           {status?.state === "available" ? (
@@ -94,15 +101,15 @@ export function UpdateButton() {
                 setOpen(false)
               }}
             >
-              Not now
+              {t("updateButton.notNow")}
             </Button>
             <Button
               disabled={actions.pending === "download"}
               onClick={() => void actions.download()}
             >
               {actions.pending === "download"
-                ? "Starting download…"
-                : "Download"}
+                ? t("updateButton.startingDownload")
+                : t("updateButton.download")}
             </Button>
           </div>
         </DialogContent>

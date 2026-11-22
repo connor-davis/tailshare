@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState, type KeyboardEvent } from "react"
 import { ArrowUpIcon, ClipboardPasteIcon, PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,8 @@ export function ChatComposer({
   /** Reads the clipboard: text is sent, a picture is shared as a file. */
   onPaste: () => void
 }) {
+  const t = useT()
+
   const send = useSendChat()
   const [text, setText] = useState("")
   const value = text.trim()
@@ -72,9 +75,11 @@ export function ChatComposer({
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}
-            aria-label="Message"
+            aria-label={t("chatComposer.message")}
             placeholder={
-              connected ? "Write a message" : "Waiting for someone to join…"
+              connected
+                ? t("chatComposer.writeAMessage")
+                : t("chatComposer.waitingForSomeoneToJoin")
             }
             rows={2}
             className="max-h-48 min-h-14 border-0 bg-transparent px-4 pt-3 pb-1 focus-visible:ring-0 disabled:opacity-100"
@@ -85,7 +90,7 @@ export function ChatComposer({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Add files"
+              aria-label={t("chatComposer.addFiles")}
               disabled={!connected || busy}
               onClick={onAddFiles}
             >
@@ -97,14 +102,14 @@ export function ChatComposer({
               disabled={!connected || busy}
               onClick={onAddFolder}
             >
-              Folder
+              {t("chatComposer.folder")}
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Paste"
-              title="Send what you copied"
+              aria-label={t("chatComposer.paste")}
+              title={t("chatComposer.sendWhatYouCopied")}
               disabled={!connected || busy}
               onClick={onPaste}
             >
@@ -112,13 +117,13 @@ export function ChatComposer({
             </Button>
             <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {connected
-                ? "Enter to send, Shift+Enter for a new line"
-                : "Waiting for someone to join"}
+                ? t("chatComposer.enterToSendShiftEnterForA")
+                : t("chatComposer.waitingForSomeoneToJoin2")}
             </p>
             <Button
               type="submit"
               size="icon"
-              aria-label="Send"
+              aria-label={t("chatComposer.send")}
               className="rounded-full"
               disabled={!connected || send.isPending || value === ""}
             >

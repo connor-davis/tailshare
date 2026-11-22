@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import { useState } from "react"
 import type { Settings } from "../../../../shared/bridge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -13,13 +15,14 @@ import { apiFetch } from "@/lib/api/client"
 import { SettingList, SettingRow } from "./setting-row"
 import { Section, type SectionProps } from "./settings-fields"
 
-const regions = [
-  ["301", "NYC · New York"],
-  ["302", "SFO · San Francisco"],
-  ["303", "FRA · Frankfurt"],
-  ["304", "TOK · Tokyo"],
-  ["nearest", "Nearest"],
-] as const
+const regions = () =>
+  [
+    ["301", t("connectionSection.nycNewYork")],
+    ["302", t("connectionSection.sfoSanFrancisco")],
+    ["303", t("connectionSection.fraFrankfurt")],
+    ["304", t("connectionSection.tokTokyo")],
+    ["nearest", t("connectionSection.nearest")],
+  ] as const
 
 interface ConnectionResult {
   udp: boolean
@@ -33,6 +36,8 @@ interface ConnectionResult {
 
 /** Relay preference and an explicit, one-shot test of this computer's connection. */
 export function ConnectionSection({ settings, save, saving }: SectionProps) {
+  const t = useT()
+
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ConnectionResult | null>(null)
   const [error, setError] = useState("")
@@ -48,9 +53,7 @@ export function ConnectionSection({ settings, save, saving }: SectionProps) {
         })
       )
     } catch {
-      setError(
-        "Could not test this connection. Check your network and try again."
-      )
+      setError(t("connectionSection.couldNotTestThisConnectionCheckYour"))
     } finally {
       setBusy(false)
     }
@@ -59,20 +62,20 @@ export function ConnectionSection({ settings, save, saving }: SectionProps) {
   return (
     <Section
       id="connection-title"
-      title="Connection"
-      description="Choose a relay for your next room, or check this network."
+      title={t("connectionSection.connection")}
+      description={t("connectionSection.chooseARelayForYourNextRoom")}
     >
       <SettingList>
         <SettingRow
-          label="Relay region"
+          label={t("connectionSection.relayRegion")}
           htmlFor="relay-region"
-          description="Applies to your next room. A host outside FRA needs the other computer on Tailshare 0.1.4 or newer."
+          description={t("connectionSection.appliesToYourNextRoomAHost")}
         >
           <Select
             value={settings.relayRegion}
             disabled={saving}
             onValueChange={(value) => {
-              if (regions.some(([id]) => id === value))
+              if (regions().some(([id]) => id === value))
                 void save({ relayRegion: value as Settings["relayRegion"] })
             }}
           >
@@ -80,7 +83,7 @@ export function ConnectionSection({ settings, save, saving }: SectionProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {regions.map(([id, label]) => (
+              {regions().map(([id, label]) => (
                 <SelectItem key={id} value={id}>
                   {label}
                 </SelectItem>
@@ -90,12 +93,13 @@ export function ConnectionSection({ settings, save, saving }: SectionProps) {
         </SettingRow>
       </SettingList>
       <p className="text-sm text-muted-foreground">
-        Nearest uses the lowest measured relay latency when you open a room.
-        Joining also checks the other regions.
+        {t("connectionSection.nearestUsesTheLowestMeasuredRelayLatency")}
       </p>
       <div>
         <Button disabled={busy} onClick={() => void test()}>
-          {busy ? "Testing connection…" : "Test my connection"}
+          {busy
+            ? t("connectionSection.testingConnection")
+            : t("connectionSection.testMyConnection")}
         </Button>
       </div>
       {busy ? (
@@ -104,7 +108,7 @@ export function ConnectionSection({ settings, save, saving }: SectionProps) {
           aria-busy="true"
           className="text-sm text-muted-foreground"
         >
-          Checking UDP and relay reachability…
+          {t("connectionSection.checkingUDPAndRelayReachability")}
         </p>
       ) : null}
       {error ? (
@@ -114,23 +118,59 @@ export function ConnectionSection({ settings, save, saving }: SectionProps) {
       ) : null}
       {result ? (
         <div role="status" className="flex flex-col gap-3 text-sm">
-          <ul className="space-y-1" aria-label="Connection results">
-            <li>UDP: {result.udp ? "OK" : "No response"}</li>
-            <li>IPv4: {result.ipv4 ? "Available" : "Not observed"}</li>
-            <li>IPv6: {result.ipv6 ? "Available" : "Not observed"}</li>
-            <li>Nearest relay: {result.nearest ?? "Unknown"}</li>
+          <ul
+            className="space-y-1"
+            aria-label={t("connectionSection.connectionResults")}
+          >
             <li>
-              Network sign-in:{" "}
-              {result.captivePortal === "true" ? "May be required" : "Unknown"}
+              {t("connectionSection.udp", {
+                result: result.udp ? t("common.ok") : t("common.noResponse"),
+              })}
+            </li>
+            <li>
+              {t("connectionSection.ipv4", {
+                result: result.ipv4
+                  ? t("common.available")
+                  : t("common.notObserved"),
+              })}
+            </li>
+            <li>
+              {t("connectionSection.ipv6", {
+                result: result.ipv6
+                  ? t("common.available")
+                  : t("common.notObserved"),
+              })}
+            </li>
+            <li>
+              {t("connectionSection.nearestRelay", {
+                region: result.nearest ?? t("common.unknown"),
+              })}
+            </li>
+            <li>
+              {t("connectionSection.networkSignIn", {
+                result:
+                  result.captivePortal === "true"
+                    ? t("common.mayBeRequired")
+                    : t("common.unknown"),
+              })}
             </li>
             {result.regions.map(({ region, milliseconds }) => (
               <li key={region}>
                 {region}:{" "}
-                {milliseconds === null ? "No response" : `${milliseconds} ms`}
+                {milliseconds === null
+                  ? t("connectionSection.noResponse")
+                  : t("connectionSection.ms", { milliseconds: milliseconds })}
               </li>
             ))}
           </ul>
-          {result.hints.map((hint) => (
+          {[
+            ...(!result.udp ? [t("diagnostics.udpBlocked")] : []),
+            ...(result.captivePortal === "true"
+              ? [t("diagnostics.signIn")]
+              : []),
+            ...(!result.nearest ? [t("diagnostics.noRelay")] : []),
+            t("diagnostics.limit"),
+          ].map((hint) => (
             <p key={hint} className="text-muted-foreground">
               {hint}
             </p>

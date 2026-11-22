@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,6 +45,8 @@ export function ConfirmDialog({
   /** Runs as the dialog closes; preventDefault to place focus yourself. */
   onCloseAutoFocus?: (event: Event) => void
 }) {
+  const t = useT()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -63,7 +66,7 @@ export function ConfirmDialog({
             disabled={busy}
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("confirmDialog.cancel")}
           </Button>
           <Button variant="destructive" disabled={busy} onClick={onConfirm}>
             {busy ? busyLabel : confirmLabel}

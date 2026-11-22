@@ -85,3 +85,21 @@ if err := json.Unmarshal(body, &in); err != nil {
 | Doc comments, file size | `tests/style_test.go` |
 | TypeScript types | `tsc -b` in `task lint:web` |
 | TypeScript lint | ESLint in `task lint:web` |
+
+## Adding a string
+
+Add renderer text to `web/apps/desktop/src/renderer/src/i18n/en.ts` with a semantic
+key for its surface and purpose. In a React component, get `t` from `useT()`
+(`i18n/provider.tsx`) so settings changes rerender the text. Outside React, import
+`t` from `i18n/index.ts`. Pass named parameters for complete sentences; do not
+join translated grammar or build singular/plural suffixes. A plural entry supplies
+`one` and `other` forms and receives a numeric `count`; Intl selects the category.
+The English source infers required parameter names and types.
+
+Main uses its separate `src/main/i18n/en.ts` catalog and `t` from `main/i18n`; it
+never imports renderer code. Keep paths, protocol identifiers, user names and
+other data outside catalogs. Format numbers, sizes, dates and relative time
+through `renderer/src/lib/format.ts`. Go remains English: map stable API error
+codes in `lib/api/error-message.ts`, preserving the safe English message for
+unknown or coarse codes. Only English is selectable until translated catalogs
+are supplied; the persisted language type already includes es, fr, de and ar.

@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useRef, useState, type ReactNode } from "react"
 import { Maximize2Icon, Minimize2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,14 @@ import { RoomHeader } from "./room-header"
 import { FolderBrowseContext, type BrowseFolder } from "./folder-browse-context"
 import { RoomFolderBrowser } from "./room-folder-browser"
 import { TransfersPanel } from "./transfers-panel"
+
+const tileKeys = {
+  Files: "roomView.files",
+  People: "roomView.people",
+  Chat: "roomView.chat",
+  Transfers: "roomView.transfers",
+  Apps: "roomView.apps",
+} as const
 
 type Tile = "Files" | "People" | "Chat" | "Transfers" | "Apps"
 
@@ -47,6 +56,8 @@ export function RoomView({
   /** When the code stops working, from the sidecar. */
   expiresAt?: string | null
 }) {
+  const t = useT()
+
   const [expanded, setExpanded] = useState<Tile | null>(null)
 
   const [folder, setFolder] = useState<BrowseFolder | null>(null)
@@ -70,11 +81,11 @@ export function RoomView({
           id={`tile-${name}`}
           className="mr-auto text-xs font-extrabold tracking-widest uppercase"
         >
-          {name}
+          {t(tileKeys[name])}
         </h2>
         {name === "People" && session.role === "host" && session.join ? (
           <Badge variant="secondary" className="whitespace-normal">
-            Someone wants to join
+            {t("roomView.someoneWantsToJoin")}
           </Badge>
         ) : null}
         <Button
@@ -82,7 +93,9 @@ export function RoomView({
           variant="ghost"
           size="icon-sm"
           aria-label={
-            expanded === name ? "Return to room board" : `Expand ${name}`
+            expanded === name
+              ? t("roomView.returnToRoomBoard")
+              : t("roomView.expand", { name: t(tileKeys[name]) })
           }
           aria-expanded={expanded === name}
           onClick={() => setExpanded(expanded === name ? null : name)}
@@ -119,14 +132,14 @@ export function RoomView({
         {/* People may be below the fold or hidden by another expanded tile. */}
         {session.role === "host" && session.join && expanded !== "People" ? (
           <div className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2">
-            <p className="mr-auto">Someone wants to join.</p>
+            <p className="mr-auto">{t("roomView.someoneWantsToJoin2")}</p>
             <Button
               variant="outline"
               onClick={() => {
                 setExpanded("People")
               }}
             >
-              Review join request
+              {t("roomView.reviewJoinRequest")}
             </Button>
           </div>
         ) : null}

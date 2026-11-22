@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { randomUUID } from "node:crypto"
 import { lstatSync } from "node:fs"
 import { mkdir, rm, writeFile } from "node:fs/promises"
@@ -65,14 +66,15 @@ export interface RoomFilesHost {
 
 /** Mirrors codes.Parse, then uses its 4+4 canonical folder name. */
 export function roomFolder(roomsDir: string, value: unknown): string {
-  if (typeof value !== "string") throw new Error("That room code is not valid.")
+  if (typeof value !== "string")
+    throw new Error(t("roomIpc.thatRoomCodeIsNotValid"))
   const code = value
     .toUpperCase()
     .replace(/[- ]/g, "")
     .replace(/O/g, "0")
     .replace(/[IL]/g, "1")
   if (!/^[0-9A-HJKMNP-TV-Z]{8}$/.test(code))
-    throw new Error("That room code is not valid.")
+    throw new Error(t("roomIpc.thatRoomCodeIsNotValid"))
   return join(roomsDir, `${code.slice(0, 4)}-${code.slice(4)}`)
 }
 
@@ -80,8 +82,7 @@ export function roomFolder(roomsDir: string, value: unknown): string {
 const MAX_PASTE_BYTES = 25 * 1024 * 1024
 
 /** What the person sees when a room's own folder cannot be used. */
-const ROOM_FOLDER_GONE =
-  "This room's save folder is missing or not a folder. Choose another one for this room."
+const roomFolderGone = () => t("roomIpc.thisRoomSSaveFolderIsMissing")
 
 /** Throws unless `folder` is a real folder: no `..` part and not a link (like pickedFolder in Go). */
 function checkFolder(folder: string) {
@@ -100,7 +101,7 @@ function stamp() {
 
 /** Registers consented file copying and code-only folder opening behind sender guards. */
 export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
-  const refuse = () => new Error("Tailshare could not read that request.")
+  const refuse = () => new Error(t("roomIpc.tailshareCouldNotReadThatRequest"))
   // Lives as long as main, so it outlasts a reload of the page.
   let currentRoom: CurrentRoom | null = null
   // One call to the sidecar takes at most CHUNK paths, so a big drop is cut up.
@@ -121,7 +122,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
 
   const add = async (paths: unknown) => {
     if (!Array.isArray(paths))
-      throw new Error("Tailshare could not add those files.")
+      throw new Error(t("roomIpc.tailshareCouldNotAddThoseFiles"))
 
     const roomCode = currentRoom?.code
     // A failed chunk must not hide the others: its files are reported as skipped.
@@ -130,7 +131,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
     let failed = 0
     for (let start = 0; start < paths.length; start += CHUNK) {
       if (currentRoom?.code !== roomCode)
-        throw new Error("The open room changed. Send again.")
+        throw new Error(t("roomIpc.theOpenRoomChangedSendAgain"))
 
       const chunk = paths.slice(start, start + CHUNK)
       try {
@@ -141,14 +142,14 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
         // Schema errors can include input paths, which must stay in main.
         failed += chunk.length
         merged.skipped.push({
-          name: `${chunk.length} files`,
-          reason: "Tailshare could not add these files.",
+          name: t("roomIpc.fileCount", { count: chunk.length }),
+          reason: t("roomIpc.tailshareCouldNotAddTheseFiles"),
         })
       }
     }
 
     if (failed > 0 && failed === paths.length)
-      throw new Error("Tailshare could not add those files.")
+      throw new Error(t("roomIpc.tailshareCouldNotAddThoseFiles"))
 
     return merged
   }
@@ -156,13 +157,16 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
   // and two pastes never collide. The folder is gone once the room has a copy.
   const pasteImage = async (png: Buffer) => {
     if (png.length > MAX_PASTE_BYTES)
-      throw new Error("That picture is too big to paste. The limit is 25 MB.")
+      throw new Error(t("roomIpc.thatPictureIsTooBigToPaste"))
 
     const folder = join(files.pasteDir, randomUUID())
     try {
       await mkdir(folder, { recursive: true })
 
-      const path = join(folder, `Pasted picture ${stamp()}.png`)
+      const path = join(
+        folder,
+        t("roomIpc.pastedPictureName", { time: stamp() })
+      )
       await writeFile(path, png, { flag: "wx", mode: 0o600 })
 
       return { kind: "file" as const, result: await add([path]) }
@@ -206,7 +210,9 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
         checkFolder(folder)
       } catch {
         throw new Error(
-          room === folder ? ROOM_FOLDER_GONE : "Choose a downloads folder."
+          room === folder
+            ? roomFolderGone()
+            : t("roomIpc.chooseADownloadsFolder")
         )
       }
 
@@ -236,7 +242,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       try {
         checkFolder(room)
       } catch {
-        throw new Error(ROOM_FOLDER_GONE)
+        throw new Error(roomFolderGone())
       }
 
       return remember(await files.saveInto({ ...request, folder: room }), room)
@@ -292,9 +298,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       try {
         checkFolder(request.folder)
       } catch {
-        throw new Error(
-          "Choose a real folder, not a shortcut or a missing one."
-        )
+        throw new Error(t("roomIpc.chooseARealFolderNotAShortcut"))
       }
     }
 
@@ -346,7 +350,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
     if (!senderOk || args.length !== 1) throw refuse()
 
     const error = await files.openPath(roomFolder(files.roomsDir, args[0]))
-    if (error) throw new Error("Could not open the room folder.")
+    if (error) throw new Error(t("roomIpc.couldNotOpenTheRoomFolder"))
   })
 
   return { add, currentRoom: () => currentRoom }
@@ -380,7 +384,7 @@ export async function callMainApi(
     route === "/api/session/trusted"
   const get = route === "/api/session" || route.endsWith("/key")
 
-  const generic = "Tailshare could not complete that file request."
+  const generic = t("roomIpc.tailshareCouldNotCompleteThatFileRequest")
 
   let response: Response
   try {

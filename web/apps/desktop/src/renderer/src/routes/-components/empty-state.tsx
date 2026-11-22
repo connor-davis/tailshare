@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { Button } from "@/components/ui/button"
 import { JoinForm } from "./join-form"
 
@@ -20,14 +21,18 @@ export function EmptyState({
   /** Joins with the bare code. */
   onJoin: (code: string) => void
 }) {
+  const t = useT()
+
   return (
     <div className="spaces-hero overflow-hidden rounded-lg bg-chrome text-chrome-foreground">
       <div className="spaces-hazard" />
       <div className="grid gap-6 p-7 lg:grid-cols-[1.3fr_1fr] lg:items-center">
         <div className="flex flex-col items-start gap-4">
-          <h1 className="text-2xl font-semibold">Share files with a friend</h1>
+          <h1 className="text-2xl font-semibold">
+            {t("emptyState.shareFilesWithAFriend")}
+          </h1>
           <p className="max-w-md text-chrome-muted">
-            Create a room and send the link, or join one with a code.
+            {t("emptyState.createARoomAndSendTheLink")}
           </p>
           <Button
             size="lg"
@@ -35,11 +40,11 @@ export function EmptyState({
             disabled={!enabled || busy}
             onClick={onCreate}
           >
-            {busy ? "Working…" : "Create room"}
+            {busy ? t("emptyState.working") : t("emptyState.createRoom")}
           </Button>
           {!enabled ? (
             <p className="text-xs text-chrome-muted">
-              Leave this room first to create or join another.
+              {t("emptyState.leaveThisRoomFirstToCreateOr")}
             </p>
           ) : null}
         </div>

@@ -323,7 +323,7 @@ describe("file cards", () => {
     render(<RoomChat />)
 
     expect(screen.getByText("plan.pdf")).toBeTruthy()
-    expect(screen.getByText("2.0 KB")).toBeTruthy()
+    expect(screen.getByText("2.0 kB")).toBeTruthy()
     expect(screen.getByText("Shared")).toBeTruthy()
     expect(screen.queryByRole("button", { name: /Download/ })).toBeNull()
   })

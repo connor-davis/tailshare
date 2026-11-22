@@ -4,6 +4,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -25,9 +26,10 @@ afterEach(() => {
 })
 
 describe("settings", () => {
-  it("starts with the defaults and creates no file", () => {
+  it("starts with defaults and persists the resolved language", () => {
     const path = directory()
     expect(open(path).get()).toEqual({
+      language: "en",
       updateChannel: "latest",
       relayRegion: "303",
       displayName: "BOX",
@@ -44,7 +46,7 @@ describe("settings", () => {
       notifications: true,
       trustedComputers: [],
     })
-    expect(readdirSync(path)).toEqual([])
+    expect(readdirSync(path)).toEqual(["settings.json"])
   })
 
   it("saves trusted computers, keeps them after a restart, and skips bad ones", () => {
@@ -101,7 +103,7 @@ describe("settings", () => {
       const path = directory()
       writeFileSync(join(path, "settings.json"), contents)
       expect(open(path).get()).toEqual(defaultSettings(machine))
-      expect(readdirSync(path)).toEqual(["settings.json.bak"])
+      expect(readdirSync(path)).toEqual(["settings.json", "settings.json.bak"])
       expect(readFileSync(join(path, "settings.json.bak"), "utf8")).toBe(
         contents
       )
@@ -182,7 +184,7 @@ describe("settings", () => {
 
     expect(settings.get()).toEqual(defaultSettings(machine))
     expect(listener).not.toHaveBeenCalled()
-    expect(readdirSync(path)).toEqual([])
+    expect(readdirSync(path)).toEqual(["settings.json"])
   })
 
   it.each([[[]], [null], ["x"]])("refuses %j as a patch", (patch) => {
@@ -203,6 +205,7 @@ describe("settings", () => {
     const settings = open(path)
     const listener = vi.fn()
     settings.onChange(listener)
+    unlinkSync(join(path, "settings.json"))
     mkdirSync(join(path, "settings.json"))
 
     expect(() => settings.update({ mica: false })).toThrow("could not save")
@@ -211,4 +214,19 @@ describe("settings", () => {
     expect(listener).not.toHaveBeenCalled()
     expect(readdirSync(path)).toEqual(["settings.json"])
   })
+})
+
+it("persists the OS default once, migrates old settings, and keeps an explicit choice", () => {
+  const path = directory()
+  writeFileSync(join(path, "settings.json"), JSON.stringify({ theme: "dark" }))
+  const first = openSettings(path, { ...machine, locale: "fr-CA" })
+  expect(first.get()).toMatchObject({ language: "fr", theme: "dark" })
+  expect(
+    openSettings(path, { ...machine, locale: "de-DE" }).get().language
+  ).toBe("fr")
+  first.update({ language: "ar" })
+  expect(
+    openSettings(path, { ...machine, locale: "en-US" }).get().language
+  ).toBe("ar")
+  expect(() => first.update({ language: "xx" })).toThrow("not valid")
 })

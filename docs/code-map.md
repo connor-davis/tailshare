@@ -243,3 +243,16 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Cancellable source/partial hashes and size-scaled download offer deadline | `internal/services/transfer/send.go`, `receive.go`, `run.go` |
 | Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |
 | Backend audit regressions, offline network abuse checks and actual Windows short alias | `internal/services/{share,peer,mesh,session,transfer}/audit*_test.go`, `internal/api/audit_test.go` |
+
+## Desktop language catalogs
+
+Paths below are under `web/apps/desktop/src/`.
+
+| Job                                                                                                        | Owner                                                                                                |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Supported language values, OS locale normalization, typed interpolation and Intl cardinal plural selection | `shared/i18n.ts`; `shared/i18n.test.ts`                                                              |
+| English UI source catalog, current locale and non-React translator                                         | `renderer/src/i18n/en.ts`, `renderer/src/i18n/index.ts`                                              |
+| Settings-backed locale subscription and React locale/translation hooks                                     | `renderer/src/i18n/provider.tsx`; `provider.test.tsx`                                                |
+| Native tray, toast, Explorer, dialog and safe IPC English catalog                                          | `main/i18n/en.ts`, `main/i18n/index.ts`; settings startup and native menu refresh in `main/index.ts` |
+| English-only language picker in Settings > App                                                             | `renderer/src/components/settings/settings-language.tsx`                                             |
+| Stable API error code to catalog key mapping, with English fallback for unknown or coarse codes            | `renderer/src/lib/api/error-message.ts`; `error-message.test.ts`                                     |

@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../../i18n/index"
 import { useEffect, useState } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
@@ -5,15 +7,15 @@ import { useTransferAction } from "@/lib/api/transfers"
 import type { TransferState, TransferView } from "@/lib/api/types"
 import { formatSpeed, percent } from "@/lib/format"
 
-const STATE_WORDS: Record<TransferState, string> = {
-  queued: "Queued",
-  starting: "Starting",
-  running: "Running",
-  paused: "Paused",
-  done: "Done",
-  failed: "Failed",
-  canceled: "Canceled",
-}
+const stateWords = (): Record<TransferState, string> => ({
+  queued: t("transferRow.queued"),
+  starting: t("transferRow.starting"),
+  running: t("transferRow.running"),
+  paused: t("transferRow.paused"),
+  done: t("transferRow.done"),
+  failed: t("transferRow.failed"),
+  canceled: t("transferRow.canceled"),
+})
 
 /** Last part of a path with either kind of slash. */
 export function baseName(path: string): string {
@@ -67,6 +69,8 @@ export function TransferRow({
   /** The transfer to show. */
   item: TransferView
 }) {
+  const t = useT()
+
   const retrySeconds = useRetrySeconds(item.retryAt)
   const action = useTransferAction()
   const name = baseName(item.source)
@@ -81,7 +85,7 @@ export function TransferRow({
     <li
       className="flex flex-col gap-1 border-b px-3 py-2"
       draggable={draggable || undefined}
-      title={draggable ? "Drag this file to a folder" : undefined}
+      title={draggable ? t("transferRow.dragThisFileToAFolder") : undefined}
       onDragStart={
         draggable
           ? (event) => {
@@ -96,7 +100,9 @@ export function TransferRow({
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="w-20 shrink-0 text-xs text-muted-foreground">
-          {item.direction === "upload" ? "Upload" : "Download"}
+          {item.direction === "upload"
+            ? t("transferRow.upload")
+            : t("transferRow.download")}
         </span>
         <span className="min-w-32 flex-1 basis-40 truncate" title={item.source}>
           {name}
@@ -104,79 +110,84 @@ export function TransferRow({
         <Progress
           className="h-1.5 w-32 shrink-0"
           value={done}
-          aria-label={`${name} progress`}
+          aria-label={t("transferRow.progress", { name: name })}
         />
         <span className="w-32 shrink-0 text-xs tabular-nums">
           {done}% ·{" "}
           {formatSpeed(item.state === "running" ? item.speed : undefined)}
         </span>
         <span className="w-20 shrink-0 text-xs font-medium">
-          {STATE_WORDS[item.state]}
+          {stateWords()[item.state]}
         </span>
         <span className="ml-auto flex shrink-0 gap-1">
           {running ? (
             <Button
               size="sm"
               variant="outline"
-              aria-label={`Pause ${name}`}
+              aria-label={t("transferRow.pauseLabel", { name: name })}
               onClick={() => act("pause")}
             >
-              Pause
+              {t("transferRow.pause")}
             </Button>
           ) : null}
           {item.state === "paused" ? (
             <Button
               size="sm"
               variant="outline"
-              aria-label={`Resume ${name}`}
+              aria-label={t("transferRow.resumeLabel", { name: name })}
               onClick={() => act("resume")}
             >
-              Resume
+              {t("transferRow.resume")}
             </Button>
           ) : null}
           {item.state === "failed" && retrySeconds === null ? (
             <Button
               size="sm"
               variant="outline"
-              aria-label={`Retry ${name}`}
+              aria-label={t("transferRow.retryLabel", { name: name })}
               onClick={() => act("resume")}
             >
-              Retry
+              {t("transferRow.retry")}
             </Button>
           ) : null}
           {draggable ? (
             <Button
               size="sm"
               variant="outline"
-              aria-label={`Show file ${name}`}
+              aria-label={t("transferRow.showFileLabel", { name: name })}
               onClick={() =>
                 Promise.resolve(window.tailshare.revealDownload(item.id)).catch(
                   () => {}
                 )
               }
             >
-              Show file
+              {t("transferRow.showFile")}
             </Button>
           ) : null}
           {running || item.state === "paused" ? (
             <Button
               size="sm"
               variant="outline"
-              aria-label={`Cancel ${name}`}
+              aria-label={t("transferRow.cancelLabel", { name: name })}
               onClick={() => act("cancel")}
             >
-              Cancel
+              {t("transferRow.cancel")}
             </Button>
           ) : null}
         </span>
       </div>
       {retrySeconds !== null ? (
         <p className="pl-23 text-xs text-muted-foreground">
-          Retrying in {retrySeconds} s (try {(item.attempt ?? 0) + 1})
+          {t("transferRow.retryCountdown", {
+            seconds: retrySeconds,
+            attempt: (item.attempt ?? 0) + 1,
+          })}
         </p>
       ) : null}
       {item.error ? (
-        <p className="pl-23 text-xs text-destructive">Failed: {item.error}</p>
+        <p className="pl-23 text-xs text-destructive">
+          {t("transferRow.failedError2", { error: item.error })}
+        </p>
       ) : null}
       {action.error ? (
         <p role="alert" className="pl-23 text-xs text-destructive">

@@ -17,6 +17,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { SettingsDialogProvider, useOpenSettings } from "./settings-dialog"
 
 const saved: Settings = {
+  language: "en",
   relayRegion: "303",
   notifications: true,
   updateChannel: "latest",

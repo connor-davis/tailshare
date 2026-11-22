@@ -1,8 +1,10 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import { useEffect, useRef, useState } from "react"
 import type { Settings, SettingsPatch } from "../../../../shared/bridge"
 
 /** What the settings page shows when a save is refused. */
-const SAVE_FAILED = "Could not save that. Check the value and try again."
+const saveFailed = () => t("useSettings.couldNotSaveThatCheckTheValue")
 
 /** The saved settings and a way to change them, kept in step with main. */
 export interface SettingsHandle {
@@ -23,6 +25,8 @@ export interface SettingsHandle {
  * Main checks every patch, so the page never writes a half-saved state.
  */
 export function useSettings(): SettingsHandle {
+  const t = useT()
+
   const [settings, setSettings] = useState<Settings | null>(null)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
@@ -43,9 +47,7 @@ export function useSettings(): SettingsHandle {
       },
       () => {
         if (alive)
-          setError(
-            "Could not load your settings. Reopen Tailshare to try again."
-          )
+          setError(t("useSettings.couldNotLoadYourSettingsReopenTailshare"))
       }
     )
 
@@ -53,7 +55,7 @@ export function useSettings(): SettingsHandle {
       alive = false
       unsubscribe()
     }
-  }, [])
+  }, [t])
 
   async function save(patch: SettingsPatch): Promise<boolean> {
     setSaving(true)
@@ -65,7 +67,7 @@ export function useSettings(): SettingsHandle {
       return true
     } catch {
       // Raw errors never reach the screen.
-      setError(SAVE_FAILED)
+      setError(saveFailed())
 
       return false
     } finally {
