@@ -27,7 +27,7 @@ func TestAuditChatSubscriptionRecovers(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	go f.server.forwardChat(local, subscription)
+	go f.server.forwardChat(f.server.active, local, subscription)
 	eventually(t, "overflow recovery", func() bool {
 		f.server.hub.mu.Lock()
 		defer f.server.hub.mu.Unlock()

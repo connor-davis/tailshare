@@ -12,12 +12,21 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// connectedPeer returns the open conversation, or a conflict if there is none.
-func (server *Server) connectedPeer() (*peer.Peer, error) {
+// connectedPeer returns the request's room's open conversation, or a conflict if there is none.
+func (server *Server) connectedPeer(c fiber.Ctx) (*peer.Peer, error) {
+	current, err := server.roomFor(c)
+	if err != nil {
+		return nil, err
+	}
+
+	return server.peerOf(current)
+}
+
+// peerOf returns the room's open conversation, or a conflict if there is none.
+func (server *Server) peerOf(current *room) (*peer.Peer, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	current := server.activeLocked()
 	if current == nil {
 		return nil, errNotConnected()
 	}
@@ -42,7 +51,12 @@ func (server *Server) postChat(c fiber.Ctx) error {
 		return apperr.BadRequest("The request could not be understood.")
 	}
 
-	other, err := server.connectedPeer()
+	selected, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
+
+	other, err := server.peerOf(selected)
 	if err != nil {
 		return err
 	}
@@ -57,13 +71,7 @@ func (server *Server) postChat(c fiber.Ctx) error {
 		}
 
 		server.mu.Lock()
-		current := server.activeLocked()
-		if current == nil {
-			server.mu.Unlock()
-			return errNotConnected()
-		}
-
-		root := current.root
+		root := selected.root
 		if root == nil {
 			server.mu.Unlock()
 
@@ -149,7 +157,7 @@ func chatError(other *peer.Peer, err error) error {
 }
 
 func (server *Server) getChat(c fiber.Ctx) error {
-	other, err := server.connectedPeer()
+	other, err := server.connectedPeer(c)
 	if err != nil {
 		return err
 	}

@@ -30,15 +30,22 @@ type Event struct {
 	Type string `json:"type"`
 	// Data is the payload for Type; its shape depends on Type.
 	Data any `json:"data"`
+	// Room is the canonical code of the room the event is about. It is left
+	// out for events that belong to the whole computer.
+	Room string `json:"room,omitempty"`
 }
 
 // Snapshot is the data of the first live message: everything the screen needs
-// to draw itself before any event arrives. Chat is not included; read it from
-// /api/chat.
+// to draw itself before any event arrives. Session, Transfers and Forwards
+// are the active room's. Chat is not included; read it from /api/chat.
 type Snapshot struct {
 	Session   SessionState   `json:"session"`
 	Transfers []TransferItem `json:"transfers"`
 	Forwards  forward.State  `json:"forwards"`
+	// Rooms is every open room, ordered by code.
+	Rooms []SessionState `json:"rooms"`
+	// Active is the code of the room the screen shows. Empty when none is open.
+	Active string `json:"active"`
 }
 
 // client is one open live socket.
@@ -91,9 +98,14 @@ func (h *hub) remove(gone *client) {
 // publish sends one event to every client. A client whose queue is full is
 // dropped, and its socket is closed so a stuck write ends too.
 func (h *hub) publish(kind string, data any) {
+	h.publishRoom("", kind, data)
+}
+
+// publishRoom is publish for an event about one room.
+func (h *hub) publishRoom(room, kind string, data any) {
 	h.mu.Lock()
 	h.seq++
-	message := encode(Event{Seq: h.seq, Type: kind, Data: data})
+	message := encode(Event{Seq: h.seq, Type: kind, Data: data, Room: room})
 
 	var dropped []*client
 	for live := range h.clients {
@@ -141,10 +153,14 @@ func encode(event Event) []byte {
 }
 
 func (server *Server) snapshot() any {
+	active, rooms := server.roomsState()
+
 	return Snapshot{
 		Session:   server.sessionState(),
 		Transfers: server.transferList(),
 		Forwards:  server.forwardState(),
+		Rooms:     rooms,
+		Active:    active,
 	}
 }
 

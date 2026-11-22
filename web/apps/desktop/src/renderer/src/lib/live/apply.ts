@@ -114,11 +114,26 @@ function toast(kind: "join" | "done" | "failed", name: string): void {
   }
 }
 
+// A second room must not overwrite the one on screen. An idle screen shows no
+// room, so anything may start one.
+function aboutOtherRoom(client: QueryClient, event: LiveEvent): boolean {
+  const open = client.getQueryData<SessionState>(keys.session)
+
+  return (
+    !!event.room &&
+    !!open?.room &&
+    open.state !== "idle" &&
+    event.room !== open.room
+  )
+}
+
 /**
  * Turn one live message into cache updates. This is the only place live data
  * enters the screens. A snapshot always comes first on a new socket.
  */
 export function applyEvent(client: QueryClient, event: LiveEvent): void {
+  if (event.type !== "snapshot" && aboutOtherRoom(client, event)) return
+
   switch (event.type) {
     case "snapshot": {
       const snapshot = event.data as Snapshot

@@ -30,6 +30,8 @@ export interface SessionMember {
 
 /** The session as the sidecar reports it (`GET /api/session`). */
 export interface SessionState {
+  /** The room's canonical code, for every role. Missing when no room is open. */
+  room?: string
   /** Current phase. */
   state: SessionPhase
   /** Which side this computer is, once a session is set up. */
@@ -162,6 +164,10 @@ export interface Snapshot {
   transfers: TransferItem[]
   /** Shared apps. Missing when the sidecar is older than apps. */
   forwards?: ForwardState
+  /** Every open room, by code. Missing when the sidecar is older than rooms. */
+  rooms?: SessionState[]
+  /** Code of the room `session` describes. Empty when none is open. */
+  active?: string
 }
 
 /** The one shape of every live message. */
@@ -172,4 +178,6 @@ export interface LiveEvent {
   type: string
   /** The payload; its shape depends on `type`. */
   data: unknown
+  /** Code of the room the event is about. Missing for events about the whole computer. */
+  room?: string
 }

@@ -96,6 +96,59 @@ describe("applyEvent", () => {
     expect(client.getQueryData(keys.session)).toEqual(connected)
   })
 
+  it("ignores events about a room that is not on screen", () => {
+    const client = new QueryClient()
+    const open: SessionState = { ...connected, room: "7K3Q-9PXM" }
+    client.setQueryData(keys.session, open)
+    client.setQueryData(keys.chat, [chat("a")])
+    client.setQueryData(keys.transfers, [])
+
+    const other = { room: "8K3Q-9PXM" }
+    applyEvent(client, {
+      seq: 1,
+      ...other,
+      type: "session.state",
+      data: { state: "idle", room: "8K3Q-9PXM" },
+    })
+    applyEvent(client, {
+      seq: 2,
+      ...other,
+      type: "chat.message",
+      data: chat("b"),
+    })
+    applyEvent(client, {
+      seq: 3,
+      ...other,
+      type: "transfer.state",
+      data: item(),
+    })
+
+    expect(client.getQueryData(keys.session)).toEqual(open)
+    expect(client.getQueryData<ChatMessage[]>(keys.chat)).toHaveLength(1)
+    expect(client.getQueryData<TransferView[]>(keys.transfers)).toEqual([])
+
+    // The open room's own events and events with no room still land.
+    applyEvent(client, {
+      seq: 4,
+      room: "7K3Q-9PXM",
+      type: "chat.message",
+      data: chat("c"),
+    })
+    applyEvent(client, { seq: 5, type: "chat.message", data: chat("d") })
+    expect(client.getQueryData<ChatMessage[]>(keys.chat)).toHaveLength(3)
+
+    // When the open room ends the idle screen takes the next room.
+    applyEvent(client, {
+      seq: 6,
+      room: "7K3Q-9PXM",
+      type: "session.state",
+      data: { state: "idle", room: "7K3Q-9PXM" },
+    })
+    const next: SessionState = { ...connected, room: "8K3Q-9PXM" }
+    applyEvent(client, { seq: 7, ...other, type: "session.state", data: next })
+    expect(client.getQueryData(keys.session)).toEqual(next)
+  })
+
   it("forgets chat when the session goes idle", () => {
     const client = new QueryClient()
     client.setQueryData(keys.chat, [chat("a")])

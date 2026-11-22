@@ -158,13 +158,15 @@ func (server *Server) roomPreview(c fiber.Ctx) error {
 	// Leave waits for readers, so the folder cannot close under this read.
 	server.roomIO.RLock()
 	defer server.roomIO.RUnlock()
-	server.mu.Lock()
-	current := server.activeLocked()
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
 	if current == nil {
-		server.mu.Unlock()
 		return errNotConnected()
 	}
 
+	server.mu.Lock()
 	root := current.root
 	server.mu.Unlock()
 	if root == nil {

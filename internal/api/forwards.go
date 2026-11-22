@@ -12,7 +12,7 @@ import (
 // newForwards makes the room's port forwards. Their changes go to the live socket.
 func (server *Server) newForwards(current *room) *forward.Forwards {
 	return forward.New(func() {
-		server.hub.publish("forward.changed", server.roomForwardState(current))
+		server.hub.publishRoom(current.code, "forward.changed", server.roomForwardState(current))
 	})
 }
 
@@ -32,23 +32,6 @@ func (server *Server) attachForwards(sess *session.Session, forwards *forward.Fo
 	if err := forwards.Attach(sess); err != nil {
 		// Only a repeated registration fails, which is a bug, not a user error.
 		forwards.Close()
-	}
-}
-
-// syncRoomFeatures follows room membership for apps.
-func (server *Server) syncRoomFeatures() {
-	server.mu.Lock()
-	current := server.activeLocked()
-	if current == nil {
-		server.mu.Unlock()
-		return
-	}
-
-	forwards := current.forwards
-	server.mu.Unlock()
-
-	if forwards != nil {
-		forwards.Sync()
 	}
 }
 
@@ -75,12 +58,16 @@ func (server *Server) roomForwardState(current *room) forward.State {
 	return forwards.State()
 }
 
-// currentForwards returns the room's forwards, or a conflict when there is no room.
-func (server *Server) currentForwards() (*forward.Forwards, error) {
+// currentForwards returns the request's room's forwards, or a conflict when there is no room.
+func (server *Server) currentForwards(c fiber.Ctx) (*forward.Forwards, error) {
+	current, err := server.roomFor(c)
+	if err != nil {
+		return nil, err
+	}
+
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	current := server.activeLocked()
 	if current == nil {
 		return nil, errNotConnected()
 	}
@@ -93,7 +80,12 @@ func (server *Server) currentForwards() (*forward.Forwards, error) {
 }
 
 func (server *Server) listForwards(c fiber.Ctx) error {
-	return c.JSON(server.forwardState())
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(server.roomForwardState(current))
 }
 
 func (server *Server) shareForward(c fiber.Ctx) error {
@@ -105,7 +97,7 @@ func (server *Server) shareForward(c fiber.Ctx) error {
 		return apperr.BadRequest("The request could not be understood.")
 	}
 
-	forwards, err := server.currentForwards()
+	forwards, err := server.currentForwards(c)
 	if err != nil {
 		return err
 	}
@@ -119,7 +111,7 @@ func (server *Server) shareForward(c fiber.Ctx) error {
 }
 
 func (server *Server) stopForward(c fiber.Ctx) error {
-	forwards, err := server.currentForwards()
+	forwards, err := server.currentForwards(c)
 	if err != nil {
 		return err
 	}
@@ -131,7 +123,7 @@ func (server *Server) stopForward(c fiber.Ctx) error {
 }
 
 func (server *Server) openForward(c fiber.Ctx) error {
-	forwards, err := server.currentForwards()
+	forwards, err := server.currentForwards(c)
 	if err != nil {
 		return err
 	}
@@ -145,7 +137,7 @@ func (server *Server) openForward(c fiber.Ctx) error {
 }
 
 func (server *Server) closeForward(c fiber.Ctx) error {
-	forwards, err := server.currentForwards()
+	forwards, err := server.currentForwards(c)
 	if err != nil {
 		return err
 	}

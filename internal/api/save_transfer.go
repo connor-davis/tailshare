@@ -34,7 +34,7 @@ func pickedFolder(folder string) error {
 // saveTransfer starts a download into a folder the person just picked in the Save dialog.
 // Only the main process may call it, because the renderer never sends folder paths.
 func (server *Server) saveTransfer(c fiber.Ctx) error {
-	transfers, err := server.currentTransfers()
+	transfers, err := server.currentTransfers(c)
 	if err != nil {
 		return err
 	}

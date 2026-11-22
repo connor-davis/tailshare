@@ -167,6 +167,9 @@ func (server *Server) routes() {
 	api.Post("/connection/test", server.testConnection)
 	api.Get("/live", server.liveHandler())
 
+	api.Get("/rooms", server.listRooms)
+	api.Post("/rooms/active", server.putActiveRoom)
+
 	api.Get("/session", server.getSession)
 	api.Post("/session/host", server.hostSession)
 	api.Post("/session/join", server.joinSession)

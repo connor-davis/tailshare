@@ -327,7 +327,7 @@ func TestSharedFolderChangeBecomesFilesChanged(t *testing.T) {
 	f := newFixture(t, config.Config{}, nil)
 	fake := f.connectPipe()
 	local := f.server.activeLocked().peer
-	go f.server.forwardChat(local, local.Subscribe())
+	go f.server.forwardChat(f.server.active, local, local.Subscribe())
 	live := f.dialLive()
 	defer live.Close()
 	next(t, live)
