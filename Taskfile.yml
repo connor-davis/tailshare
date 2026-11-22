@@ -114,3 +114,15 @@ tasks:
     desc: Build the desktop bundles
     cmds:
       - cd web && npx turbo run build
+
+  mobile:aar:
+    desc: Build the Go phone library (CI only; needs gomobile, JDK 17 and the Android NDK)
+    cmds:
+      - gomobile bind -target=android/arm64,android/amd64 -androidapi 24 -o web/apps/mobile/modules/tailshare-core/android/libs/tailshare.aar ./internal/mobile/tailshare
+
+  mobile:apk:
+    desc: Build the Android APK from the Go library and the Expo app (CI only, never in check)
+    cmds:
+      - task: mobile:aar
+      - cd web/apps/mobile && npx expo prebuild --platform android --no-install --clean
+      - cd web/apps/mobile/android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,x86_64

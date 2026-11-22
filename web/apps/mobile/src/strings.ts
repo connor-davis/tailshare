@@ -1,0 +1,18 @@
+/** Every word on screen, in one place so translations can slot in later. */
+export const strings = {
+  title: "Tailshare",
+  codeLabel: "Share code",
+  codeHint: "Type the code shown on the other computer",
+  join: "Join",
+  cancel: "Cancel",
+  waiting: "Waiting for the other computer to say yes…",
+  leave: "Leave",
+  up: "Up one folder",
+  empty: "This folder is empty.",
+  loading: "Loading…",
+  retry: "Try again",
+  folder: "Folder",
+  bytes: "bytes",
+  noCode: "Type the share code first.",
+  phoneName: "Tailshare phone",
+} as const
