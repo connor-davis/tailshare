@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   joinMutate: vi.fn(),
   announce: vi.fn(),
   leaveMutate: vi.fn(),
+  activateMutate: vi.fn(),
   joinError: null as Error | null,
 }))
 const { hostMutate, joinMutate } = mocks
@@ -34,6 +35,13 @@ vi.mock("@/lib/api/session", () => {
 
   return {
     useSession: () => ({ data: session }),
+    useRooms: () => ({
+      data: {
+        active: session?.room ?? "",
+        rooms: session?.room ? [session] : [],
+      },
+    }),
+    useActivateRoom: action(mocks.activateMutate),
     useHost: action(mocks.hostMutate),
     useJoin: () => ({
       mutate: mocks.joinMutate,
@@ -291,7 +299,7 @@ describe("shell", () => {
     expect(joinMutate).toHaveBeenCalledWith("7K3Q9PXM", expect.anything())
   })
 
-  it("does not join a held link when a room is already open", () => {
+  it("joins a held link while another room is open", () => {
     session = undefined
     const view = shell()
     joinLink("7K3Q9PXM")
@@ -299,7 +307,7 @@ describe("shell", () => {
     session = { state: "hosting", role: "host", code: "ABCD2345" }
     view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
 
-    expect(joinMutate).not.toHaveBeenCalled()
+    expect(joinMutate).toHaveBeenCalledWith("7K3Q9PXM", expect.anything())
   })
 
   it("keeps People and approval visible despite retired member visibility", () => {
@@ -448,4 +456,51 @@ describe("shell", () => {
         .filter((bar) => bar.className.includes("pr-[138px]"))
     ).toHaveLength(1)
   })
+})
+
+it("switches to a room already opened by a deep link", () => {
+  session = {
+    state: "hosting",
+    role: "host",
+    room: "7K3Q-9PXM",
+    code: "7K3Q-9PXM",
+  }
+  shell()
+  act(() => joinLink("7K3Q9PXM"))
+  expect(mocks.activateMutate).toHaveBeenCalledWith(
+    "7K3Q9PXM",
+    expect.anything()
+  )
+  expect(joinMutate).not.toHaveBeenCalled()
+})
+
+it("syncs main to each selected room and leaves with the selected code", async () => {
+  session = {
+    state: "hosting",
+    role: "host",
+    room: "7K3Q-9PXM",
+    roomName: "First",
+  }
+  const view = shell()
+  await waitFor(() =>
+    expect(setCurrentRoom).toHaveBeenLastCalledWith({
+      name: "First",
+      code: "7K3Q-9PXM",
+    })
+  )
+  session = {
+    state: "hosting",
+    role: "host",
+    room: "8K3Q-9PXM",
+    roomName: "Second",
+  }
+  view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+  await waitFor(() =>
+    expect(setCurrentRoom).toHaveBeenLastCalledWith({
+      name: "Second",
+      code: "8K3Q-9PXM",
+    })
+  )
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+  expect(mocks.leaveMutate).toHaveBeenCalledWith("8K3Q-9PXM", expect.anything())
 })

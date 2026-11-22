@@ -116,7 +116,6 @@ export const ar = {
   "common.newVersion": "الإصدار الجديد",
   "common.my": "الخاص بي",
   "roomFiles.waitToShare": "يمكنك مشاركة الملفات بعد انضمام شخص آخر.",
-  "railRoomRow.leaveFirst": "غادر هذه الغرفة أولًا للعودة إلى أخرى.",
   "fileCard.downloadFile": "تنزيل {name}",
   "fileCard.downloadFileAgain": "تنزيل {name} مجددًا",
   "roomView.files": "الملفات",
@@ -347,8 +346,6 @@ export const ar = {
     "أنشئ غرفة وأرسل الرابط، أو انضم باستخدام رمز.",
   "emptyState.working": "جارٍ العمل…",
   "emptyState.createRoom": "إنشاء غرفة",
-  "emptyState.leaveThisRoomFirstToCreateOr":
-    "غادر هذه الغرفة أولًا لإنشاء أخرى أو الانضمام إليها.",
   "fileCard.shared": "مشترك",
   "fileCard.addedToTransfers": "أُضيف إلى عمليات النقل",
   "fileCard.progress": "تقدم {name}",
@@ -378,8 +375,6 @@ export const ar = {
   "homeBoard.savedOnThisComputer": "محفوظة على هذا الجهاز",
   "homeBoard.recent": "الأخيرة",
   "homeBoard.lastSeen": "آخر ظهور {time}",
-  "homeBoard.leaveThisRoomFirstToRejoinAnother":
-    "غادر هذه الغرفة أولًا للعودة إلى أخرى.",
   "homeBoard.rejoin": "العودة للانضمام",
   "homeBoard.rejoinLabel": "العودة إلى {name}",
   "homeBoard.reopen": "إعادة فتح",
@@ -507,9 +502,6 @@ export const ar = {
   "roomSidebar.home": "الرئيسية",
   "roomSidebar.searchRooms": "البحث عن غرف",
   "roomSidebar.newRoom": "غرفة جديدة",
-  "roomSidebar.leaveThisRoomToStartAnother": "غادر هذه الغرفة لبدء أخرى.",
-  "roomSidebar.leaveThisRoomToJoinAnother":
-    "غادر هذه الغرفة للانضمام إلى أخرى.",
   "roomSidebar.openHostRoom": "فتح {name}، المضيف، الغرفة الحالية",
   "roomSidebar.openJoinedRoom": "فتح {name}، منضم، الغرفة الحالية",
   "roomSidebar.openNow": "مفتوحة الآن: ",
@@ -554,7 +546,6 @@ export const ar = {
   "index.thatCodeRanOutShowANew": "انتهت صلاحية هذا الرمز. اعرض رمزًا جديدًا.",
   "index.theOtherComputerLeftTheRoom": "غادر الجهاز الآخر الغرفة.",
   "index.connected": "متصل.",
-  "index.leaveTheOpenRoomFirst": "غادر الغرفة المفتوحة أولًا.",
   "index.someoneWantsToJoinOpenPeopleTo":
     "شخص يريد الانضمام. افتح «الأشخاص» للرد.",
   "index.joined": "انضم {name}.",

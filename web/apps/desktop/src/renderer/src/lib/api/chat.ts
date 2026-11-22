@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { appendChat, mergeChat } from "../live/apply"
 import { apiFetch } from "./client"
 import { keys } from "./keys"
-import type { ChatMessage } from "./types"
+import type { ChatMessage, SessionState } from "./types"
 
 /**
  * Chat so far. It lives in the query cache only: no persister is ever added,
@@ -32,6 +32,8 @@ export function useChat(enabled: boolean) {
 export interface ChatDraft {
   /** The words. May be empty when there is an attachment. */
   text: string
+  /** Destination captured before an import can outlast a switch. */
+  room?: string
   /** Path inside this computer's room folder; the sidecar fills name and size. */
   attachment?: { path: string }
 }
@@ -43,6 +45,12 @@ export function useSendChat() {
   return useMutation({
     mutationFn: (draft: ChatDraft) =>
       apiFetch<ChatMessage>("/api/chat", { method: "POST", body: draft }),
-    onSuccess: (message) => appendChat(client, message),
+    onSuccess: (message, draft) => {
+      if (
+        !draft.room ||
+        draft.room === client.getQueryData<SessionState>(keys.session)?.room
+      )
+        appendChat(client, message)
+    },
   })
 }

@@ -425,7 +425,7 @@ async function main() {
         "/api/room/files",
         {
           paths,
-          ...(roomCode ? { roomCode } : {}),
+          ...(roomCode ? { room: roomCode, roomCode } : {}),
         },
         hasFolder ? 600_000 : 120_000
       )) as AddFilesResult
@@ -459,7 +459,7 @@ async function main() {
           await runtime.runPromise(sidecar.connectionInfo),
           mainToken,
           "/api/chat",
-          { text: "", attachment: { path: name }, roomCode }
+          { text: "", attachment: { path: name }, room: roomCode, roomCode }
         )
       },
       showWindow: () => showWindow(window),

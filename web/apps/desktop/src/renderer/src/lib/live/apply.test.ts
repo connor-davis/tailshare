@@ -427,3 +427,36 @@ it("keeps optional member paths from session events", () => {
     client.getQueryData<SessionState>(keys.session)?.members?.[0]?.path
   ).toEqual({ kind: "relay", region: "FRA" })
 })
+
+it("tracks all rooms before filtering background events and removes idle rooms", () => {
+  const client = new QueryClient()
+  const first: SessionState = { state: "hosting", room: "7K3Q-9PXM" }
+  const second: SessionState = { state: "hosting", room: "8K3Q-9PXM" }
+  applyEvent(client, {
+    seq: 1,
+    type: "snapshot",
+    data: { session: first, rooms: [first], active: first.room, transfers: [] },
+  })
+  applyEvent(client, {
+    seq: 2,
+    type: "session.state",
+    room: second.room,
+    data: second,
+  })
+  expect(client.getQueryData(keys.rooms)).toEqual({
+    active: first.room,
+    rooms: [first, second],
+  })
+  expect(client.getQueryData(keys.session)).toEqual(first)
+  applyEvent(client, {
+    seq: 3,
+    type: "session.state",
+    room: second.room,
+    data: { ...second, state: "idle" },
+  })
+  expect(client.getQueryData(keys.rooms)).toEqual({
+    active: first.room,
+    rooms: [first],
+  })
+  expect(client.getQueryData(keys.session)).toEqual(first)
+})

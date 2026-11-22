@@ -18,7 +18,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// The phases of the one session: idle, then connecting (a host or join is
+// The phases of each session: idle, then connecting (a host or join is
 // being set up), then hosting (waiting for the joiner) or connected.
 const (
 	phaseIdle       = "idle"
@@ -184,15 +184,15 @@ func (server *Server) getSession(c fiber.Ctx) error {
 	return c.JSON(server.roomStateLocked(current))
 }
 
-// reserve claims the idle session for a host or join, so a second request
+// reserve claims a code for a host or join, so a duplicate request
 // gets a conflict while the first is still setting up. It opens that code's
 // persistent room folder, which stays reserved until the session ends.
 func (server *Server) reserve(role string, code codes.Code) (*share.Root, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	if len(server.rooms) != 0 {
-		return nil, apperr.Conflict("conflict", "A session is already open. Leave it first.")
+	if server.rooms[code.String()] != nil {
+		return nil, apperr.Conflict("conflict", "That room is already open.")
 	}
 
 	root, err := server.openRoom(code)
@@ -243,6 +243,7 @@ func (server *Server) releaseRoom(current *room) {
 	}
 
 	server.publishSession(current)
+	server.publishActiveSession()
 }
 
 func (server *Server) hostSession(c fiber.Ctx) error {
@@ -311,7 +312,11 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	server.publishSession(current)
 	go server.awaitJoiner(sess, manager)
 
-	return c.Status(fiber.StatusCreated).JSON(server.sessionState())
+	server.mu.Lock()
+	state := server.roomStateLocked(current)
+	server.mu.Unlock()
+
+	return c.Status(fiber.StatusCreated).JSON(state)
 }
 
 // awaitJoiner publishes prompt changes and connects the first member with a control peer.
@@ -433,7 +438,11 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	server.connect(sess, other, manager, memberID, false)
 	go server.watchSession(sess)
 
-	return c.JSON(server.sessionState())
+	server.mu.Lock()
+	state := server.roomStateLocked(current)
+	server.mu.Unlock()
+
+	return c.JSON(state)
 }
 
 // connect records the open conversation and starts watching it. If the
@@ -604,6 +613,7 @@ func (server *Server) endRoom(current *room, expected *session.Session) {
 	server.mu.Unlock()
 
 	server.publishSession(current)
+	server.publishActiveSession()
 }
 
 // displayName is how this computer introduces itself to the other one: the

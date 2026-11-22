@@ -58,6 +58,11 @@ func (server *Server) forgetRoomLocked(current *room) {
 	delete(server.rooms, current.code)
 	if server.active == current.code {
 		server.active = ""
+		for code := range server.rooms {
+			if server.active == "" || code < server.active {
+				server.active = code
+			}
+		}
 	}
 }
 
@@ -150,4 +155,15 @@ func (server *Server) putActiveRoom(c fiber.Ctx) error {
 	server.publishSession(current)
 
 	return c.JSON(server.sessionState())
+}
+
+// publishActiveSession announces the fallback after a room is removed.
+func (server *Server) publishActiveSession() {
+	server.mu.Lock()
+	current := server.activeLocked()
+	server.mu.Unlock()
+
+	if current != nil {
+		server.publishSession(current)
+	}
 }

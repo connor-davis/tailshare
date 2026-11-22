@@ -83,8 +83,6 @@ export const de = {
   "common.my": "Mein",
   "roomFiles.waitToShare":
     "Du kannst Dateien teilen, sobald jemand anderes beitritt.",
-  "railRoomRow.leaveFirst":
-    "Verlasse zuerst diesen Raum, um einem anderen erneut beizutreten.",
   "fileCard.downloadFile": "{name} herunterladen",
   "fileCard.downloadFileAgain": "{name} erneut herunterladen",
   "roomView.files": "Dateien",
@@ -320,8 +318,6 @@ export const de = {
     "Erstelle einen Raum und sende den Link oder tritt mit einem Code bei.",
   "emptyState.working": "Wird ausgeführt…",
   "emptyState.createRoom": "Raum erstellen",
-  "emptyState.leaveThisRoomFirstToCreateOr":
-    "Verlasse zuerst diesen Raum, um einen anderen zu erstellen oder ihm beizutreten.",
   "fileCard.shared": "Geteilt",
   "fileCard.addedToTransfers": "Zu Übertragungen hinzugefügt",
   "fileCard.progress": "Fortschritt von {name}",
@@ -352,8 +348,6 @@ export const de = {
   "homeBoard.savedOnThisComputer": "Auf diesem Computer gespeichert",
   "homeBoard.recent": "Zuletzt",
   "homeBoard.lastSeen": "Zuletzt gesehen {time}",
-  "homeBoard.leaveThisRoomFirstToRejoinAnother":
-    "Verlasse zuerst diesen Raum, um einem anderen erneut beizutreten.",
   "homeBoard.rejoin": "Erneut beitreten",
   "homeBoard.rejoinLabel": "{name} erneut beitreten",
   "homeBoard.reopen": "Erneut öffnen",
@@ -485,10 +479,6 @@ export const de = {
   "roomSidebar.home": "Startseite",
   "roomSidebar.searchRooms": "Räume suchen",
   "roomSidebar.newRoom": "Neuer Raum",
-  "roomSidebar.leaveThisRoomToStartAnother":
-    "Verlasse diesen Raum, um einen anderen zu starten.",
-  "roomSidebar.leaveThisRoomToJoinAnother":
-    "Verlasse diesen Raum, um einem anderen beizutreten.",
   "roomSidebar.openHostRoom": "{name} öffnen, Gastgeber, aktueller Raum",
   "roomSidebar.openJoinedRoom": "{name} öffnen, beigetreten, aktueller Raum",
   "roomSidebar.openNow": "Jetzt offen: ",
@@ -536,7 +526,6 @@ export const de = {
   "index.theOtherComputerLeftTheRoom":
     "Der andere Computer hat den Raum verlassen.",
   "index.connected": "Verbunden.",
-  "index.leaveTheOpenRoomFirst": "Verlasse zuerst den offenen Raum.",
   "index.someoneWantsToJoinOpenPeopleTo":
     "Jemand möchte beitreten. Öffne Personen, um zu antworten.",
   "index.joined": "{name} ist beigetreten.",

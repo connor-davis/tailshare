@@ -1,4 +1,5 @@
 import { useT } from "@/i18n/provider"
+import { foldCode } from "@/lib/code-input"
 import { t } from "../../i18n/index"
 import { useEffect, useRef, useState } from "react"
 import {
@@ -61,6 +62,8 @@ function Label({ id, children }: { id: string; children: string }) {
  */
 export function RoomSidebar({
   session,
+  openRooms = session.state === "idle" ? [] : [session],
+  onSelectRoom,
   busy,
   onNewRoom,
   onJoin,
@@ -80,6 +83,8 @@ export function RoomSidebar({
   /** Returns to the current room. */
   onOpenRoom?: () => void
   /** The current session. */
+  openRooms?: SessionState[]
+  onSelectRoom?: (code: string) => void
   session: SessionState
   /** True while a host or join is running, so no second one starts. */
   busy: boolean
@@ -107,8 +112,9 @@ export function RoomSidebar({
     needle === "" ||
     name.toLowerCase().includes(needle) ||
     (code?.toLowerCase().includes(needle) ?? false)
-  const liveLabel = liveName(session)
-  const live = liveLabel && matches(liveLabel, session.code) ? liveLabel : null
+  const liveRooms = openRooms.filter((room) =>
+    matches(liveName(room) ?? room.room ?? "", room.room)
+  )
   const shown = rooms.filter((room) => matches(room.name, room.code))
 
   // Ctrl+K jumps to the search box from anywhere in the window.
@@ -123,7 +129,7 @@ export function RoomSidebar({
 
     return () => window.removeEventListener("keydown", onKey)
   }, [])
-  const canStart = idle && !busy
+  const canStart = !busy
 
   // When a room ends, its Leave button is gone, so focus goes to Join room.
   // Only when focus is already lost: someone typing elsewhere keeps it.
@@ -194,11 +200,7 @@ export function RoomSidebar({
               <PlusIcon aria-hidden />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {idle
-              ? t("roomSidebar.newRoom")
-              : t("roomSidebar.leaveThisRoomToStartAnother")}
-          </TooltipContent>
+          <TooltipContent>{t("roomSidebar.newRoom")}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -216,11 +218,7 @@ export function RoomSidebar({
               <LogInIcon aria-hidden />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {idle
-              ? t("roomSidebar.joinRoom")
-              : t("roomSidebar.leaveThisRoomToJoinAnother")}
-          </TooltipContent>
+          <TooltipContent>{t("roomSidebar.joinRoom")}</TooltipContent>
         </Tooltip>
       </div>
       <JoinDialog
@@ -232,53 +230,63 @@ export function RoomSidebar({
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 px-2 py-2">
-          {live ? (
+          {liveRooms.length > 0 ? (
             <section
               aria-labelledby="open-room"
               className="flex flex-col gap-1"
             >
               <Label id="open-room">{t("roomSidebar.rooms")}</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-current={!homeActive ? "page" : undefined}
-                    aria-label={t(
-                      session.role === "host"
-                        ? "roomSidebar.openHostRoom"
-                        : "roomSidebar.openJoinedRoom",
-                      { name: live }
-                    )}
-                    onClick={onOpenRoom}
-                    className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-primary"
-                  >
-                    <span aria-hidden className="rail-initial">
-                      {Array.from(live)[0]}
-                    </span>
-                    <Dot live />
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="sr-only">
-                        {t("roomSidebar.openNow")}
-                      </span>
-                      <bdi>{live}</bdi>
-                    </span>
-                    {session.members?.length ? (
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {session.members.length}
-                      </span>
-                    ) : null}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {t("roomSidebar.currentDescription", {
-                    name: live,
-                    role:
-                      session.role === "host"
-                        ? t("common.host")
-                        : t("common.joined"),
-                  })}
-                </TooltipContent>
-              </Tooltip>
+              {liveRooms.map((current) => {
+                const live = liveName(current) ?? current.room ?? ""
+                const selected = current.room === session.room && !homeActive
+                return (
+                  <Tooltip key={current.room ?? current.code ?? live}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-current={selected ? "page" : undefined}
+                        aria-label={t(
+                          current.role === "host"
+                            ? "roomSidebar.openHostRoom"
+                            : "roomSidebar.openJoinedRoom",
+                          { name: live }
+                        )}
+                        onClick={() => {
+                          if (current.room && onSelectRoom)
+                            onSelectRoom(current.room)
+                          else onOpenRoom?.()
+                        }}
+                        className={`relative flex h-8 items-center gap-2 rounded-md px-2 ${selected ? "bg-accent text-accent-foreground before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-primary" : "hover:bg-accent/60"}`}
+                      >
+                        <span aria-hidden className="rail-initial">
+                          {Array.from(live)[0]}
+                        </span>
+                        <Dot live />
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="sr-only">
+                            {t("roomSidebar.openNow")}
+                          </span>
+                          <bdi>{live}</bdi>
+                        </span>
+                        {current.members?.length ? (
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {current.members.length}
+                          </span>
+                        ) : null}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t("roomSidebar.currentDescription", {
+                        name: live,
+                        role:
+                          current.role === "host"
+                            ? t("common.host")
+                            : t("common.joined"),
+                      })}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              })}
             </section>
           ) : null}
           <section
@@ -314,8 +322,13 @@ export function RoomSidebar({
                   <RailRoomRow
                     key={room.code}
                     room={room}
-                    idle={idle}
-                    canStart={canStart}
+                    canStart={
+                      canStart &&
+                      !openRooms.some(
+                        (open) =>
+                          foldCode(open.room ?? "") === foldCode(room.code)
+                      )
+                    }
                     onRejoin={onRejoin}
                     onReopen={onReopen}
                     onForget={(code) => {

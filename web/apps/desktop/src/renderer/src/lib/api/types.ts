@@ -181,3 +181,9 @@ export interface LiveEvent {
   /** Code of the room the event is about. Missing for events about the whole computer. */
   room?: string
 }
+
+/** All open rooms and the server-selected room. */
+export interface RoomsState {
+  active: string
+  rooms: SessionState[]
+}

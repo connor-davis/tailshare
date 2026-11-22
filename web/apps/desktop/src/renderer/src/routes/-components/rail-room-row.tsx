@@ -30,15 +30,12 @@ export function Dot({ live }: { live: boolean }) {
  */
 export function RailRoomRow({
   room,
-  idle,
   canStart,
   onRejoin,
   onReopen,
   onForget,
 }: {
   room: { name: string; code: string; lastSeen: number }
-  /** True when no room is open. */
-  idle: boolean
   /** True when Rejoin and Reopen may run (idle and not busy). */
   canStart: boolean
   onRejoin: (code: string) => void
@@ -78,7 +75,7 @@ export function RailRoomRow({
             name: room.name,
             code: formatCode(room.code),
             time: formatAgo(room.lastSeen),
-            hint: !idle ? t("railRoomRow.leaveFirst") : "",
+            hint: "",
           })}
         </TooltipContent>
       </Tooltip>

@@ -1,6 +1,7 @@
 import { t } from "../../i18n/index"
 import type { QueryClient } from "@tanstack/react-query"
 import { announce } from "../../components/status-region"
+import { resetRoomData } from "../api/room-cache"
 import { keys } from "../api/keys"
 import type {
   ChatMessage,
@@ -8,6 +9,7 @@ import type {
   LiveEvent,
   SessionState,
   Snapshot,
+  RoomsState,
   TransferItem,
   TransferView,
 } from "../api/types"
@@ -132,11 +134,35 @@ function aboutOtherRoom(client: QueryClient, event: LiveEvent): boolean {
  * enters the screens. A snapshot always comes first on a new socket.
  */
 export function applyEvent(client: QueryClient, event: LiveEvent): void {
+  if (event.type === "session.state") {
+    const session = event.data as SessionState
+    const room = event.room ?? session.room
+    if (room) {
+      claimLive(client, keys.rooms)
+      client.setQueryData<RoomsState>(keys.rooms, (previous) => ({
+        active: previous?.active ?? "",
+        rooms: [
+          ...(previous?.rooms ?? []).filter((entry) => entry.room !== room),
+          ...(session.state === "idle" ? [] : [{ ...session, room }]),
+        ].sort((a, b) => (a.room ?? "").localeCompare(b.room ?? "")),
+      }))
+    }
+  }
   if (event.type !== "snapshot" && aboutOtherRoom(client, event)) return
 
   switch (event.type) {
     case "snapshot": {
       const snapshot = event.data as Snapshot
+      claimLive(client, keys.rooms)
+      client.setQueryData<RoomsState>(keys.rooms, {
+        rooms: snapshot.rooms ?? [],
+        active: snapshot.active ?? "",
+      })
+      if (
+        client.getQueryData<SessionState>(keys.session)?.room !==
+        snapshot.session.room
+      )
+        resetRoomData(client)
       claimLive(client, keys.session)
       void client.cancelQueries({ queryKey: keys.transfers })
       client.setQueryData<SessionState>(keys.session, snapshot.session)
@@ -161,7 +187,14 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
 
     case "session.state": {
       const session = event.data as SessionState
-      const waiting = client.getQueryData<SessionState>(keys.session)?.join
+      const previous = client.getQueryData<SessionState>(keys.session)
+      const waiting = previous?.join
+      if (previous?.room !== session.room || session.state === "idle")
+        resetRoomData(client)
+      client.setQueryData<RoomsState>(keys.rooms, (rooms) => ({
+        rooms: rooms?.rooms ?? [],
+        active: session.state === "idle" ? "" : (session.room ?? ""),
+      }))
       claimLive(client, keys.session)
       client.setQueryData<SessionState>(keys.session, session)
       if (session.state === "idle") clearSession(client)

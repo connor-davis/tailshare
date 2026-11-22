@@ -38,7 +38,7 @@ func TestSessionBadRequests(t *testing.T) {
 }
 
 // TestSessionLifecycle runs two APIs against a local relay: host, join, the
-// single-session rule, files, chat, events, leaving, and the host noticing.
+// duplicate-code rule, files, chat, events, leaving, and the host noticing.
 func TestSessionLifecycle(t *testing.T) {
 	derp := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
 	cfg := config.Config{Region: tailcattest.RegionID, DERPMapURL: derp}
@@ -73,8 +73,8 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("host = %s", hosting.Raw)
 	}
 
-	// One session at a time, and the folder is fixed while it is open.
-	host.send("POST", "/api/session/host", nil).expect(t, 409, "conflict")
+	// The same code cannot be opened twice, and the folder is fixed.
+	host.send("POST", "/api/session/host", map[string]string{"code": code}).expect(t, 409, "conflict")
 	host.send("POST", "/api/session/join", map[string]string{"code": code}).expect(t, 409, "conflict")
 	host.send("PUT", "/api/folder", map[string]string{"path": t.TempDir()}).expect(t, 404, "not_found")
 
@@ -309,5 +309,34 @@ func TestHostReopensSameCodeWithFreshExpiry(t *testing.T) {
 	}
 	if got := f.send("GET", "/api/files/local", nil); !strings.Contains(string(got.Raw), "kept.txt") {
 		t.Fatalf("reopened folder lost its file: %s", got.Raw)
+	}
+}
+
+func TestSeveralRoomsThroughAPI(t *testing.T) {
+	derp := tailcattest.ServeMap(t, tailcattest.LocalDERP(t))
+	host := newFixture(t, config.Config{Region: tailcattest.RegionID, DERPMapURL: derp}, nil)
+
+	for _, code := range []string{firstRoom, secondRoom} {
+		host.send("POST", "/api/session/host", map[string]string{"code": code}).expect(t, 201, "")
+	}
+	listed := host.send("GET", "/api/rooms", nil)
+	if listed.Body["active"] != secondRoom || len(listed.Body["rooms"].([]any)) != 2 {
+		t.Fatalf("two rooms = %s", listed.Raw)
+	}
+	host.send("POST", "/api/session/join", map[string]string{"code": firstRoom}).expect(t, 409, "conflict")
+
+	left := host.send("DELETE", "/api/session?room="+secondRoom, nil)
+	left.expect(t, 200, "")
+	if left.Body["room"] != firstRoom {
+		t.Fatalf("fallback = %s", left.Raw)
+	}
+	host.send("POST", "/api/session/host", map[string]string{"code": secondRoom}).expect(t, 201, "")
+	left = host.send("DELETE", "/api/session?room="+firstRoom, nil)
+	if left.Body["room"] != secondRoom {
+		t.Fatalf("background leave changed active = %s", left.Raw)
+	}
+	host.send("DELETE", "/api/session?room="+secondRoom, nil).expect(t, 200, "")
+	if state := host.send("GET", "/api/rooms", nil); state.Body["active"] != "" {
+		t.Fatalf("last leave = %s", state.Raw)
 	}
 }

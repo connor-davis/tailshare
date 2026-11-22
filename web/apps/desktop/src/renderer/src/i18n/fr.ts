@@ -92,7 +92,6 @@ export const fr = {
   "common.my": "Mon",
   "roomFiles.waitToShare":
     "Vous pourrez partager des fichiers dès qu’une autre personne sera là.",
-  "railRoomRow.leaveFirst": "Quittez ce salon avant d’en rejoindre un autre.",
   "fileCard.downloadFile": "Télécharger {name}",
   "fileCard.downloadFileAgain": "Télécharger à nouveau {name}",
   "roomView.files": "Fichiers",
@@ -326,8 +325,6 @@ export const fr = {
     "Créez un salon et envoyez le lien, ou rejoignez-en un avec un code.",
   "emptyState.working": "En cours…",
   "emptyState.createRoom": "Créer un salon",
-  "emptyState.leaveThisRoomFirstToCreateOr":
-    "Quittez ce salon avant d’en créer ou d’en rejoindre un autre.",
   "fileCard.shared": "Partagé",
   "fileCard.addedToTransfers": "Ajouté aux transferts",
   "fileCard.progress": "Progression de {name}",
@@ -357,8 +354,6 @@ export const fr = {
   "homeBoard.savedOnThisComputer": "Enregistré sur cet ordinateur",
   "homeBoard.recent": "Récents",
   "homeBoard.lastSeen": "Dernière visite {time}",
-  "homeBoard.leaveThisRoomFirstToRejoinAnother":
-    "Quittez ce salon avant d’en rejoindre un autre.",
   "homeBoard.rejoin": "Rejoindre à nouveau",
   "homeBoard.rejoinLabel": "Rejoindre à nouveau {name}",
   "homeBoard.reopen": "Rouvrir",
@@ -490,10 +485,6 @@ export const fr = {
   "roomSidebar.home": "Accueil",
   "roomSidebar.searchRooms": "Rechercher des salons",
   "roomSidebar.newRoom": "Nouveau salon",
-  "roomSidebar.leaveThisRoomToStartAnother":
-    "Quittez ce salon pour en créer un autre.",
-  "roomSidebar.leaveThisRoomToJoinAnother":
-    "Quittez ce salon pour en rejoindre un autre.",
   "roomSidebar.openHostRoom": "Ouvrir {name}, hôte, salon actuel",
   "roomSidebar.openJoinedRoom": "Ouvrir {name}, membre, salon actuel",
   "roomSidebar.openNow": "Ouvert maintenant : ",
@@ -539,7 +530,6 @@ export const fr = {
   "index.thatCodeRanOutShowANew": "Ce code a expiré. Affichez un nouveau code.",
   "index.theOtherComputerLeftTheRoom": "L’autre ordinateur a quitté le salon.",
   "index.connected": "Connecté.",
-  "index.leaveTheOpenRoomFirst": "Quittez d’abord le salon ouvert.",
   "index.someoneWantsToJoinOpenPeopleTo":
     "Quelqu’un souhaite rejoindre le salon. Ouvrez Personnes pour répondre.",
   "index.joined": "{name} a rejoint le salon.",

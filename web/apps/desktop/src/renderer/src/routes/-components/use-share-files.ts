@@ -1,5 +1,8 @@
 import { useT } from "@/i18n/provider"
-import { useState } from "react"
+import { QueryClientContext } from "@tanstack/react-query"
+import { keys } from "@/lib/api/keys"
+import type { SessionState } from "@/lib/api/types"
+import { useContext, useState } from "react"
 import { announce } from "@/components/status-region"
 import { ApiError } from "@/lib/api/client"
 import { useSendChat } from "@/lib/api/chat"
@@ -17,23 +20,31 @@ export function useShareFiles() {
   const t = useT()
 
   const send = useSendChat()
+  const client = useContext(QueryClientContext)
   const [skipped, setSkipped] = useState<SkippedFile[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   /** Runs one pick (dialog or drop), then posts a message for each file. */
-  async function share(pick: () => Promise<AddFilesResult | null>) {
+  async function share(
+    pick: (room?: string) => Promise<AddFilesResult | null>
+  ) {
+    const room = client?.getQueryData<SessionState>(keys.session)?.room
     setBusy(true)
     setError(null)
 
     try {
-      const result = await pick()
+      const result = await pick(room)
       // Cancelling the dialog is not an error and changes nothing.
       if (!result) return
 
       setSkipped(result.skipped)
       for (const added of result.added) {
-        await send.mutateAsync({ text: "", attachment: { path: added.name } })
+        await send.mutateAsync({
+          text: "",
+          attachment: { path: added.name },
+          room,
+        })
       }
       if (result.added.length > 0) {
         announce(t("shareFiles.sharedCount", { count: result.added.length }))
@@ -63,10 +74,10 @@ export function useShareFiles() {
      * like an added file; text is sent as a message.
      */
     paste: () =>
-      share(async () => {
+      share(async (room) => {
         const pasted = await window.tailshare.pasteFromClipboard()
         if (pasted.kind === "text") {
-          await send.mutateAsync({ text: pasted.text.trim() })
+          await send.mutateAsync({ text: pasted.text.trim(), room })
           return null
         }
         if (pasted.kind === "none") {
