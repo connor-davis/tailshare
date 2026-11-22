@@ -388,6 +388,14 @@ export function AppSection({ settings, save, saving }: SectionProps) {
           onChange={(value) => void save({ closeToTray: value })}
         />
         <SwitchRow
+          id="notifications"
+          label="Notifications"
+          description="A Windows alert when someone asks to join or a transfer ends, while Tailshare is in the background."
+          checked={settings.notifications}
+          disabled={saving}
+          onChange={(value) => void save({ notifications: value })}
+        />
+        <SwitchRow
           id="background-effect"
           label="Background effect"
           description="A soft Mica look behind the window. Windows 11 only."

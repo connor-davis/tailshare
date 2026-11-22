@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { keys } from "../api/keys"
 import type {
   ChatMessage,
@@ -181,6 +181,80 @@ describe("applyEvent", () => {
     applyEvent(client, { seq: 1, type: "something.new", data: {} })
 
     expect(client.getQueryCache().getAll()).toHaveLength(0)
+  })
+})
+
+describe("toasts", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const stub = () => {
+    const notify = vi.fn(async () => {})
+    vi.stubGlobal("window", { tailshare: { notify } })
+    return notify
+  }
+
+  it("asks for a toast once when a transfer finishes, not on progress", () => {
+    const notify = stub()
+    const client = new QueryClient()
+    const done = item({ state: "done", source: "C:\\x\\a.txt" })
+
+    applyEvent(client, { seq: 1, type: "transfer.state", data: item() })
+    applyEvent(client, {
+      seq: 2,
+      type: "transfer.progress",
+      data: item({ bytes: 50 }),
+    })
+    applyEvent(client, { seq: 3, type: "transfer.state", data: done })
+    applyEvent(client, { seq: 4, type: "transfer.state", data: done })
+
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledWith({ kind: "done", name: "a.txt" })
+  })
+
+  it("says so when a transfer fails", () => {
+    const notify = stub()
+
+    applyEvent(new QueryClient(), {
+      seq: 1,
+      type: "transfer.state",
+      data: item({ state: "failed" }),
+    })
+
+    expect(notify).toHaveBeenCalledWith({ kind: "failed", name: "a.txt" })
+  })
+
+  it("asks once for a new join request, never on a snapshot", () => {
+    const notify = stub()
+    const client = new QueryClient()
+    const waiting = (id: string, displayName: string) =>
+      ({
+        state: "hosting",
+        join: { id, displayName },
+      }) as unknown as SessionState
+
+    applyEvent(client, {
+      seq: 1,
+      type: "snapshot",
+      data: { session: waiting("j1", "Pat"), transfers: [], chat: [] },
+    } as never)
+    expect(notify).not.toHaveBeenCalled()
+
+    const next = { seq: 2, type: "session.state", data: waiting("j2", "Sam") }
+    applyEvent(client, next as never)
+    applyEvent(client, { ...next, seq: 3 } as never)
+
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledWith({ kind: "join", name: "Sam" })
+  })
+
+  it("keeps working when there is no bridge", () => {
+    expect(() =>
+      applyEvent(new QueryClient(), {
+        seq: 1,
+        type: "transfer.state",
+        data: item({ state: "done" }),
+      })
+    ).not.toThrow()
   })
 })
 

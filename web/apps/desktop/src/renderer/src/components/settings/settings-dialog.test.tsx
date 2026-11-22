@@ -17,6 +17,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { SettingsDialogProvider, useOpenSettings } from "./settings-dialog"
 
 const saved: Settings = {
+  notifications: true,
   updateChannel: "latest",
   displayName: "Connor's PC",
   saveMode: "folder",

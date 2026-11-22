@@ -21,7 +21,14 @@ function type(text: string) {
 
 describe("ChatComposer", () => {
   it("clears the box when the sent text is unchanged", () => {
-    render(<ChatComposer connected busy={false} onAddFiles={() => {}} />)
+    render(
+      <ChatComposer
+        connected
+        busy={false}
+        onAddFiles={() => {}}
+        onPaste={() => {}}
+      />
+    )
     type("hello")
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
 
@@ -31,7 +38,14 @@ describe("ChatComposer", () => {
   })
 
   it("keeps what was typed while the send was pending", () => {
-    render(<ChatComposer connected busy={false} onAddFiles={() => {}} />)
+    render(
+      <ChatComposer
+        connected
+        busy={false}
+        onAddFiles={() => {}}
+        onPaste={() => {}}
+      />
+    )
     type("hello")
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
     type("hello again")

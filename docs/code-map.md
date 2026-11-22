@@ -178,6 +178,11 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Adding files from the button or a drop, one chat message per file | `src/renderer/src/routes/-components/use-share-files.ts` (calls `window.tailshare.addFiles` and `addDroppedFiles`) |
 | Apps tab: shared apps list, Share dialog, Open, Copy, Open in browser | `src/renderer/src/routes/-components/` (`apps-panel.tsx`, `share-app-dialog.tsx`), `src/renderer/src/lib/api/forwards.ts` |
 | Open-in-browser link check (`isForwardLink`) and its main-process handler | `src/shared/bridge.ts`, `src/main/ipc.ts` (`openForwardLink`) |
+| Windows toasts (text built in main, setting and window guard) | `src/main/notify.ts` (renderer asks from `src/renderer/src/lib/live/apply.ts`) |
+| Finished-download memory: drag a file out, preview a saved file (id to folder, capped at 200) | `src/main/saved-downloads.ts` |
+| Paste to send (clipboard read in main, temp file under `userData/paste`) and the per-room save folder | `src/main/room-ipc.ts`; folder kept in `src/main/recent-rooms.ts` (`setFolder`, `folderFor`) |
+| Paste button, room save folder button, file preview on cards | `routes/-components/chat-composer.tsx`, `room-save-folder.tsx`, `file-preview.tsx`, `file-card.tsx`; hooks in `lib/api/preview.ts` |
+| Local preview of a shared or saved file (images up to 256 KB, 2 KB of text; no SVG or HTML) | `internal/api/preview.go` |
 | Transfer row (the only piece left in `session/`) | `src/renderer/src/routes/session/-components/transfer-row.tsx` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |

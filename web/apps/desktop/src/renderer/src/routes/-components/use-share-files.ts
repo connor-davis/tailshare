@@ -53,6 +53,24 @@ export function useShareFiles() {
     skipped,
     /** Opens the file dialog and shares what was picked. */
     addFiles: () => share(() => window.tailshare.addFiles()),
+    /**
+     * Reads the clipboard (main does it, on this click only). A picture is shared
+     * like an added file; text is sent as a message.
+     */
+    paste: () =>
+      share(async () => {
+        const pasted = await window.tailshare.pasteFromClipboard()
+        if (pasted.kind === "text") {
+          await send.mutateAsync({ text: pasted.text.trim() })
+          return null
+        }
+        if (pasted.kind === "none") {
+          setError("Nothing to paste. Copy some text or a picture first.")
+          return null
+        }
+
+        return pasted.result
+      }),
     /** Shares files dropped on the chat. */
     addDropped: (files: File[]) =>
       share(() => window.tailshare.addDroppedFiles(files)),

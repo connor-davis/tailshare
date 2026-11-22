@@ -32,13 +32,19 @@ export const CHANNELS = {
   getDownloadsStatus: "tailshare:get-downloads-status",
   downloadsStatus: "tailshare:downloads-status",
   startDownload: "tailshare:start-download",
+  notify: "tailshare:notify",
+  pasteClipboard: "tailshare:paste-clipboard",
+  setRoomFolder: "tailshare:set-room-folder",
+  canDragFile: "tailshare:can-drag-file",
+  startFileDrag: "tailshare:start-file-drag",
+  previewDownload: "tailshare:preview-download",
 } as const
 
 /** Our own bridge methods take no arguments, so any extra one is refused. */
 export const NoArgs = Schema.Tuple([])
 
 /** An absolute Windows path: a drive letter or a network share. */
-const AbsolutePath = Schema.String.check(
+export const AbsolutePath = Schema.String.check(
   Schema.isMaxLength(4096),
   Schema.isPattern(/^([A-Za-z]:[\\/]|\\\\[^\\/]+[\\/])/)
 )
@@ -58,6 +64,7 @@ export const SETTINGS_FIELDS = {
   ),
   startWithWindows: Schema.Boolean,
   closeToTray: Schema.Boolean,
+  notifications: Schema.Boolean,
   mica: Schema.Boolean,
   theme: Schema.Literals(["system", "light", "dark"]),
 }
@@ -84,11 +91,15 @@ export const CurrentRoomSchema = Schema.NullOr(
 /** Whether downloads have a working folder. */
 export const DownloadsStatusSchema = Schema.Struct({ ok: Schema.Boolean })
 
-/** One saved room. The name is 1 to 64 characters, the time is in ms. */
+/**
+ * One saved room. The name is 1 to 64 characters, the time is in ms. The folder,
+ * when set, is where this room's downloads go.
+ */
 export const RecentRoomSchema = Schema.Struct({
   name: Schema.String.check(Schema.isBetweenLength(1, 64)),
   code: JoinCodeSchema,
   lastSeen: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  saveFolder: Schema.optionalKey(AbsolutePath),
 })
 
 /** The reply to `getRecentRooms`, newest first. */
@@ -136,3 +147,53 @@ export const AddFilesResultSchema = Schema.Struct({
     Schema.Struct({ name: Schema.String, reason: Schema.String })
   ),
 })
+
+/** What the page may say about a toast. Main builds every word the person sees. */
+export const NotifySchema = Schema.Struct({
+  kind: Schema.Literals(["join", "done", "failed"]),
+  name: Schema.String.check(Schema.isBetweenLength(1, 4096)),
+})
+
+/** A room code and the folder its downloads go to, or `null` to use the default. */
+export const RoomFolderSchema = Schema.Struct({
+  code: JoinCodeSchema,
+  folder: Schema.NullOr(AbsolutePath),
+})
+
+/** The shape of a transfer id, for code that cannot load the schema. */
+export const TRANSFER_ID = /^[A-Z2-7]{26}$/
+
+/** A transfer id as the sidecar makes it: 26 base32 characters. */
+export const TransferIdSchema = Schema.String.check(
+  Schema.isPattern(TRANSFER_ID)
+)
+
+/** What Paste found: text to send, a picture already added to the room, or nothing. */
+export const PasteResultSchema = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("text"), text: Schema.String }),
+  Schema.Struct({ kind: Schema.Literal("file"), result: AddFilesResultSchema }),
+  Schema.Struct({ kind: Schema.Literal("none") }),
+])
+
+/** A card preview from the sidecar: a small picture, a few lines, or nothing. */
+export const FilePreviewSchema = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal("image"),
+    mime: Schema.Literals([
+      "image/png",
+      "image/jpeg",
+      "image/gif",
+      "image/webp",
+    ]),
+    data: Schema.String.check(
+      Schema.isMaxLength(400_000),
+      Schema.isPattern(/^[A-Za-z0-9+/]*={0,2}$/)
+    ),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("text"),
+    text: Schema.String.check(Schema.isMaxLength(2048)),
+    cut: Schema.optionalKey(Schema.Boolean),
+  }),
+  Schema.Struct({ kind: Schema.Literal("none") }),
+])

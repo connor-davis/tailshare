@@ -170,6 +170,8 @@ func (server *Server) routes() {
 	api.Post("/session/joins/:id/deny", server.denyJoin)
 
 	api.Post("/room/files", server.mainOnly, server.addRoomFiles)
+	api.Get("/room/preview", server.roomPreview)
+	api.Post("/downloads/preview", server.mainOnly, server.downloadPreview)
 	api.Put("/downloads", server.mainOnly, server.putDownloads)
 	api.Get("/files/local", server.localFiles)
 	api.Get("/files/peer", server.peerFiles)

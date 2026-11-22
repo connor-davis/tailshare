@@ -42,6 +42,7 @@ export function defaultSettings(from: SettingsDefaults = {}): Settings {
     transfersAtOnce: 2,
     startWithWindows: false,
     closeToTray: false,
+    notifications: true,
     mica: true,
     theme: "system",
   }

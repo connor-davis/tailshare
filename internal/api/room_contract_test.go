@@ -23,6 +23,7 @@ func TestMainOnlyFilesAndDownloads(t *testing.T) {
 	f := newFixture(t, config.Config{}, nil)
 	for _, endpoint := range []struct{ method, path string }{
 		{"POST", "/api/room/files"}, {"PUT", "/api/downloads"},
+		{"POST", "/api/downloads/preview"},
 	} {
 		f.send(endpoint.method, endpoint.path, nil).expect(t, 403, "forbidden")
 		f.send(endpoint.method, endpoint.path, nil, func(request *http.Request) {

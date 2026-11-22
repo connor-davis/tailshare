@@ -39,6 +39,7 @@ describe("settings", () => {
       closeToTray: false,
       mica: true,
       theme: "system",
+      notifications: true,
     })
     expect(readdirSync(path)).toEqual([])
   })
@@ -130,6 +131,7 @@ describe("settings", () => {
     ["a bad channel", { updateChannel: "beta" }],
     ["a bad theme", { theme: "sepia" }],
     ["a string for a flag", { mica: "yes" }],
+    ["a number for notifications", { notifications: 1 }],
     ["an unknown key", { colour: "red" }],
   ])("refuses %s whole, with no write and no listener", (_name, patch) => {
     const path = directory()

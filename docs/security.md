@@ -251,6 +251,29 @@ kept as little as possible.
 - Text is at most 8 KiB of valid UTF-8, and the ID has no control characters,
   so the other computer cannot send anything the screen cannot show.
 
+## Previews, paste and drag out
+
+- A file card preview is built on this computer only. Nothing about it goes to
+  the other computer, and the peer protocol did not change.
+- `GET /api/room/preview` reads a file we shared through `root.OpenRead`, so
+  it has the same path rules as a download: `..`, drive letters, absolute
+  paths, streams and links out of the folder are refused (tests try each).
+  `POST /api/downloads/preview` is main-only and checks its folder like a
+  save folder. The page sends a transfer id; main builds the path.
+- Pictures are PNG, JPEG, GIF or WebP up to 256 KB, picked by the file's
+  bytes, not its name. Text is the first 2 KB of valid UTF-8. SVG, HTML and
+  XML are never shown. The page checks the type again and shows pictures as
+  `data:` URLs.
+- Paste reads the clipboard in main, only on a click. A picture over 25 MB
+  is refused. It is written to `userData/paste/<random>/` (mode 0600), handed
+  to the normal add-file path, then deleted, even when that fails. The folder
+  is also cleared at start-up.
+- Drag out and preview only work for downloads main started itself, from an
+  in-memory list of 200. The folder must be a real folder and the file a
+  regular file, not a link.
+- Toast text is built in main from a short kind and a name: control
+  characters removed, 64 characters at most, file names cut to the base name.
+
 ## Shared apps (port forwarding)
 
 A member can share a local TCP port with the room. It is room-wide: every

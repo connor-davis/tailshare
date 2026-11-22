@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from "react"
-import { ArrowUpIcon, PlusIcon } from "lucide-react"
+import { ArrowUpIcon, ClipboardPasteIcon, PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useSendChat } from "@/lib/api/chat"
@@ -7,13 +7,14 @@ import { useSendChat } from "@/lib/api/chat"
 /**
  * The box pinned under the chat, like T3 Code's: a big rounded frame with a
  * text area that grows to about eight lines, a "+" to add files and a send
- * button. Enter sends, Shift+Enter starts a new line. It is off until
+ * button. Paste sends what was copied. Enter sends, Shift+Enter starts a new line. It is off until
  * someone else is in the room, because there is nobody to send to.
  */
 export function ChatComposer({
   connected,
   busy,
   onAddFiles,
+  onPaste,
 }: {
   /** True once another computer is in the room. */
   connected: boolean
@@ -21,6 +22,8 @@ export function ChatComposer({
   busy: boolean
   /** Opens the file dialog. */
   onAddFiles: () => void
+  /** Reads the clipboard: text is sent, a picture is shared as a file. */
+  onPaste: () => void
 }) {
   const send = useSendChat()
   const [text, setText] = useState("")
@@ -84,6 +87,17 @@ export function ChatComposer({
               onClick={onAddFiles}
             >
               <PlusIcon aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Paste"
+              title="Send what you copied"
+              disabled={!connected || busy}
+              onClick={onPaste}
+            >
+              <ClipboardPasteIcon aria-hidden />
             </Button>
             <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {connected

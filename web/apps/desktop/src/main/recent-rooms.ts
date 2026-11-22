@@ -9,7 +9,11 @@ import {
 import { join } from "node:path"
 import { Schema } from "effect"
 import type { RecentRoom } from "../shared/bridge"
-import { JoinCodeSchema, RecentRoomSchema } from "../shared/ipc-schema"
+import {
+  JoinCodeSchema,
+  RecentRoomSchema,
+  RoomFolderSchema,
+} from "../shared/ipc-schema"
 
 /** Most rooms kept. The oldest one goes first. */
 const MAX_ROOMS = 20
@@ -25,7 +29,8 @@ const invalid = () =>
 
 /**
  * Opens the recent rooms list under Electron's userData folder. Only the name,
- * code and last-seen time are kept: never chat, members, paths or transfers.
+ * code, last-seen time and the room's own save folder (when the person set
+ * one) are kept: never chat, members or transfers.
  * `now` is the clock, so tests can move time.
  */
 export function openRecentRooms(directory: string, now = Date.now) {
@@ -115,6 +120,52 @@ export function openRecentRooms(directory: string, now = Date.now) {
           name: typeof raw.name === "string" ? raw.name.trim() : raw.name,
           code: raw.code,
           lastSeen: now(),
+        })
+      } catch {
+        throw invalid()
+      }
+
+      // Joining again must not forget where this room's downloads go.
+      const saveFolder = fresh(current).find(
+        (one) => one.code === room.code
+      )?.saveFolder
+      if (saveFolder) room = { ...room, saveFolder }
+
+      save(
+        [room, ...fresh(current).filter((one) => one.code !== room.code)].slice(
+          0,
+          MAX_ROOMS
+        )
+      )
+      return [...current]
+    },
+
+    /** The folder this room's downloads go to, or `undefined` for the default. */
+    folderFor: (code: string): string | undefined =>
+      fresh(current).find((room) => room.code === code)?.saveFolder,
+
+    /**
+     * Sets, or with `null` clears, the folder for one room. A room that is not
+     * in the list yet is added under `name`, since the folder belongs to it.
+     */
+    setFolder(code: unknown, folder: unknown, name: unknown): RecentRoom[] {
+      let wanted: { code: string; folder: string | null }
+      try {
+        wanted = Schema.decodeUnknownSync(RoomFolderSchema)({ code, folder })
+      } catch {
+        throw invalid()
+      }
+
+      const known = fresh(current).find((room) => room.code === wanted.code)
+      if (!known && wanted.folder === null) return [...current]
+
+      let room: RecentRoom
+      try {
+        room = Schema.decodeUnknownSync(RecentRoomSchema)({
+          name: known?.name ?? name,
+          code: wanted.code,
+          lastSeen: now(),
+          ...(wanted.folder === null ? {} : { saveFolder: wanted.folder }),
         })
       } catch {
         throw invalid()

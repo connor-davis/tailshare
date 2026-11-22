@@ -1,13 +1,17 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
+  nativeImage,
   nativeTheme,
+  Notification,
   session,
   shell,
   type Tray,
 } from "electron"
+import { rmSync } from "node:fs"
 import { release } from "node:os"
 import { join, resolve } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
@@ -33,6 +37,8 @@ import {
 } from "./lifecycle"
 import { createJoinInbox, findJoinLink } from "./join-link"
 import { applyLoginItem } from "./login-item"
+import { registerNotifyIpc } from "./notify"
+import { createSavedDownloads, registerSavedIpc } from "./saved-downloads"
 import { openRecentRooms } from "./recent-rooms"
 import { callMainApi, registerRoomIpc } from "./room-ipc"
 import type { AddFilesResult } from "../shared/bridge"
@@ -107,6 +113,9 @@ async function main() {
   })
 
   const roomsDir = join(app.getPath("userData"), "rooms")
+  // Pasted pictures wait here for a moment. A crash can leave one behind.
+  const pasteDir = join(app.getPath("userData"), "paste")
+  rmSync(pasteDir, { recursive: true, force: true })
   const settings = openSettings(app.getPath("userData"), {
     downloads: app.getPath("downloads"),
   })
@@ -227,8 +236,34 @@ async function main() {
     },
   }
   await runtime.runPromise(registerIpc(host))
+  const recentRooms = openRecentRooms(app.getPath("userData"))
+  const saved = createSavedDownloads()
+  const trayIcons = trayIconPaths({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+  })
   registerRoomIpc(host, {
     roomsDir,
+    pasteDir,
+    saveFolder: () => settings.get().saveFolder,
+    roomSaveFolder: (code) => recentRooms.folderFor(code),
+    setRoomFolder: (code, folder, name) =>
+      void recentRooms.setFolder(code, folder, name),
+    remember: (item, folder) => saved.remember(item, folder),
+    clipboard: {
+      // Electron 45's clipboard is async and hands out typed items.
+      readPng: async () => {
+        for (const item of await clipboard.read()) {
+          if (!item.types.includes("image/png")) continue
+
+          const blob = await item.getType("image/png")
+          return Buffer.from(await blob.arrayBuffer())
+        }
+        return null
+      },
+      readText: () => clipboard.readText(),
+    },
     openPath: (path) => shell.openPath(path),
     pickFiles: async () => {
       const options = {
@@ -268,8 +303,33 @@ async function main() {
       })) as AddFilesResult
     },
   })
+  registerNotifyIpc(host, {
+    enabled: () => settings.get().notifications,
+    windowActive: () => {
+      const open = liveWindow()
+      return !!open && open.isVisible() && open.isFocused()
+    },
+    show: ({ title, body }) => {
+      if (!Notification.isSupported()) return
+
+      const toast = new Notification({ title, body })
+      toast.on("click", () => showWindow(window))
+      toast.show()
+    },
+  })
+  const dragIcon = nativeImage.createFromPath(trayIcons.large)
+  registerSavedIpc(host, saved, {
+    startDrag: (file) =>
+      liveWindow()?.webContents.startDrag({ file, icon: dragIcon }),
+    preview: async ({ folder, name }) =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/downloads/preview",
+        { folder, name }
+      ),
+  })
   registerUpdateIpc(host, settings, updater, (url) => shell.openExternal(url))
-  const recentRooms = openRecentRooms(app.getPath("userData"))
   registerRecentRoomsIpc(host, recentRooms)
   recentRooms.onChange((rooms) => {
     for (const open of BrowserWindow.getAllWindows())
@@ -338,11 +398,7 @@ async function main() {
 
   tray = createTray(
     { onOpen: () => showWindow(window), onQuit: () => app.quit() },
-    trayIconPaths({
-      packaged: app.isPackaged,
-      resourcesPath: process.resourcesPath,
-      appPath: app.getAppPath(),
-    })
+    trayIcons
   )
 
   app.on("activate", () => {

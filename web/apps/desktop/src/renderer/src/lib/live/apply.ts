@@ -102,6 +102,17 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
+// Asks main for a Windows toast. Main decides whether to show it (setting on,
+// window in the background) and writes the words itself. A failure costs only
+// the toast, so it is never shown.
+function toast(kind: "join" | "done" | "failed", name: string): void {
+  try {
+    Promise.resolve(window.tailshare.notify({ kind, name })).catch(() => {})
+  } catch {
+    // No bridge (a test or a plain browser): there is nothing to notify.
+  }
+}
+
 /**
  * Turn one live message into cache updates. This is the only place live data
  * enters the screens. A snapshot always comes first on a new socket.
@@ -134,9 +145,14 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
 
     case "session.state": {
       const session = event.data as SessionState
+      const waiting = client.getQueryData<SessionState>(keys.session)?.join
       claimLive(client, keys.session)
       client.setQueryData<SessionState>(keys.session, session)
       if (session.state === "idle") clearSession(client)
+
+      // Only a request that just arrived: a snapshot replay never lands here.
+      if (session.join && session.join.id !== waiting?.id)
+        toast("join", session.join.displayName)
 
       return
     }
@@ -166,8 +182,10 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
       if (known?.state !== item.state) {
         if (item.state === "done") {
           announce(`${fileName(item.source)} finished.`)
+          toast("done", fileName(item.source))
         } else if (item.state === "failed") {
           announce(`${fileName(item.source)} failed.`, "assertive")
+          toast("failed", fileName(item.source))
         }
       }
 

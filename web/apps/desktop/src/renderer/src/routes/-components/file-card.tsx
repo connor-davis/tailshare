@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { useTransfers, useStartTransfer } from "@/lib/api/transfers"
 import type { ChatAttachment } from "@/lib/api/types"
 import { useDownloadsOk } from "@/components/use-downloads-status"
+import { FilePreview } from "./file-preview"
+import { useDownloadPreview, useRoomPreview } from "@/lib/api/preview"
 import { formatBytes, formatSpeed, percent } from "@/lib/format"
 
 /**
@@ -39,6 +41,13 @@ export function FileCard({
               item.direction === "download" && item.source === attachment.path
           )
       : undefined)
+
+  // Our own file is read by the sidecar from the shared folder. The peer's file
+  // can only be previewed once it is saved here.
+  const saved = fromPeer && transfer?.state === "done" ? transfer.id : undefined
+  const own = useRoomPreview(attachment.path, !fromPeer)
+  const mine = useDownloadPreview(saved)
+  const preview = fromPeer ? mine.data : own.data
 
   const download = () =>
     start.mutate(
@@ -115,6 +124,12 @@ export function FileCard({
         <p className="text-xs text-muted-foreground tabular-nums">
           {formatBytes(attachment.size)}
         </p>
+        <FilePreview preview={preview} name={attachment.name} />
+        {fromPeer && !saved ? (
+          <p className="text-xs text-muted-foreground">
+            Preview after you download it
+          </p>
+        ) : null}
         {status}
       </div>
     </div>
