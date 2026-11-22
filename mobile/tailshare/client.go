@@ -37,6 +37,8 @@ type Client struct {
 	events *peer.Subscription
 	// eventsEnded is set once NextEvent has reported the room closed.
 	eventsEnded bool
+	// transfers is nil until EnableTransfers.
+	transfers *transfers
 }
 
 // NewClient makes a client that shows name to the host. An empty relayMapURL
@@ -276,6 +278,7 @@ func (client *Client) Leave() error {
 	if events != nil {
 		events.Close()
 	}
+	client.closeTransfers()
 
 	return joined.Leave()
 }

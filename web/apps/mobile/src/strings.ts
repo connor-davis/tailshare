@@ -15,4 +15,10 @@ export const strings = {
   bytes: "bytes",
   noCode: "Type the share code first.",
   phoneName: "Tailshare phone",
+  send: "Send file",
+  sending: "Sending",
+  getting: "Getting",
+  savedTo: "Saved to Downloads as",
+  sent: "Sent",
+  failed: "Failed",
 } as const

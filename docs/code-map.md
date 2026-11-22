@@ -250,6 +250,7 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Job | Owner |
 | --- | --- |
 | gomobile facade: join by code, wait for host approval, list the host's shared folder as JSON, leave (every path through `share.Localize` and `peer.List`) | `mobile/tailshare/client.go` (`Client`, `NewClient`) |
+| Phone file transfers: turn on the queue after join, download a host file, upload a picked file, progress as JSON from `NextTransferEvent` (downloads cannot resume after an app restart) | `mobile/tailshare/transfers.go` (`EnableTransfers`, `Download`, `Upload`, `NextTransferEvent`) |
 | Offline facade tests on the local relay (join, list, bad paths, cancel) | `mobile/tailshare/client_test.go` |
 | Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |
 | Android build, unsigned PR artifact, signing and release upload (reusable, not a required check) | `.github/workflows/android.yml`; called from `nightly.yml` and `release.yml` |

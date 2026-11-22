@@ -1,3 +1,4 @@
+import * as DocumentPicker from "expo-document-picker"
 import { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
@@ -10,11 +11,31 @@ import {
   View,
 } from "react-native"
 
-import { core, type RemoteEntry } from "./modules/tailshare-core"
+import {
+  core,
+  type RemoteEntry,
+  type TransferEvent,
+} from "./modules/tailshare-core"
 import { strings } from "./src/strings"
 import { useTheme } from "./src/theme"
 
 type Theme = ReturnType<typeof useTheme>
+type Transfer = Extract<TransferEvent, { type: "transfer" }>
+
+/** One plain sentence for a transfer: progress while it runs, the outcome after. */
+function transferLine(item: Transfer): string {
+  if (item.state === "done") {
+    return item.direction === "download"
+      ? `${strings.savedTo} ${item.saved ?? item.name}`
+      : `${strings.sent} ${item.name}`
+  }
+  if (item.state === "failed" || item.state === "canceled") {
+    return `${strings.failed}: ${item.name}${item.reason ? ` (${item.reason})` : ""}`
+  }
+  const verb = item.direction === "download" ? strings.getting : strings.sending
+
+  return `${verb} ${item.name}  ${item.done}/${item.size} ${strings.bytes}`
+}
 
 function Button(props: {
   theme: Theme
@@ -57,6 +78,7 @@ export default function App() {
   const [entries, setEntries] = useState<RemoteEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [transfers, setTransfers] = useState<Record<string, Transfer>>({})
 
   const open = useCallback(async (dir: string) => {
     setLoading(true)
@@ -85,9 +107,44 @@ export default function App() {
         setEntries([])
         setPath("")
         setCode("")
+        setTransfers({})
       }
     })
   }, [room, path, open])
+
+  // Progress from the Go core, pushed as it happens.
+  useEffect(() => {
+    if (room === null) return
+    return core.onTransferEvent((event) => {
+      if (event.type === "transfer") {
+        setTransfers((current) => ({ ...current, [event.id]: event }))
+      }
+    })
+  }, [room])
+
+  const fail = (failure: unknown) =>
+    setError(failure instanceof Error ? failure.message : String(failure))
+
+  const download = (entry: RemoteEntry) =>
+    core
+      .download(path === "" ? entry.name : `${path}/${entry.name}`)
+      .catch(fail)
+
+  const send = async () => {
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+      })
+      if (picked.canceled) return
+      // The picker hands back a file:// URI in the app cache; Go wants the plain path.
+      const local = decodeURIComponent(
+        picked.assets[0].uri.replace(/^file:\/\//, "")
+      )
+      await core.upload(local, path)
+    } catch (failure) {
+      fail(failure)
+    }
+  }
 
   const join = async () => {
     if (code.trim() === "") {
@@ -99,6 +156,7 @@ export default function App() {
     try {
       await core.join(code, strings.phoneName)
       setRoom(core.roomName())
+      await core.enableTransfers()
       await open("")
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure))
@@ -113,6 +171,7 @@ export default function App() {
     setEntries([])
     setPath("")
     setCode("")
+    setTransfers({})
   }
 
   const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""
@@ -183,6 +242,7 @@ export default function App() {
               quiet
             />
           ) : null}
+          <Button theme={theme} label={strings.send} onPress={send} quiet />
           {loading ? <ActivityIndicator color={theme.primary} /> : null}
           <FlatList
             data={entries}
@@ -194,9 +254,10 @@ export default function App() {
             }
             renderItem={({ item }) => (
               <Pressable
-                disabled={!item.isDir}
                 onPress={() =>
-                  open(path === "" ? item.name : `${path}/${item.name}`)
+                  item.isDir
+                    ? open(path === "" ? item.name : `${path}/${item.name}`)
+                    : download(item)
                 }
                 style={[styles.item, { borderColor: theme.border }]}
               >
@@ -209,6 +270,19 @@ export default function App() {
               </Pressable>
             )}
           />
+          {Object.values(transfers).map((item) => (
+            <Text
+              key={item.id}
+              style={{
+                color:
+                  item.state === "failed" || item.state === "canceled"
+                    ? theme.error
+                    : theme.muted,
+              }}
+            >
+              {transferLine(item)}
+            </Text>
+          ))}
           <Button theme={theme} label={strings.leave} onPress={leave} quiet />
         </View>
       )}
