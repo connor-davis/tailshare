@@ -3,10 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"github.com/connor-davis/tailshare/internal/services/share"
 	"strings"
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/services/share"
+	"github.com/connor-davis/tailshare/internal/services/transfer"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -83,11 +84,16 @@ func (server *Server) currentTransfers() (Transfers, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	if server.phase != phaseConnected || server.transfers == nil {
+	current := server.activeLocked()
+	if current == nil {
 		return nil, errNotConnected()
 	}
 
-	return server.transfers, nil
+	if current.phase != phaseConnected || current.transfers == nil {
+		return nil, errNotConnected()
+	}
+
+	return current.transfers, nil
 }
 
 // forwardTransfers puts the manager's events on the live socket.
@@ -117,7 +123,12 @@ func (server *Server) forwardTransfers(events <-chan TransferEvent, stop func())
 
 func (server *Server) transferList() []TransferItem {
 	server.mu.Lock()
-	transfers := server.transfers
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return []TransferItem{}
+	}
+	transfers := current.transfers
 	server.mu.Unlock()
 	if transfers == nil {
 		return []TransferItem{}
@@ -184,10 +195,15 @@ func (server *Server) putTransferLimits(c fiber.Ctx) error {
 	server.mu.Lock()
 	limits := transferLimits{in.TransfersAtOnce, in.UploadLimitKiB, in.DownloadLimitKiB}
 	server.limits = limits
-	manager := server.manager
+	managers := make([]*transfer.Manager, 0, len(server.rooms))
+	for _, current := range server.rooms {
+		if current.manager != nil {
+			managers = append(managers, current.manager)
+		}
+	}
 	server.mu.Unlock()
 
-	if manager != nil {
+	for _, manager := range managers {
 		applyLimits(manager, limits)
 	}
 

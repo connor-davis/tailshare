@@ -20,7 +20,7 @@ import (
 func TestAuditChatSubscriptionRecovers(t *testing.T) {
 	f := newFixture(t, config.Config{}, nil)
 	remote := f.connectPipe()
-	local := f.server.peer
+	local := f.server.activeLocked().peer
 	subscription := local.Subscribe()
 	for range 100 {
 		if _, err := remote.SendChat(t.Context(), "burst"); err != nil {
@@ -56,11 +56,11 @@ func TestAuditChatSubscriptionRecovers(t *testing.T) {
 func TestAuditDoubleDotDestinationAccepted(t *testing.T) {
 	f := newFixture(t, config.Config{}, nil)
 	f.chooseFolder()
-	manager := transfer.New(f.server.root)
+	manager := transfer.New(f.server.activeLocked().root)
 	defer manager.Close()
-	manager.SetDownloadRoot(f.server.root)
-	f.server.transfers = newManagedTransfers(manager)
-	f.server.phase = phaseConnected
+	manager.SetDownloadRoot(f.server.activeLocked().root)
+	f.server.activeLocked().transfers = newManagedTransfers(manager)
+	f.server.activeLocked().phase = phaseConnected
 	f.send("POST", "/api/transfers", TransferRequest{
 		Direction: "download", Source: "report..final.pdf", Destination: "a..b.txt",
 	}).expect(t, 202, "")
@@ -79,7 +79,7 @@ func TestAuditTransportErrorsStayPrivate(t *testing.T) {
 	}
 	f := newFixture(t, config.Config{}, nil)
 	f.connectPipe()
-	result := toAppError(chatError(f.server.peer, net.ErrClosed))
+	result := toAppError(chatError(f.server.activeLocked().peer, net.ErrClosed))
 	if result.Message != "Could not reach the other computer." {
 		t.Fatalf("raw chat error exposed: %+v", result)
 	}
@@ -127,7 +127,7 @@ func TestAuditRemoveMemberRoute(t *testing.T) {
 		t.Fatal("roster lacks fingerprints")
 	}
 	var answer peer.TransferAccept
-	err := third.server.peer.Call(t.Context(), peer.MethodTransferOffer, peer.TransferOffer{
+	err := third.server.activeLocked().peer.Call(t.Context(), peer.MethodTransferOffer, peer.TransferOffer{
 		TransferID: rand.Text(), Path: "file", Direction: peer.DirectionUpload, Size: 0,
 		SHA256: strings.Repeat("a", 64),
 	}, &answer)
@@ -135,14 +135,14 @@ func TestAuditRemoveMemberRoute(t *testing.T) {
 	if !errors.As(err, &remote) || remote.Code != peer.CodeDenied {
 		t.Fatalf("third member transfer not denied: %v", err)
 	}
-	if len(host.server.manager.Snapshot()) != 0 {
+	if len(host.server.activeLocked().manager.Snapshot()) != 0 {
 		t.Fatal("third member occupied transfer slot")
 	}
 	id := state.Members[2].ID
 	route := "/api/session/members/" + url.PathEscape(id)
 	second.send("DELETE", route, nil).expect(t, 409, "not_admitter")
 	host.send("DELETE", route, nil).expect(t, 200, "")
-	if len(host.server.sess.Members()) != 2 {
+	if len(host.server.activeLocked().sess.Members()) != 2 {
 		t.Fatal("API retained removed member")
 	}
 	attachedID := state.Members[1].ID
@@ -150,12 +150,12 @@ func TestAuditRemoveMemberRoute(t *testing.T) {
 	eventually(t, "host waits after attached member removal", func() bool {
 		host.server.mu.Lock()
 		defer host.server.mu.Unlock()
-		return host.server.phase == phaseHosting && host.server.peer == nil
+		return host.server.activeLocked().phase == phaseHosting && host.server.activeLocked().peer == nil
 	})
 	fourth := newFixture(t, cfg, nil)
 	joinWithApproval(t, host, fourth, code).expect(t, 200, "")
 	// A replacement manager must receive requests from already installed control wrappers.
-	err = fourth.server.peer.Call(t.Context(), peer.MethodTransferOffer, peer.TransferOffer{
+	err = fourth.server.activeLocked().peer.Call(t.Context(), peer.MethodTransferOffer, peer.TransferOffer{
 		TransferID: rand.Text(), Path: "../escape", Direction: peer.DirectionUpload,
 	}, &answer)
 	if err != nil || answer.Accepted {

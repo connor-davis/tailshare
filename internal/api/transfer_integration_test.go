@@ -206,7 +206,7 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 	host.send("POST", "/api/transfers/unknown/pause", nil).expect(t, 404, "not_found")
 
 	host.server.mu.Lock()
-	manager := host.server.transfers.(*managedTransfers).manager
+	manager := host.server.activeLocked().transfers.(*managedTransfers).manager
 	host.server.mu.Unlock()
 	host.send("DELETE", "/api/session", nil).expect(t, 200, "")
 	select {

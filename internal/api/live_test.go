@@ -326,7 +326,7 @@ func TestRemovedEventReachesLiveSocket(t *testing.T) {
 func TestSharedFolderChangeBecomesFilesChanged(t *testing.T) {
 	f := newFixture(t, config.Config{}, nil)
 	fake := f.connectPipe()
-	local := f.server.peer
+	local := f.server.activeLocked().peer
 	go f.server.forwardChat(local, local.Subscribe())
 	live := f.dialLive()
 	defer live.Close()

@@ -46,7 +46,7 @@ func TestChatRoutes(t *testing.T) {
 	_ = remote.Close()
 
 	f.server.mu.Lock()
-	local := f.server.peer
+	local := f.server.activeLocked().peer
 	f.server.mu.Unlock()
 	<-local.Done()
 

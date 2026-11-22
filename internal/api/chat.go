@@ -17,11 +17,16 @@ func (server *Server) connectedPeer() (*peer.Peer, error) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	if server.peer == nil {
+	current := server.activeLocked()
+	if current == nil {
 		return nil, errNotConnected()
 	}
 
-	return server.peer, nil
+	if current.peer == nil {
+		return nil, errNotConnected()
+	}
+
+	return current.peer, nil
 }
 
 func (server *Server) postChat(c fiber.Ctx) error {
@@ -52,7 +57,13 @@ func (server *Server) postChat(c fiber.Ctx) error {
 		}
 
 		server.mu.Lock()
-		root := server.root
+		current := server.activeLocked()
+		if current == nil {
+			server.mu.Unlock()
+			return errNotConnected()
+		}
+
+		root := current.root
 		if root == nil {
 			server.mu.Unlock()
 

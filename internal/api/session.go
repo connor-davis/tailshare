@@ -85,30 +85,38 @@ func (server *Server) sessionState() SessionState {
 }
 
 func (server *Server) stateLocked() SessionState {
-	state := SessionState{State: server.phase, Role: server.role, RoomName: server.roomName}
-	if server.phase == phaseHosting {
-		state.Code = server.code
-		if server.sess != nil {
-			if expires, ok := server.sess.ExpiresAt(); ok {
+	return server.roomStateLocked(server.activeLocked())
+}
+
+func (server *Server) roomStateLocked(current *room) SessionState {
+	if current == nil {
+		return SessionState{State: phaseIdle}
+	}
+
+	state := SessionState{State: current.phase, Role: current.role, RoomName: current.roomName}
+	if current.phase == phaseHosting {
+		state.Code = current.code
+		if current.sess != nil {
+			if expires, ok := current.sess.ExpiresAt(); ok {
 				state.ExpiresAt = expires.UTC().Format(time.RFC3339)
 			}
 		}
 	}
-	if server.phase == phaseConnected {
-		remote := server.peer.Remote()
+	if current.phase == phaseConnected {
+		remote := current.peer.Remote()
 		state.Peer = &PeerInfo{DisplayName: remote.DisplayName, SharedFolderName: remote.SharedFolderName}
 	}
 
-	if server.sess != nil {
-		if pending, ok := server.sess.Pending(); ok {
+	if current.sess != nil {
+		if pending, ok := current.sess.Pending(); ok {
 			state.Join = &pending
 		}
 
-		selfID := server.sess.SelfID()
-		for index, member := range server.sess.Members() {
+		selfID := current.sess.SelfID()
+		for index, member := range current.sess.Members() {
 			state.Members = append(state.Members, MemberInfo{
 				ID: member.ID, DisplayName: member.DisplayName, Fingerprint: peer.Fingerprint(member.ID),
-				Host: index == 0, You: member.ID == selfID, Path: server.sess.Path(member.ID),
+				Host: index == 0, You: member.ID == selfID, Path: current.sess.Path(member.ID),
 			})
 		}
 	}
@@ -118,6 +126,34 @@ func (server *Server) stateLocked() SessionState {
 func (server *Server) publishSession() {
 	server.syncRoomFeatures()
 	server.hub.publish("session.state", server.sessionState())
+}
+
+// publishSessionFor ignores retired watchers and synchronizes the owning room's apps.
+func (server *Server) publishSessionFor(sess *session.Session) {
+	server.mu.Lock()
+	current := server.sessionRoomLocked(sess)
+	if current == nil {
+		server.mu.Unlock()
+		return
+	}
+
+	forwards := current.forwards
+	server.mu.Unlock()
+
+	if forwards != nil {
+		forwards.Sync()
+	}
+
+	server.mu.Lock()
+	if server.rooms[current.code] != current || current.sess != sess {
+		server.mu.Unlock()
+		return
+	}
+
+	state := server.roomStateLocked(current)
+	server.mu.Unlock()
+
+	server.hub.publish("session.state", state)
 }
 
 func (server *Server) getSession(c fiber.Ctx) error {
@@ -131,37 +167,51 @@ func (server *Server) reserve(role string, code codes.Code) (*share.Root, error)
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	if server.phase != phaseIdle {
+	if len(server.rooms) != 0 {
 		return nil, apperr.Conflict("conflict", "A session is already open. Leave it first.")
 	}
+
 	root, err := server.openRoom(code)
 	if err != nil {
 		return nil, err
 	}
-	server.root = root
 
-	server.phase = phaseConnecting
-	server.role = role
+	current := &room{code: root.Name(), root: root, phase: phaseConnecting, role: role}
+	server.rooms[current.code] = current
+	server.active = current.code
 
-	return server.root, nil
+	return root, nil
 }
 
 // release undoes reserve after a failed setup.
 func (server *Server) release() {
+	server.mu.Lock()
+	current := server.activeLocked()
+	server.mu.Unlock()
+
+	server.releaseRoom(current)
+}
+
+func (server *Server) releaseRoom(current *room) {
 	server.roomIO.Lock()
 	defer server.roomIO.Unlock()
 
 	server.mu.Lock()
-	if server.root != nil {
-		_ = server.root.Close()
-		server.root = nil
+	if current == nil || server.rooms[current.code] != current {
+		server.mu.Unlock()
+		return
 	}
-	server.manager = nil
-	forwards := server.forwards
-	server.forwards = nil
-	server.phase = phaseIdle
-	server.role = ""
-	server.roomName = ""
+	if current.root != nil {
+		_ = current.root.Close()
+		current.root = nil
+	}
+	current.manager = nil
+	forwards := current.forwards
+	current.forwards = nil
+	current.phase = phaseIdle
+	current.role = ""
+	current.roomName = ""
+	server.forgetRoomLocked(current)
 	server.mu.Unlock()
 
 	if forwards != nil {
@@ -197,27 +247,40 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 		return err
 	}
 
-	manager := server.roomManager(root)
-	forwards := server.newForwards()
+	current, manager, err := server.roomManager(root)
+	if err != nil {
+		server.releaseRoom(current)
+		return err
+	}
+
+	forwards := server.newForwards(current)
 	host := displayName(in.DisplayName)
 	// ponytail: the name is fixed when the room is created; renaming later is not built.
 	room := roomName(in.RoomName, host)
-	sess, code, err := session.Host(server.ctx, server.connectionConfig(), host, session.Options{
+	sess, _, err := session.Host(server.ctx, server.connectionConfig(), host, session.Options{
 		Root: root, Handlers: manager.Handlers(), Code: selected, RoomName: room,
 		RoomHandlers: forwards.RoomHandlers(), Trusted: server.trusted,
 	})
 	if err != nil {
 		forwards.Close()
 		_ = manager.Close()
-		server.release()
+		server.releaseRoom(current)
 		return connectError(err)
 	}
 
 	server.mu.Lock()
-	server.sess = sess
-	server.code = code.String()
-	server.roomName = room
-	server.phase = phaseHosting
+	if server.rooms[current.code] != current || server.ctx.Err() != nil {
+		server.mu.Unlock()
+		forwards.Close()
+		_ = manager.Close()
+		_ = sess.Close()
+		server.releaseRoom(current)
+		return errNotConnected()
+	}
+
+	current.sess = sess
+	current.roomName = room
+	current.phase = phaseHosting
 	server.mu.Unlock()
 
 	server.attachForwards(sess, forwards)
@@ -250,7 +313,7 @@ func (server *Server) awaitJoiner(sess *session.Session, manager *transfer.Manag
 			return
 		}
 
-		server.publishSession()
+		server.publishSessionFor(sess)
 		select {
 		case <-sess.Done():
 			server.end(sess)
@@ -267,7 +330,7 @@ func (server *Server) watchSession(sess *session.Session) {
 			server.end(sess)
 			return
 		case <-sess.Changes():
-			server.publishSession()
+			server.publishSessionFor(sess)
 		}
 	}
 }
@@ -294,8 +357,13 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	ctx, cancel := server.contextWithin(joinTimeout)
 	defer cancel()
 
-	manager := server.roomManager(root)
-	forwards := server.newForwards()
+	current, manager, err := server.roomManager(root)
+	if err != nil {
+		server.releaseRoom(current)
+		return err
+	}
+
+	forwards := server.newForwards(current)
 	sess, err := session.Join(ctx, in.Code, server.connectionConfig(), displayName(in.DisplayName), session.Options{
 		Root: root, Handlers: manager.Handlers(),
 		RoomHandlers: forwards.RoomHandlers(),
@@ -303,7 +371,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 	if err != nil {
 		forwards.Close()
 		_ = manager.Close()
-		server.release()
+		server.releaseRoom(current)
 		return connectError(err)
 	}
 
@@ -319,13 +387,22 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 		forwards.Close()
 		_ = manager.Close()
 		_ = sess.Close()
-		server.release()
+		server.releaseRoom(current)
 		return errUnreachable()
 	}
 
 	server.mu.Lock()
-	server.sess = sess
-	server.roomName = sess.RoomName()
+	if server.rooms[current.code] != current || server.ctx.Err() != nil {
+		server.mu.Unlock()
+		forwards.Close()
+		_ = manager.Close()
+		_ = sess.Close()
+		server.releaseRoom(current)
+		return errNotConnected()
+	}
+
+	current.sess = sess
+	current.roomName = sess.RoomName()
 	server.mu.Unlock()
 
 	server.attachForwards(sess, forwards)
@@ -345,7 +422,8 @@ func (server *Server) connect(
 	host bool,
 ) {
 	server.mu.Lock()
-	if server.sess != sess || server.ending != nil || server.ctx.Err() != nil {
+	current := server.sessionRoomLocked(sess)
+	if current == nil || current.sess != sess || current.ending != nil || server.ctx.Err() != nil {
 		server.mu.Unlock()
 		_ = other.Close()
 		_ = manager.Close()
@@ -371,20 +449,20 @@ func (server *Server) connect(
 	}
 
 	adapter := newManagedTransfers(manager)
-	server.transfers = adapter
+	current.transfers = adapter
 	events, stop := adapter.Subscribe()
-	server.transferDone = make(chan struct{})
-	done := server.transferDone
+	current.transferDone = make(chan struct{})
+	done := current.transferDone
 	go func() {
 		defer close(done)
 		server.forwardTransfers(events, stop)
 	}()
 
-	server.peer = other
-	server.phase = phaseConnected
+	current.peer = other
+	current.phase = phaseConnected
 	server.mu.Unlock()
 
-	server.publishSession()
+	server.publishSessionFor(sess)
 
 	chatEvents := other.Subscribe()
 	go server.forwardChat(other, chatEvents)
@@ -403,7 +481,8 @@ func (server *Server) end(sess *session.Session) {
 
 func (server *Server) leaveSession(c fiber.Ctx) error {
 	server.mu.Lock()
-	connecting := server.phase == phaseConnecting
+	current := server.activeLocked()
+	connecting := current != nil && current.phase == phaseConnecting
 	server.mu.Unlock()
 
 	if connecting {
@@ -425,29 +504,38 @@ func (server *Server) leave() {
 // An expected session prevents an old peer watcher from ending a newer session.
 func (server *Server) endCurrent(expected *session.Session) {
 	server.mu.Lock()
-	if expected != nil && server.sess != expected {
+	current := server.activeLocked()
+	if expected != nil {
+		current = server.sessionRoomLocked(expected)
+	}
+	server.mu.Unlock()
+
+	server.endRoom(current, expected)
+}
+
+// endRoom keeps cleanup bound to its reservation, even if the active room changes.
+func (server *Server) endRoom(current *room, expected *session.Session) {
+	server.mu.Lock()
+	if current == nil || server.rooms[current.code] != current ||
+		(expected != nil && current.sess != expected) {
 		server.mu.Unlock()
 		return
 	}
-	if ending := server.ending; ending != nil {
+	if ending := current.ending; ending != nil {
 		server.mu.Unlock()
 		<-ending
 		return
 	}
 
-	sess, other := server.sess, server.peer
-	if sess == nil {
-		server.mu.Unlock()
-		return
-	}
-	transfers, done := server.transfers, server.transferDone
-	manager := server.manager
-	forwards := server.forwards
-	server.forwards = nil
+	sess, other := current.sess, current.peer
+	transfers, done := current.transfers, current.transferDone
+	manager := current.manager
+	forwards := current.forwards
+	current.forwards = nil
 	ending := make(chan struct{})
-	server.ending = ending
-	server.phase = phaseConnecting
-	server.transfers = nil
+	current.ending = ending
+	current.phase = phaseConnecting
+	current.transfers = nil
 	server.mu.Unlock()
 
 	if forwards != nil {
@@ -462,7 +550,9 @@ func (server *Server) endCurrent(expected *session.Session) {
 	if done != nil {
 		<-done
 	}
-	_ = sess.Leave()
+	if sess != nil {
+		_ = sess.Leave()
+	}
 	if other != nil {
 		_ = other.Close()
 	}
@@ -471,16 +561,17 @@ func (server *Server) endCurrent(expected *session.Session) {
 	defer server.roomIO.Unlock()
 
 	server.mu.Lock()
-	server.sess, server.peer = nil, nil
-	server.phase, server.role, server.code, server.roomName = phaseIdle, "", "", ""
-	server.transferDone = nil
-	if server.root != nil {
-		_ = server.root.Close()
-		server.root = nil
+	current.sess, current.peer = nil, nil
+	current.phase, current.role, current.roomName = phaseIdle, "", ""
+	current.transferDone = nil
+	if current.root != nil {
+		_ = current.root.Close()
+		current.root = nil
 	}
-	server.manager = nil
+	current.manager = nil
+	server.forgetRoomLocked(current)
 	server.pruneDownloadRootsLocked()
-	server.ending = nil
+	current.ending = nil
 	close(ending)
 	server.mu.Unlock()
 

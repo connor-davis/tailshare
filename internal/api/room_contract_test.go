@@ -76,7 +76,7 @@ func TestAddRoomFiles(t *testing.T) {
 	if _, err := f.server.reserve(roleHost, code); err != nil {
 		t.Fatal(err)
 	}
-	f.server.phase = phaseHosting
+	f.server.activeLocked().phase = phaseHosting
 	sourceDir := t.TempDir()
 	source := filepath.Join(sourceDir, "report.pdf")
 	if err := os.WriteFile(source, []byte("abc"), 0o600); err != nil {
@@ -111,11 +111,11 @@ func TestDownloadDestinationContract(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(downloads, "report.pdf"), []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	manager := transfer.New(f.server.root)
+	manager := transfer.New(f.server.activeLocked().root)
 	manager.SetDownloadRoot(f.server.downloadRoot)
 	defer manager.Close()
-	f.server.transfers = newManagedTransfers(manager)
-	f.server.phase = phaseConnected
+	f.server.activeLocked().transfers = newManagedTransfers(manager)
+	f.server.activeLocked().phase = phaseConnected
 	for _, destination := range []string{"sub/file.pdf", `sub\file.pdf`, "..", "../outside"} {
 		f.send("POST", "/api/transfers", TransferRequest{Direction: "download", Source: "report.pdf", Destination: destination}).expect(t, 400, "bad_path")
 	}
@@ -129,7 +129,7 @@ func TestDownloadDestinationContract(t *testing.T) {
 	}
 	// A root change must affect new downloads without redirecting the queued one.
 	other := t.TempDir()
-	f.server.manager = manager
+	f.server.activeLocked().manager = manager
 	f.send("PUT", "/api/downloads", map[string]string{"folder": other}, mainHeader).expect(t, 200, "")
 	item, err := manager.Download(context.Background(), "report.pdf", "report.pdf")
 	if err != nil || item.LocalPath != "report.pdf" {

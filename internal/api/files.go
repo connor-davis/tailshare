@@ -37,7 +37,13 @@ func (server *Server) localFiles(c fiber.Ctx) error {
 	}
 
 	server.mu.Lock()
-	root := server.root
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return errNotConnected()
+	}
+
+	root := current.root
 	server.mu.Unlock()
 
 	if root == nil {

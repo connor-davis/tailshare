@@ -81,6 +81,7 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Host, join, leave, session state and peer-loss cleanup | `internal/api/session.go` |
 | Local admission Allow/Deny routes and pending-ID validation | `internal/api/session_joins.go` |
 | Local room and peer folder listing | `internal/api/files.go` |
+| Per-room state, active selection and session ownership | `internal/api/room.go` |
 | Canonical room root and per-session manager creation | `internal/api/rooms.go` |
 | Main-only header guard, consented file import and downloads root configuration | `internal/api/room_files.go` |
 | Main-only folder download, paged peer walk and validated entry names | `internal/api/folder_transfer.go`; `folder_walk_test.go`, `transfer_integration_test.go` (paging, caps, escapes and real nested downloads) |

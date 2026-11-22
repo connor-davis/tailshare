@@ -140,7 +140,7 @@ func TestSessionLifecycle(t *testing.T) {
 		t.Fatalf("host chat log = %s", got.Raw)
 	}
 
-	hostRoot, joinRoot := host.server.root, join.server.root
+	hostRoot, joinRoot := host.server.activeLocked().root, join.server.activeLocked().root
 
 	// Leaving ends both sides: the joiner at once, the host when it notices.
 	join.send("DELETE", "/api/session", nil).expect(t, 200, "")
@@ -241,7 +241,7 @@ func TestAllowDenyRoutes(t *testing.T) {
 		t.Fatal("deny retained prompt")
 	}
 	(<-results).expect(t, 403, "join_denied")
-	if join.server.root != nil || join.server.manager != nil {
+	if join.server.activeLocked() != nil {
 		t.Fatal("failed join retained its room resources")
 	}
 	host.send("POST", fmt.Sprintf("/api/session/joins/%d/allow", state.Join.ID), nil).expect(t, 409, "conflict")

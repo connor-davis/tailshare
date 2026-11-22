@@ -35,7 +35,13 @@ func (server *Server) addRoomFiles(c fiber.Ctx) error {
 	defer server.roomIO.RUnlock()
 
 	server.mu.Lock()
-	root, phase := server.root, server.phase
+	current := server.activeLocked()
+	if current == nil {
+		server.mu.Unlock()
+		return errNotConnected()
+	}
+
+	root, phase := current.root, current.phase
 	server.mu.Unlock()
 
 	if root == nil || (phase != phaseHosting && phase != phaseConnected) {
@@ -76,7 +82,7 @@ func (server *Server) addRoomFiles(c fiber.Ctx) error {
 
 	// One notice for the whole request, after every file is in.
 	if len(added) > 0 {
-		server.announceShareChanged()
+		server.announceRoomChanged(current)
 	}
 
 	return c.JSON(fiber.Map{"added": added, "skipped": skipped})
@@ -97,8 +103,10 @@ func (server *Server) putDownloads(c fiber.Ctx) error {
 	for _, existing := range server.downloadRoots {
 		if existing.SameFolder(in.Folder) {
 			server.downloadRoot = existing
-			if server.manager != nil {
-				server.manager.SetDownloadRoot(existing)
+			for _, current := range server.rooms {
+				if current.manager != nil {
+					current.manager.SetDownloadRoot(existing)
+				}
 			}
 			server.pruneDownloadRootsLocked()
 			server.mu.Unlock()
@@ -136,8 +144,10 @@ func (server *Server) putDownloads(c fiber.Ctx) error {
 		server.downloadRoots = append(server.downloadRoots, root)
 	}
 	server.downloadRoot = root
-	if server.manager != nil {
-		server.manager.SetDownloadRoot(root)
+	for _, current := range server.rooms {
+		if current.manager != nil {
+			current.manager.SetDownloadRoot(root)
+		}
 	}
 	server.pruneDownloadRootsLocked()
 	return c.JSON(fiber.Map{"ok": true})
@@ -146,7 +156,14 @@ func (server *Server) putDownloads(c fiber.Ctx) error {
 func (server *Server) pruneDownloadRootsLocked() {
 	roots := server.downloadRoots[:0]
 	for _, root := range server.downloadRoots {
-		if root == server.downloadRoot || (server.manager != nil && server.manager.PinsRoot(root)) {
+		pinned := root == server.downloadRoot
+		for _, current := range server.rooms {
+			if current.manager != nil && current.manager.PinsRoot(root) {
+				pinned = true
+				break
+			}
+		}
+		if pinned {
 			roots = append(roots, root)
 		} else {
 			_ = root.Close()
