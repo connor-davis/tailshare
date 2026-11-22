@@ -538,6 +538,9 @@ func (server *Server) forwardChat(other *peer.Peer, subscription *peer.Subscript
 				last = event.Chat.Seq
 				server.hub.publish("chat.message", event.Chat)
 			}
+			if event.Kind == peer.EventShare && event.Method == peer.MethodShareChanged {
+				server.hub.publish("files.changed", struct{}{})
+			}
 		}
 		select {
 		case <-other.Done():
@@ -548,6 +551,9 @@ func (server *Server) forwardChat(other *peer.Peer, subscription *peer.Subscript
 		}
 		subscription.Close()
 		subscription = other.Subscribe()
+
+		// The cut-off may have dropped a share.changed, so list again to be safe.
+		server.hub.publish("files.changed", struct{}{})
 		for _, message := range subscription.Snapshot {
 			if message.Seq > last {
 				last = message.Seq

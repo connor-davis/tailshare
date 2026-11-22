@@ -185,7 +185,7 @@ func (peer *Peer) handleEvent(message envelope) {
 		return
 	}
 
-	if message.Method == MethodShareLeave {
+	if message.Method == MethodShareLeave || message.Method == MethodShareChanged {
 		var payload map[string]json.RawMessage
 		if len(message.Params) > MaxSharePayload || json.Unmarshal(message.Params, &payload) != nil ||
 			payload == nil || len(payload) != 0 {

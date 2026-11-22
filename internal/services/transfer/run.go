@@ -87,6 +87,7 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 	if err == nil {
 		err = verifyPartialContext(item.ctx, manager.receiverRoot(item), item.local, hash)
 	}
+	landed := false
 	if err == nil {
 		manager.mu.Lock()
 		// Serialize publication with cancel: a completed file is never canceled afterward.
@@ -96,9 +97,16 @@ func (manager *Manager) execute(item *job, initiate bool) error {
 			err = manager.receiverRoot(item).Commit(item.local)
 			if err == nil {
 				item.view.State = Done
+				landed = manager.receiverRoot(item) == manager.root
 			}
 		}
+		changed := manager.roomChanged
 		manager.mu.Unlock()
+
+		// Called outside the lock: it writes to the network.
+		if landed && changed != nil {
+			changed()
+		}
 	}
 	if err != nil {
 		_ = manager.peer.Notify(peer.MethodTransferFailed, peer.TransferFailed{

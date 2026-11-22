@@ -43,6 +43,8 @@ const (
 	MethodShareAdmit = "share.admit"
 	// MethodShareLeave announces the authenticated sender's departure.
 	MethodShareLeave = "share.leave"
+	// MethodShareChanged tells a member the sender's shared folder changed.
+	MethodShareChanged = "share.changed"
 	// MethodTransferOffer offers a file in one direction.
 	MethodTransferOffer = "transfer.offer"
 	// MethodTransferCancel stops a transfer.

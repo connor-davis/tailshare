@@ -42,7 +42,20 @@ func (server *Server) roomManager(root *share.Root) *transfer.Manager {
 
 	manager := transfer.New(root)
 	manager.SetDownloadRoot(server.downloadRoot)
+	manager.OnRoomChanged(server.announceShareChanged)
 	applyLimits(manager, server.limits)
 	server.manager = manager
 	return manager
+}
+
+// announceShareChanged tells every connected member the room changed, so their
+// views list it again. It does nothing when there is no session.
+func (server *Server) announceShareChanged() {
+	server.mu.Lock()
+	sess := server.sess
+	server.mu.Unlock()
+
+	if sess != nil {
+		sess.NotifyShareChanged()
+	}
 }

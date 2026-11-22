@@ -25,7 +25,8 @@ const (
 type Event struct {
 	Seq int64 `json:"seq"`
 	// Type says what the data is: snapshot, session.state, chat.message,
-	// transfer.state, transfer.progress or forward.changed (whole feature state).
+	// transfer.state, transfer.progress, files.changed (no data) or forward.changed
+	// (whole feature state).
 	Type string `json:"type"`
 	// Data is the payload for Type; its shape depends on Type.
 	Data any `json:"data"`

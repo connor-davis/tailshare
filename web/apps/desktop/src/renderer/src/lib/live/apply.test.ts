@@ -175,6 +175,19 @@ describe("applyEvent", () => {
     expect(list?.map((row) => row.id)).toEqual(["t2"])
   })
 
+  it("lists peer folders again on files.changed, not local ones", () => {
+    const client = new QueryClient()
+    client.setQueryData([...keys.files, "peer", "/"], { entries: [] })
+    client.setQueryData([...keys.files, "local", "/"], { entries: [] })
+
+    applyEvent(client, { seq: 1, type: "files.changed", data: {} })
+
+    const state = (scope: string) =>
+      client.getQueryState([...keys.files, scope, "/"])?.isInvalidated
+    expect(state("peer")).toBe(true)
+    expect(state("local")).toBe(false)
+  })
+
   it("ignores unknown types", () => {
     const client = new QueryClient()
 

@@ -23,13 +23,34 @@ class TailshareCoreModule : Module() {
     }
   }
 
+  // Blocks on the Go core until the host says something, then hands it to JavaScript.
+  // Leave makes the blocked call return, so the thread ends with the room.
+  private fun pumpEvents(current: Client) {
+    thread(name = "tailshare-events") {
+      try {
+        while (true) {
+          val json = current.nextEvent()
+          sendEvent("onRoomEvent", mapOf("json" to json))
+          if (json.contains("\"closed\"")) break
+        }
+      } catch (error: Exception) {
+        // The core returns an error once the room is gone; that ends the loop.
+      }
+    }
+  }
+
   override fun definition() = ModuleDefinition {
     Name("TailshareCore")
+
+    Events("onRoomEvent")
 
     AsyncFunction("join") { code: String, name: String, promise: Promise ->
       val fresh = Tailshare.newClient(name, "", 0L)
       client = fresh
-      background(promise, "ERR_JOIN") { fresh.join(code) }
+      background(promise, "ERR_JOIN") {
+        fresh.join(code)
+        pumpEvents(fresh)
+      }
     }
 
     Function("cancel") { client?.cancel() }

@@ -74,6 +74,11 @@ func (server *Server) addRoomFiles(c fiber.Ctx) error {
 		added = append(added, file)
 	}
 
+	// One notice for the whole request, after every file is in.
+	if len(added) > 0 {
+		server.announceShareChanged()
+	}
+
 	return c.JSON(fiber.Map{"added": added, "skipped": skipped})
 }
 

@@ -18,7 +18,14 @@ type Native = {
   connected(): boolean
   listRemote(dir: string): Promise<string>
   leave(): Promise<void>
+  addListener(
+    event: "onRoomEvent",
+    listener: (event: { json: string }) => void
+  ): { remove(): void }
 }
+
+/** Something the host did that the screen should show. */
+export type RoomEvent = { type: "files.changed" } | { type: "closed" }
 
 const native = requireNativeModule<Native>("TailshareCore")
 
@@ -35,6 +42,18 @@ export const core = {
   /** Lists one host folder; an empty path is the shared folder. */
   async list(dir: string): Promise<RemoteList> {
     return JSON.parse(await native.listRemote(dir)) as RemoteList
+  },
+  /** Calls handler for each host event; the returned function unsubscribes. */
+  onRoomEvent(handler: (event: RoomEvent) => void): () => void {
+    const subscription = native.addListener("onRoomEvent", ({ json }) => {
+      try {
+        handler(JSON.parse(json) as RoomEvent)
+      } catch {
+        // A malformed event is ignored; the next one still arrives.
+      }
+    })
+
+    return () => subscription.remove()
   },
   /** Closes the room on this phone. */
   leave: () => native.leave(),
