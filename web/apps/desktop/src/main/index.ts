@@ -110,7 +110,10 @@ function createWindow(hidden: boolean, look: WindowLook) {
 
 async function main() {
   await app.whenReady()
-  app.setAppUserModelId("connor.davis.Tailshare")
+  // A dev shortcut to electron.exe with the real ID hides the installed app in Start.
+  app.setAppUserModelId(
+    app.isPackaged ? "connor.davis.Tailshare" : "connor.davis.Tailshare.dev"
+  )
   // Dev runs the generic Electron binary, which must be told the app script.
   // Windows may still ask the user which app opens tailshare: links.
   // A side profile leaves tailshare: links to the main copy.
