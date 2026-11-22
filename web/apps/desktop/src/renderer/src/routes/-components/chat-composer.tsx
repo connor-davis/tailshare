@@ -14,6 +14,7 @@ export function ChatComposer({
   connected,
   busy,
   onAddFiles,
+  onAddFolder,
   onPaste,
 }: {
   /** True once another computer is in the room. */
@@ -22,6 +23,8 @@ export function ChatComposer({
   busy: boolean
   /** Opens the file dialog. */
   onAddFiles: () => void
+  /** Opens the folder dialog. */
+  onAddFolder?: () => void
   /** Reads the clipboard: text is sent, a picture is shared as a file. */
   onPaste: () => void
 }) {
@@ -87,6 +90,14 @@ export function ChatComposer({
               onClick={onAddFiles}
             >
               <PlusIcon aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!connected || busy}
+              onClick={onAddFolder}
+            >
+              Folder
             </Button>
             <Button
               type="button"

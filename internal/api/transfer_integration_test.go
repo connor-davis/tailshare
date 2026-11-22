@@ -25,6 +25,7 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 	hostDir := filepath.Join(host.server.cfg.RoomsDir, code)
 	joinDir := filepath.Join(join.server.cfg.RoomsDir, code)
 	hostDownloads, joinDownloads := t.TempDir(), t.TempDir()
+	folderDownloads := t.TempDir()
 	host.send("PUT", "/api/downloads", map[string]string{"folder": hostDownloads}, mainHeader).expect(t, 200, "")
 	join.send("PUT", "/api/downloads", map[string]string{"folder": joinDownloads}, mainHeader).expect(t, 200, "")
 	// End the sessions before fixture folder cleanup releases their roots.
@@ -35,6 +36,7 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(dir, "nested"), 0o755); err != nil {
 			t.Fatal(err)
 		}
+
 		if err := os.WriteFile(filepath.Join(dir, "nested", "source.bin"), payload, 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -54,15 +56,18 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 		{"host download", host, "download", "host-download.bin", hostDownloads},
 		{"join download", join, "download", "join-download.bin", joinDownloads},
 	}
+
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			live := test.initiator.dialLive()
 			defer live.Close()
+
 			next(t, live)
 
 			created := test.initiator.send("POST", "/api/transfers", TransferRequest{
 				Direction: test.direction, Source: "nested/source.bin", Destination: test.destination,
 			})
+
 			created.expect(t, 202, "")
 			id := created.Body["id"].(string)
 			starting, progress := false, false
@@ -71,25 +76,31 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 				if event.Type != "transfer.state" && event.Type != "transfer.progress" {
 					continue
 				}
+
 				var item TransferItem
 				if err := json.Unmarshal(mustJSON(event.Data), &item); err != nil {
 					t.Fatal(err)
 				}
+
 				if item.ID != id {
 					continue
 				}
+
 				starting = starting || item.State == "starting"
 				progress = progress || (event.Type == "transfer.progress" && item.Bytes > 0)
 				if item.State == "failed" {
 					t.Fatalf("transfer failed: %+v", item)
 				}
+
 				if item.State == "done" {
 					if event.Type != "transfer.state" || !starting || !progress {
 						t.Fatalf("missing state/progress events: starting=%v progress=%v final=%s", starting, progress, event.Type)
 					}
+
 					if item.Source != "nested/source.bin" || item.Destination != test.destination {
 						t.Fatalf("paths changed: %+v", item)
 					}
+
 					break
 				}
 			}
@@ -98,6 +109,7 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if sha256.Sum256(received) != sha256.Sum256(payload) {
 				t.Fatal("received SHA-256 does not match the source")
 			}
@@ -105,20 +117,88 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 			// A new live client sees the completed transfer in its initial snapshot.
 			fresh := test.initiator.dialLive()
 			defer fresh.Close()
+
 			var snapshot Snapshot
 			if err := json.Unmarshal(mustJSON(next(t, fresh).Data), &snapshot); err != nil {
 				t.Fatal(err)
 			}
+
 			found := false
 			for _, item := range snapshot.Transfers {
 				found = found || (item.ID == id && item.State == "done")
 			}
+
 			if !found {
 				t.Fatalf("completed transfer missing from snapshot: %+v", snapshot)
 			}
+
 			test.initiator.send("POST", "/api/transfers/"+id+"/pause", nil).expect(t, 409, "conflict")
 		})
 	}
+
+	t.Run("folder download", func(t *testing.T) {
+		if err := os.MkdirAll(filepath.Join(joinDir, "nested", "deeper"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(filepath.Join(joinDir, "nested", "deeper", "note.txt"), []byte("nested proof"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		// The chosen parent differs from the saved default and must remain pinned.
+		picked := folderDownloads
+		live := host.dialLive()
+		defer live.Close()
+
+		next(t, live)
+		for _, expected := range []string{"nested", "nested (2)"} {
+			result := host.send("POST", "/api/transfers/folder", map[string]string{"peerPath": "nested", "folder": picked}, mainHeader)
+			result.expect(t, 202, "")
+			items := result.Body["items"].([]any)
+			if len(items) != 3 {
+				t.Fatal(string(result.Raw))
+			}
+
+			waiting := make(map[string]bool)
+			for _, item := range items {
+				waiting[item.(map[string]any)["id"].(string)] = true
+			}
+
+			for len(waiting) > 0 {
+				event := next(t, live)
+				if event.Type != "transfer.state" {
+					continue
+				}
+
+				var item TransferItem
+				if err := json.Unmarshal(mustJSON(event.Data), &item); err != nil {
+					t.Fatal(err)
+				}
+
+				if !waiting[item.ID] {
+					continue
+				}
+
+				if item.State == "failed" {
+					t.Fatalf("folder transfer failed: %+v", item)
+				}
+
+				if item.State == "done" {
+					delete(waiting, item.ID)
+				}
+			}
+
+			got, err := os.ReadFile(filepath.Join(picked, expected, "deeper", "note.txt"))
+			if err != nil || string(got) != "nested proof" {
+				t.Fatalf("%q %v", got, err)
+			}
+
+			received, err := os.ReadFile(filepath.Join(picked, expected, "source.bin"))
+			if err != nil || sha256.Sum256(received) != sha256.Sum256(payload) {
+				t.Fatalf("folder checksum: %v", err)
+			}
+		}
+	})
 
 	host.send("POST", "/api/transfers", TransferRequest{
 		Direction: "download", Source: "nested/source.bin", Destination: "../escape.bin",
@@ -134,6 +214,7 @@ func TestAPITransfersOverLocalDERP(t *testing.T) {
 	default:
 		t.Fatal("session leave did not close its transfer manager")
 	}
+
 	host.send("GET", "/api/transfers", nil).expect(t, 409, "not_connected")
 	if items := host.server.transferList(); len(items) != 0 {
 		t.Fatalf("old session transfers survived leave: %+v", items)

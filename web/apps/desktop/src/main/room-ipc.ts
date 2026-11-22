@@ -22,7 +22,14 @@ import { check, type IpcHost } from "./ipc"
 /** Main-owned dependencies; no local path or main token is returned to the page. */
 export interface RoomFilesHost {
   pickFiles(): Promise<string[] | null>
-  addFiles(paths: readonly string[]): Promise<AddFilesResult>
+  /** Opens the native directory picker. */
+  pickFolder?(): Promise<string | null>
+  /** Starts one bounded folder download into its chosen parent. */
+  saveFolderTree?(request: {
+    peerPath: string
+    folder: string
+  }): Promise<unknown>
+  addFiles(paths: readonly string[], roomCode?: string): Promise<AddFilesResult>
   /** Native Save dialog for one file, opened at `suggested` (a name or a full path). Null when cancelled. */
   pickSaveFile(suggested: string): Promise<string | null>
   /** The saved "where do downloads go" choice. */
@@ -98,23 +105,36 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
   let currentRoom: CurrentRoom | null = null
   // One call to the sidecar takes at most CHUNK paths, so a big drop is cut up.
   const CHUNK = 100
-  const addChunk = async (paths: unknown[]) => {
+
+  const addChunk = async (paths: unknown[], roomCode?: string) => {
     const checked = await Effect.runPromise(check(AddedPathsSchema, paths))
+
     return Effect.runPromise(
-      check(AddFilesResultSchema, await files.addFiles(checked))
+      check(
+        AddFilesResultSchema,
+        await (roomCode
+          ? files.addFiles(checked, roomCode)
+          : files.addFiles(checked))
+      )
     )
   }
+
   const add = async (paths: unknown) => {
     if (!Array.isArray(paths))
       throw new Error("Tailshare could not add those files.")
 
+    const roomCode = currentRoom?.code
     // A failed chunk must not hide the others: its files are reported as skipped.
     const merged: AddFilesResult = { added: [], skipped: [] }
+
     let failed = 0
     for (let start = 0; start < paths.length; start += CHUNK) {
+      if (currentRoom?.code !== roomCode)
+        throw new Error("The open room changed. Send again.")
+
       const chunk = paths.slice(start, start + CHUNK)
       try {
-        const result = await addChunk(chunk)
+        const result = await addChunk(chunk, roomCode)
         merged.added.push(...result.added)
         merged.skipped.push(...result.skipped)
       } catch {
@@ -126,6 +146,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
         })
       }
     }
+
     if (failed > 0 && failed === paths.length)
       throw new Error("Tailshare could not add those files.")
 
@@ -140,6 +161,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
     const folder = join(files.pasteDir, randomUUID())
     try {
       await mkdir(folder, { recursive: true })
+
       const path = join(folder, `Pasted picture ${stamp()}.png`)
       await writeFile(path, png, { flag: "wx", mode: 0o600 })
 
@@ -148,13 +170,17 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       await rm(folder, { recursive: true, force: true })
     }
   }
+
   const remember = (item: unknown, folder: string) => {
     files.remember(item, folder)
+
     return item
   }
+
   host.handle(CHANNELS.startDownload, async (senderOk, args) => {
     if (!senderOk || args.length !== 1) throw refuse()
-    let request: { source: string; name: string }
+
+    let request: { source: string; name: string; folder?: boolean }
     try {
       request = await Effect.runPromise(check(StartDownloadSchema, args[0]))
     } catch {
@@ -166,6 +192,42 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
     const room = currentRoom
       ? files.roomSaveFolder(currentRoom.code)
       : undefined
+    if (request.folder) {
+      let folder = room ?? files.saveFolder()
+
+      if (files.saveMode() === "ask") {
+        const picked = await (files.pickFolder?.() ?? host.pickFolder())
+        if (picked === null) return null
+
+        folder = picked
+      }
+
+      try {
+        checkFolder(folder)
+      } catch {
+        throw new Error(
+          room === folder ? ROOM_FOLDER_GONE : "Choose a downloads folder."
+        )
+      }
+
+      if (!files.saveFolderTree) throw refuse()
+
+      const result = await files.saveFolderTree({
+        peerPath: request.source,
+        folder,
+      })
+
+      if (
+        result &&
+        typeof result === "object" &&
+        "items" in result &&
+        Array.isArray(result.items)
+      )
+        for (const item of result.items) files.remember(item, folder)
+
+      return result
+    }
+
     if (files.saveMode() !== "ask") {
       if (!room)
         return remember(await files.saveToFolder(request), files.saveFolder())
@@ -176,6 +238,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       } catch {
         throw new Error(ROOM_FOLDER_GONE)
       }
+
       return remember(await files.saveInto({ ...request, folder: room }), room)
     }
 
@@ -185,6 +248,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
     if (picked === null) return null
 
     const folder = dirname(picked)
+
     return remember(
       await files.saveInto({
         source: request.source,
@@ -194,6 +258,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       folder
     )
   })
+
   host.handle(CHANNELS.pasteClipboard, async (senderOk, args) => {
     if (!senderOk || args.length !== 0) throw refuse()
 
@@ -203,6 +268,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       return Effect.runPromise(check(PasteResultSchema, await pasteImage(png)))
 
     const text = await files.clipboard.readText()
+
     return Effect.runPromise(
       check(
         PasteResultSchema,
@@ -210,8 +276,10 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       )
     )
   })
+
   host.handle(CHANNELS.setRoomFolder, async (senderOk, args) => {
     if (!senderOk || args.length !== 1) throw refuse()
+
     let request: { code: string; folder: string | null }
     try {
       request = await Effect.runPromise(check(RoomFolderSchema, args[0]))
@@ -237,19 +305,33 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
         : request.code
     files.setRoomFolder(request.code, request.folder, name)
   })
+
   host.handle(CHANNELS.addFiles, async (senderOk, args) => {
     if (!senderOk || args.length !== 0) throw refuse()
+
     const paths = await files.pickFiles()
+
     return paths === null ? null : add(paths)
   })
+
+  host.handle(CHANNELS.addFolder, async (senderOk, args) => {
+    if (!senderOk || args.length !== 0) throw refuse()
+
+    const folder = await (files.pickFolder?.() ?? host.pickFolder())
+
+    return folder === null ? null : add([folder])
+  })
+
   host.handle(CHANNELS.addDroppedFiles, async (senderOk, args) => {
     if (!senderOk || args.length !== 1) throw refuse()
     return add(args[0])
   })
+
   host.handle(CHANNELS.getCurrentRoom, async (senderOk, args) => {
     if (!senderOk || args.length !== 0) throw refuse()
     return currentRoom
   })
+
   host.handle(CHANNELS.setCurrentRoom, async (senderOk, args) => {
     if (!senderOk || args.length !== 1) throw refuse()
     try {
@@ -259,11 +341,15 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       throw refuse()
     }
   })
+
   host.handle(CHANNELS.openRoomFolder, async (senderOk, args) => {
     if (!senderOk || args.length !== 1) throw refuse()
+
     const error = await files.openPath(roomFolder(files.roomsDir, args[0]))
     if (error) throw new Error("Could not open the room folder.")
   })
+
+  return { add, currentRoom: () => currentRoom }
 }
 
 /** Calls a main-only endpoint with both secrets and bounded, local error prose. */
@@ -272,26 +358,32 @@ export async function callMainApi(
   mainToken: string,
   route:
     | "/api/room/files"
+    | "/api/session"
+    | "/api/chat"
+    | "/api/transfers/folder"
     | "/api/downloads"
     | "/api/transfers"
     | "/api/transfers/save"
     | "/api/downloads/preview"
     | "/api/transfers/limits",
-  body: unknown
+  body: unknown,
+  timeout = 120_000
 ): Promise<unknown> {
   const put = route === "/api/downloads" || route === "/api/transfers/limits"
+
   const generic = "Tailshare could not complete that file request."
+
   let response: Response
   try {
     response = await fetch(info.baseUrl + route, {
-      method: put ? "PUT" : "POST",
+      method: route === "/api/session" ? "GET" : put ? "PUT" : "POST",
       headers: {
         Authorization: `Bearer ${info.token}`,
         "X-Tailshare-Main": mainToken,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
+      body: route === "/api/session" ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(timeout),
     })
   } catch {
     throw new Error(generic)

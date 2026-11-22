@@ -29,6 +29,8 @@ export interface Settings {
   readonly transfersAtOnce: number
   /** Launch hidden in the tray when Windows signs in. */
   readonly startWithWindows: boolean
+  /** Adds Send with Tailshare to Windows Explorer. */
+  readonly explorerMenu: boolean
   /** Closing the window hides it instead of quitting. */
   readonly closeToTray: boolean
   /** Show a Windows toast for join requests and finished transfers while the window is in the background. */
@@ -187,12 +189,17 @@ export interface ConnectionInfo {
 
 /** The result of copying consented files into a room. */
 export interface AddFilesResult {
-  readonly added: { name: string; size: number }[]
+  readonly added: {
+    name: string
+    size: number
+    folder?: boolean
+    count?: number
+  }[]
   readonly skipped: { name: string; reason: string }[]
 }
 
 /** What a toast is about. */
-export type NotifyKind = "join" | "done" | "failed"
+export type NotifyKind = "join" | "done" | "failed" | "send"
 
 /** What Paste found on the clipboard. */
 export type PasteResult =
@@ -281,6 +288,8 @@ export interface TailshareBridge {
   readonly chooseFolder: () => Promise<string | null>
   /** Opens a native multi-file picker and copies selected files into the room. */
   readonly addFiles: () => Promise<AddFilesResult | null>
+  /** Opens a native folder picker and copies its tree into the room. */
+  readonly addFolder: () => Promise<AddFilesResult | null>
   /** Resolves real dropped Files in preload; paths never enter renderer code. */
   readonly addDroppedFiles: (files: File[]) => Promise<AddFilesResult>
   /**
@@ -291,6 +300,7 @@ export interface TailshareBridge {
   readonly startDownload: (request: {
     source: string
     name: string
+    folder?: boolean
   }) => Promise<unknown>
   /**
    * Asks for a Windows toast. Main shows it only when the window is hidden or

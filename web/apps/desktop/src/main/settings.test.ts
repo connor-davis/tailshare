@@ -36,6 +36,7 @@ describe("settings", () => {
       downloadLimitKiB: 0,
       transfersAtOnce: 2,
       startWithWindows: false,
+      explorerMenu: true,
       closeToTray: false,
       mica: true,
       theme: "system",

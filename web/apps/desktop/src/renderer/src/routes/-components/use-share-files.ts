@@ -53,6 +53,8 @@ export function useShareFiles() {
     skipped,
     /** Opens the file dialog and shares what was picked. */
     addFiles: () => share(() => window.tailshare.addFiles()),
+    /** Opens the folder dialog and shares one folder card. */
+    addFolder: () => share(() => window.tailshare.addFolder()),
     /**
      * Reads the clipboard (main does it, on this click only). A picture is shared
      * like an added file; text is sent as a message.

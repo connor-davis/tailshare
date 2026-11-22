@@ -23,11 +23,17 @@ export interface NotifyHost {
  */
 export function toastText(kind: NotifyKind, name: string) {
   const base = kind === "join" ? name : (name.split(/[\\/]/).pop() ?? name)
+
   const clean = Array.from(base.replace(/\p{Cc}/gu, "").trim())
     .slice(0, MAX_NAME)
     .join("")
 
   switch (kind) {
+    case "send":
+      return {
+        title: "Send with Tailshare",
+        body: "Open a room, then send again.",
+      }
     case "join":
       return {
         title: "Someone wants to join",

@@ -28,6 +28,7 @@ win:
   verifyUpdateCodeSignature: false
   requestedExecutionLevel: asInvoker
 nsis:
+  include: build/installer.nsh
   oneClick: false
   perMachine: false
   allowElevation: false

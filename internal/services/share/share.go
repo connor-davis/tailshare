@@ -32,6 +32,7 @@ type Entry struct {
 // the session ends: on Windows an open root also stops the folder being
 // renamed or deleted.
 type Root struct {
+	trees         map[string]AddedFile
 	root          *os.Root
 	name          string
 	mu            sync.Mutex

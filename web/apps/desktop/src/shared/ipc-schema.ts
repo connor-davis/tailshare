@@ -6,6 +6,7 @@ export const CHANNELS = {
   connectionInfo: "tailshare:connection-info",
   chooseFolder: "tailshare:choose-folder",
   addFiles: "tailshare:add-files",
+  addFolder: "tailshare:add-folder",
   addDroppedFiles: "tailshare:add-dropped-files",
   openRoomFolder: "tailshare:open-room-folder",
   sidecarStatus: "tailshare:sidecar-status",
@@ -63,6 +64,7 @@ export const SETTINGS_FIELDS = {
     Schema.isBetween({ minimum: 1, maximum: 8 })
   ),
   startWithWindows: Schema.Boolean,
+  explorerMenu: Schema.Boolean,
   closeToTray: Schema.Boolean,
   notifications: Schema.Boolean,
   mica: Schema.Boolean,
@@ -126,6 +128,7 @@ export const ChosenFolderSchema = Schema.NullOr(
 
 /** A file in the room to save, and the name to offer in the Save dialog. */
 export const StartDownloadSchema = Schema.Struct({
+  folder: Schema.optionalKey(Schema.Boolean),
   source: Schema.String.check(Schema.isBetweenLength(1, 4096)),
   name: Schema.String.check(
     Schema.isBetweenLength(1, 255),
@@ -141,7 +144,12 @@ export const AddedPathsSchema = Schema.Array(AbsolutePath).check(
 /** Main checks the sidecar reply before returning it to the page. */
 export const AddFilesResultSchema = Schema.Struct({
   added: Schema.Array(
-    Schema.Struct({ name: Schema.String, size: Schema.Number })
+    Schema.Struct({
+      name: Schema.String,
+      size: Schema.Number,
+      folder: Schema.optionalKey(Schema.Boolean),
+      count: Schema.optionalKey(Schema.Number),
+    })
   ),
   skipped: Schema.Array(
     Schema.Struct({ name: Schema.String, reason: Schema.String })
@@ -150,7 +158,7 @@ export const AddFilesResultSchema = Schema.Struct({
 
 /** What the page may say about a toast. Main builds every word the person sees. */
 export const NotifySchema = Schema.Struct({
-  kind: Schema.Literals(["join", "done", "failed"]),
+  kind: Schema.Literals(["join", "done", "failed", "send"]),
   name: Schema.String.check(Schema.isBetweenLength(1, 4096)),
 })
 

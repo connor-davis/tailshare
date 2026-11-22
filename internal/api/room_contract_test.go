@@ -23,7 +23,7 @@ func TestMainOnlyFilesAndDownloads(t *testing.T) {
 	f := newFixture(t, config.Config{}, nil)
 	for _, endpoint := range []struct{ method, path string }{
 		{"POST", "/api/room/files"}, {"PUT", "/api/downloads"},
-		{"POST", "/api/downloads/preview"},
+		{"POST", "/api/downloads/preview"}, {"POST", "/api/transfers/folder"},
 	} {
 		f.send(endpoint.method, endpoint.path, nil).expect(t, 403, "forbidden")
 		f.send(endpoint.method, endpoint.path, nil, func(request *http.Request) {
@@ -82,12 +82,13 @@ func TestAddRoomFiles(t *testing.T) {
 	if err := os.WriteFile(source, []byte("abc"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	response := f.send("POST", "/api/room/files", map[string]any{"paths": []string{source, source, sourceDir, filepath.Join(sourceDir, "missing")}}, mainHeader)
+	f.send("POST", "/api/room/files", map[string]any{"paths": []string{source}, "roomCode": "8K3Q9PXM"}, mainHeader).expect(t, 409, "not_connected")
+	response := f.send("POST", "/api/room/files", map[string]any{"paths": []string{source, source, sourceDir, filepath.Join(sourceDir, "missing")}, "roomCode": "7K3Q9PXM"}, mainHeader)
 	response.expect(t, 200, "")
 	if strings.Contains(string(response.Raw), sourceDir) || !strings.Contains(string(response.Raw), "report (2).pdf") {
 		t.Fatal(string(response.Raw))
 	}
-	if len(response.Body["added"].([]any)) != 2 || len(response.Body["skipped"].([]any)) != 2 {
+	if len(response.Body["added"].([]any)) != 3 || len(response.Body["skipped"].([]any)) != 1 {
 		t.Fatal(string(response.Raw))
 	}
 	paths := make([]string, 101)

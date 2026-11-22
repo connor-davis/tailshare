@@ -55,6 +55,8 @@ func toAppError(err error) *apperr.Error {
 		return apperr.Conflict("conflict", transfer.ErrUnavailable.Error())
 	case errors.Is(err, transfer.ErrClosed):
 		return errNotConnected()
+	case errors.Is(err, share.ErrTreeLimit):
+		return apperr.BadRequest(share.ErrTreeLimit.Error())
 	case errors.Is(err, share.ErrBadPath):
 		return apperr.New(http.StatusBadRequest, "bad_path", share.ErrBadPath.Error())
 	case errors.Is(err, share.ErrNotFound):

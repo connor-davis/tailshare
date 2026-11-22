@@ -56,6 +56,13 @@ export function RoomFiles({ connected }: { connected: boolean }) {
         >
           <UploadIcon aria-hidden /> Share files
         </Button>
+        <Button
+          variant="outline"
+          disabled={!connected || share.busy}
+          onClick={() => void share.addFolder()}
+        >
+          Folder
+        </Button>
         <p className="text-xs text-muted-foreground">
           {files.length} shared {files.length === 1 ? "file" : "files"}
         </p>

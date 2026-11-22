@@ -41,6 +41,7 @@ export function defaultSettings(from: SettingsDefaults = {}): Settings {
     downloadLimitKiB: 0,
     transfersAtOnce: 2,
     startWithWindows: false,
+    explorerMenu: true,
     closeToTray: false,
     notifications: true,
     mica: true,

@@ -10,6 +10,8 @@ import { MembersPanel } from "./members-panel"
 import { RoomChat } from "./room-chat"
 import { RoomFiles } from "./room-files"
 import { RoomHeader } from "./room-header"
+import { FolderBrowseContext, type BrowseFolder } from "./folder-browse-context"
+import { RoomFolderBrowser } from "./room-folder-browser"
 import { TransfersPanel } from "./transfers-panel"
 
 type Tile = "Files" | "People" | "Chat" | "Transfers" | "Apps"
@@ -46,6 +48,9 @@ export function RoomView({
   expiresAt?: string | null
 }) {
   const [expanded, setExpanded] = useState<Tile | null>(null)
+
+  const [folder, setFolder] = useState<BrowseFolder | null>(null)
+
   const connected = peer !== undefined
 
   const tile = (name: Tile, children: ReactNode) => (
@@ -90,45 +95,62 @@ export function RoomView({
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <RoomHeader
-        peer={peer}
-        roomName={roomName}
-        host={host}
-        onLeave={onLeave}
-        leaving={leaving}
-        code={code}
-        roomCode={roomCode}
-        expiresAt={expiresAt}
-      />
-      {/* People may be below the fold or hidden by another expanded tile. */}
-      {session.role === "host" && session.join && expanded !== "People" ? (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2"
-        >
-          <p className="mr-auto">Someone wants to join.</p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setExpanded("People")
-            }}
+    <FolderBrowseContext
+      value={(next) => {
+        setFolder(next)
+        setExpanded("Files")
+      }}
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        <RoomHeader
+          peer={peer}
+          roomName={roomName}
+          host={host}
+          onLeave={onLeave}
+          leaving={leaving}
+          code={code}
+          roomCode={roomCode}
+          expiresAt={expiresAt}
+        />
+        {/* People may be below the fold or hidden by another expanded tile. */}
+        {session.role === "host" && session.join && expanded !== "People" ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2"
           >
-            Review join request
-          </Button>
-        </div>
-      ) : null}
-      <ScrollArea className="min-h-0 flex-1">
-        <div
-          className={`spaces-board ${expanded ? "spaces-board-expanded" : ""}`}
-        >
-          {tile("Files", <RoomFiles connected={connected} />)}
-          {tile("People", <MembersPanel session={session} embedded />)}
-          {tile("Chat", <RoomChat connected={connected} />)}
-          {tile("Transfers", <TransfersPanel />)}
-          {tile("Apps", <AppsPanel connected={connected} />)}
-        </div>
-      </ScrollArea>
-    </div>
+            <p className="mr-auto">Someone wants to join.</p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExpanded("People")
+              }}
+            >
+              Review join request
+            </Button>
+          </div>
+        ) : null}
+        <ScrollArea className="min-h-0 flex-1">
+          <div
+            className={`spaces-board ${expanded ? "spaces-board-expanded" : ""}`}
+          >
+            {tile(
+              "Files",
+              folder ? (
+                <RoomFolderBrowser
+                  folder={folder}
+                  onClose={() => setFolder(null)}
+                />
+              ) : (
+                <RoomFiles connected={connected} />
+              )
+            )}
+            {tile("People", <MembersPanel session={session} embedded />)}
+            {tile("Chat", <RoomChat connected={connected} />)}
+            {tile("Transfers", <TransfersPanel />)}
+            {tile("Apps", <AppsPanel connected={connected} />)}
+          </div>
+        </ScrollArea>
+      </div>
+    </FolderBrowseContext>
   )
 }

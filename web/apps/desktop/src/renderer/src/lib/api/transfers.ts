@@ -44,9 +44,11 @@ export function useStartTransfer() {
       (await window.tailshare.startDownload({
         source: request.source,
         name: request.destination,
-      })) as TransferItem | null,
+        ...(request.folder ? { folder: true } : {}),
+      })) as (TransferItem & { items?: TransferItem[] }) | null,
     onSuccess: (item) => {
-      if (item) addIfNew(client, item)
+      if (item?.items) item.items.forEach((entry) => addIfNew(client, entry))
+      else if (item) addIfNew(client, item)
     },
   })
 }

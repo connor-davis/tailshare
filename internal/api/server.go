@@ -189,6 +189,7 @@ func (server *Server) routes() {
 	api.Post("/transfers", server.startTransfer)
 	api.Post("/transfers/clear", server.clearTransfers)
 	api.Post("/transfers/save", server.mainOnly, server.saveTransfer)
+	api.Post("/transfers/folder", server.mainOnly, server.folderTransfer)
 	api.Put("/transfers/limits", server.mainOnly, server.putTransferLimits)
 	api.Post("/transfers/:id/pause", server.pauseTransfer)
 	api.Post("/transfers/:id/resume", server.resumeTransfer)

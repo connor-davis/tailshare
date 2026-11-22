@@ -380,6 +380,14 @@ export function AppSection({ settings, save, saving }: SectionProps) {
           onChange={(value) => void save({ startWithWindows: value })}
         />
         <SwitchRow
+          id="explorer-menu"
+          label="Send from Explorer"
+          description="Adds Send with Tailshare to the right-click menu for files and folders."
+          checked={settings.explorerMenu}
+          disabled={saving}
+          onChange={(value) => void save({ explorerMenu: value })}
+        />
+        <SwitchRow
           id="close-to-tray"
           label="Close to tray"
           description="The close button hides the window. Use the tray to quit."
