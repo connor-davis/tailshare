@@ -145,3 +145,57 @@ jobs:
         run: rm -f "$RUNNER_TEMP/release.p12"
       - name: Attach the APK to the release
         run: gh release upload "v$VERSION" "dist/Tailshare-$VERSION.apk" --clobber
+  # Pull requests only: start the app on an emulator, check it stays up, and
+  # keep light and dark screenshots. A throwaway key signs it for the install.
+  smoke:
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tailshare-apk-unsigned
+          path: unsigned
+      - name: Sign with a throwaway key
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;$BUILD_TOOLS_VERSION"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/smoke.jks" -storepass smokepass -keypass smokepass \
+            -alias smoke -keyalg RSA -keysize 2048 -validity 1 -dname CN=smoke
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" sign --ks "$RUNNER_TEMP/smoke.jks" \
+            --ks-pass pass:smokepass --out smoke.apk unsigned/*.apk
+      - name: Run on an emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install smoke.apk
+            mkdir -p shots
+            adb shell cmd uimode night no
+            adb shell monkey -p connor.davis.tailshare -c android.intent.category.LAUNCHER 1
+            sleep 20
+            adb shell pidof connor.davis.tailshare
+            adb exec-out screencap -p > shots/phone-join-light.png
+            adb shell cmd uimode night yes
+            sleep 8
+            adb shell pidof connor.davis.tailshare
+            adb exec-out screencap -p > shots/phone-join-dark.png
+            adb logcat -d -s AndroidRuntime:E ReactNativeJS:E > shots/logcat-errors.txt || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: tailshare-phone-screens
+          path: shots/
+          retention-days: 14
