@@ -54,7 +54,7 @@ func newFixture(t *testing.T, cfg config.Config, transfers Transfers) *fixture {
 	}
 	if transfers != nil {
 		events, stop := transfers.Subscribe()
-		go server.forwardTransfers(events, stop)
+		go server.forwardTransfers(server.active, events, stop)
 	}
 
 	listener, err := server.Listen()

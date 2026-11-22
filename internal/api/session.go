@@ -36,6 +36,8 @@ const (
 // SessionState is what the screen knows about the session. The code is shown
 // only while hosting.
 type SessionState struct {
+	// Room is the room's canonical code, for every role and phase. Empty only when no room exists.
+	Room string `json:"room,omitempty"`
 	// State is the phase: idle, connecting, hosting or connected.
 	State string `json:"state"`
 	// Role is host or joiner. Empty while idle.
@@ -93,7 +95,9 @@ func (server *Server) roomStateLocked(current *room) SessionState {
 		return SessionState{State: phaseIdle}
 	}
 
-	state := SessionState{State: current.phase, Role: current.role, RoomName: current.roomName}
+	state := SessionState{
+		Room: current.code, State: current.phase, Role: current.role, RoomName: current.roomName,
+	}
 	if current.phase == phaseHosting {
 		state.Code = current.code
 		if current.sess != nil {
@@ -123,9 +127,21 @@ func (server *Server) roomStateLocked(current *room) SessionState {
 	return state
 }
 
-func (server *Server) publishSession() {
-	server.syncRoomFeatures()
-	server.hub.publish("session.state", server.sessionState())
+// publishSession syncs one room's apps and sends its state, tagged with its code.
+func (server *Server) publishSession(current *room) {
+	server.mu.Lock()
+	forwards := current.forwards
+	server.mu.Unlock()
+
+	if forwards != nil {
+		forwards.Sync()
+	}
+
+	server.mu.Lock()
+	state := server.roomStateLocked(current)
+	server.mu.Unlock()
+
+	server.hub.publishRoom(current.code, "session.state", state)
 }
 
 // publishSessionFor ignores retired watchers and synchronizes the owning room's apps.
@@ -153,11 +169,19 @@ func (server *Server) publishSessionFor(sess *session.Session) {
 	state := server.roomStateLocked(current)
 	server.mu.Unlock()
 
-	server.hub.publish("session.state", state)
+	server.hub.publishRoom(current.code, "session.state", state)
 }
 
 func (server *Server) getSession(c fiber.Ctx) error {
-	return c.JSON(server.sessionState())
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
+
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	return c.JSON(server.roomStateLocked(current))
 }
 
 // reserve claims the idle session for a host or join, so a second request
@@ -218,7 +242,7 @@ func (server *Server) releaseRoom(current *room) {
 		forwards.Close()
 	}
 
-	server.publishSession()
+	server.publishSession(current)
 }
 
 func (server *Server) hostSession(c fiber.Ctx) error {
@@ -284,7 +308,7 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	server.mu.Unlock()
 
 	server.attachForwards(sess, forwards)
-	server.publishSession()
+	server.publishSession(current)
 	go server.awaitJoiner(sess, manager)
 
 	return c.Status(fiber.StatusCreated).JSON(server.sessionState())
@@ -455,7 +479,7 @@ func (server *Server) connect(
 	done := current.transferDone
 	go func() {
 		defer close(done)
-		server.forwardTransfers(events, stop)
+		server.forwardTransfers(current.code, events, stop)
 	}()
 
 	current.peer = other
@@ -465,7 +489,7 @@ func (server *Server) connect(
 	server.publishSessionFor(sess)
 
 	chatEvents := other.Subscribe()
-	go server.forwardChat(other, chatEvents)
+	go server.forwardChat(current.code, other, chatEvents)
 
 	go func() {
 		<-other.Done()
@@ -480,8 +504,12 @@ func (server *Server) end(sess *session.Session) {
 }
 
 func (server *Server) leaveSession(c fiber.Ctx) error {
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
+
 	server.mu.Lock()
-	current := server.activeLocked()
 	connecting := current != nil && current.phase == phaseConnecting
 	server.mu.Unlock()
 
@@ -489,7 +517,7 @@ func (server *Server) leaveSession(c fiber.Ctx) error {
 		return apperr.Conflict("conflict", "The session is still starting. Try again in a moment.")
 	}
 
-	server.leave()
+	server.endRoom(current, nil)
 
 	return c.JSON(server.sessionState())
 }
@@ -575,7 +603,7 @@ func (server *Server) endRoom(current *room, expected *session.Session) {
 	close(ending)
 	server.mu.Unlock()
 
-	server.publishSession()
+	server.publishSession(current)
 }
 
 // displayName is how this computer introduces itself to the other one: the
@@ -620,17 +648,17 @@ func truncateName(name string) string {
 	return string(runes[:min(len(runes), 64)])
 }
 
-func (server *Server) forwardChat(other *peer.Peer, subscription *peer.Subscription) {
+func (server *Server) forwardChat(code string, other *peer.Peer, subscription *peer.Subscription) {
 	defer func() { subscription.Close() }()
 	var last int64
 	for {
 		for event := range subscription.Events {
 			if event.Kind == peer.EventChat && event.Chat.Seq > last {
 				last = event.Chat.Seq
-				server.hub.publish("chat.message", event.Chat)
+				server.hub.publishRoom(code, "chat.message", event.Chat)
 			}
 			if event.Kind == peer.EventShare && event.Method == peer.MethodShareChanged {
-				server.hub.publish("files.changed", struct{}{})
+				server.hub.publishRoom(code, "files.changed", struct{}{})
 			}
 		}
 		select {
@@ -644,11 +672,11 @@ func (server *Server) forwardChat(other *peer.Peer, subscription *peer.Subscript
 		subscription = other.Subscribe()
 
 		// The cut-off may have dropped a share.changed, so list again to be safe.
-		server.hub.publish("files.changed", struct{}{})
+		server.hub.publishRoom(code, "files.changed", struct{}{})
 		for _, message := range subscription.Snapshot {
 			if message.Seq > last {
 				last = message.Seq
-				server.hub.publish("chat.message", message)
+				server.hub.publishRoom(code, "chat.message", message)
 			}
 		}
 	}

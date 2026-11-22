@@ -8,13 +8,15 @@ import (
 )
 
 func (server *Server) removeMember(c fiber.Ctx) error {
-	server.mu.Lock()
-	current := server.activeLocked()
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
 	if current == nil {
-		server.mu.Unlock()
 		return errNotConnected()
 	}
 
+	server.mu.Lock()
 	sess := current.sess
 	server.mu.Unlock()
 	if sess == nil {
@@ -25,7 +27,7 @@ func (server *Server) removeMember(c fiber.Ctx) error {
 		return toAppError(err)
 	}
 
-	server.publishSession()
+	server.publishSession(current)
 	return c.JSON(server.sessionState())
 }
 

@@ -36,13 +36,15 @@ func (server *Server) localFiles(c fiber.Ctx) error {
 		return err
 	}
 
-	server.mu.Lock()
-	current := server.activeLocked()
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
 	if current == nil {
-		server.mu.Unlock()
 		return errNotConnected()
 	}
 
+	server.mu.Lock()
 	root := current.root
 	server.mu.Unlock()
 
@@ -64,7 +66,7 @@ func (server *Server) peerFiles(c fiber.Ctx) error {
 		return err
 	}
 
-	other, err := server.connectedPeer()
+	other, err := server.connectedPeer(c)
 	if err != nil {
 		return err
 	}

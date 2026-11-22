@@ -80,11 +80,16 @@ type Transfers interface {
 	Subscribe() (events <-chan TransferEvent, stop func())
 }
 
-func (server *Server) currentTransfers() (Transfers, error) {
+// currentTransfers returns the request's room's queue, or a conflict when it is not connected.
+func (server *Server) currentTransfers(c fiber.Ctx) (Transfers, error) {
+	current, err := server.roomFor(c)
+	if err != nil {
+		return nil, err
+	}
+
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	current := server.activeLocked()
 	if current == nil {
 		return nil, errNotConnected()
 	}
@@ -97,7 +102,7 @@ func (server *Server) currentTransfers() (Transfers, error) {
 }
 
 // forwardTransfers puts the manager's events on the live socket.
-func (server *Server) forwardTransfers(events <-chan TransferEvent, stop func()) {
+func (server *Server) forwardTransfers(code string, events <-chan TransferEvent, stop func()) {
 	defer stop()
 
 	for {
@@ -111,10 +116,10 @@ func (server *Server) forwardTransfers(events <-chan TransferEvent, stop func())
 			server.pruneDownloadRootsLocked()
 			server.mu.Unlock()
 			if event.Type == "transfer.removed" {
-				server.hub.publish(event.Type, fiber.Map{"ids": event.IDs})
+				server.hub.publishRoom(code, event.Type, fiber.Map{"ids": event.IDs})
 				continue
 			}
-			server.hub.publish(event.Type, event.Item)
+			server.hub.publishRoom(code, event.Type, event.Item)
 		case <-server.ctx.Done():
 			return
 		}
@@ -143,7 +148,7 @@ func (server *Server) transferList() []TransferItem {
 }
 
 func (server *Server) listTransfers(c fiber.Ctx) error {
-	transfers, err := server.currentTransfers()
+	transfers, err := server.currentTransfers(c)
 	if err != nil {
 		return err
 	}
@@ -157,7 +162,7 @@ func (server *Server) listTransfers(c fiber.Ctx) error {
 }
 
 func (server *Server) clearTransfers(c fiber.Ctx) error {
-	transfers, err := server.currentTransfers()
+	transfers, err := server.currentTransfers(c)
 	if err != nil {
 		return err
 	}
@@ -211,7 +216,7 @@ func (server *Server) putTransferLimits(c fiber.Ctx) error {
 }
 
 func (server *Server) startTransfer(c fiber.Ctx) error {
-	transfers, err := server.currentTransfers()
+	transfers, err := server.currentTransfers(c)
 	if err != nil {
 		return err
 	}
@@ -244,7 +249,7 @@ func (server *Server) control(
 	c fiber.Ctx,
 	act func(Transfers, context.Context, string) (TransferItem, error),
 ) error {
-	transfers, err := server.currentTransfers()
+	transfers, err := server.currentTransfers(c)
 	if err != nil {
 		return err
 	}

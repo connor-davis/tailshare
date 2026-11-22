@@ -34,13 +34,15 @@ func (server *Server) addRoomFiles(c fiber.Ctx) error {
 	server.roomIO.RLock()
 	defer server.roomIO.RUnlock()
 
-	server.mu.Lock()
-	current := server.activeLocked()
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
 	if current == nil {
-		server.mu.Unlock()
 		return errNotConnected()
 	}
 
+	server.mu.Lock()
 	root, phase := current.root, current.phase
 	server.mu.Unlock()
 

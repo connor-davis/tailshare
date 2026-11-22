@@ -104,7 +104,12 @@ func (server *Server) folderTransfer(c fiber.Ctx) error {
 		return apperr.BadRequest("Choose a folder to download.")
 	}
 
-	other, err := server.connectedPeer()
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
+
+	other, err := server.peerOf(current)
 	if err != nil {
 		return err
 	}
@@ -135,14 +140,6 @@ func (server *Server) folderTransfer(c fiber.Ctx) error {
 
 	server.mu.Lock()
 	defer server.mu.Unlock()
-
-	current := server.activeLocked()
-	if current == nil {
-		if picked != nil {
-			_ = picked.Close()
-		}
-		return errNotConnected()
-	}
 
 	if current.peer != other || current.manager == nil || server.ctx.Err() != nil {
 		if picked != nil {

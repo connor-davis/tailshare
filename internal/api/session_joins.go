@@ -27,13 +27,15 @@ func (server *Server) decideJoin(c fiber.Ctx, allow bool) error {
 	if err != nil {
 		return err
 	}
-	server.mu.Lock()
-	current := server.activeLocked()
+	current, err := server.roomFor(c)
+	if err != nil {
+		return err
+	}
 	if current == nil {
-		server.mu.Unlock()
 		return apperr.Conflict("conflict", "Nobody is waiting to join.")
 	}
 
+	server.mu.Lock()
 	sess := current.sess
 	server.mu.Unlock()
 	if sess == nil {
@@ -55,6 +57,6 @@ func (server *Server) decideJoin(c fiber.Ctx, allow bool) error {
 		return apperr.Conflict("conflict", "That join request is no longer waiting.")
 	}
 
-	server.publishSession()
+	server.publishSession(current)
 	return c.JSON(server.sessionState())
 }
