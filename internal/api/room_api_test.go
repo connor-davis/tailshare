@@ -82,6 +82,11 @@ func TestRoomRoutesTakeAnOptionalRoom(t *testing.T) {
 	f.server.rooms[firstRoom].phase = phaseConnected
 	f.server.mu.Unlock()
 	f.send("GET", "/api/transfers?room="+firstRoom, nil).expect(t, 200, "")
+
+	// Put it back: this fake room has no peer, and shutdown publishes its state.
+	f.server.mu.Lock()
+	f.server.rooms[firstRoom].phase = phaseHosting
+	f.server.mu.Unlock()
 }
 
 func TestListRoomsAndSwitchActive(t *testing.T) {
