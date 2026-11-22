@@ -30,7 +30,7 @@ describe("ChatComposer", () => {
       />
     )
 
-    expect(box().closest(".rounded-2xl")?.className).toContain("border-input")
+    expect(box().closest(".rounded-2xl")?.className).toContain("border-border")
   })
 
   it("clears the box when the sent text is unchanged", () => {
