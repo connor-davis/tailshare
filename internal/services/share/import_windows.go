@@ -12,8 +12,8 @@ func isImportLink(info os.FileInfo) bool {
 		(ok && data.FileAttributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0)
 }
 
-// resolveParentLinks keeps the path as given: on Windows a junction above the picked
-// folder stays refused by the ancestor walk in ImportTree.
-func resolveParentLinks(folder string) string {
-	return folder
+// isSystemLink is always false: on Windows every junction or link above the picked
+// item stays refused.
+func isSystemLink(os.FileInfo) bool {
+	return false
 }

@@ -67,19 +67,16 @@ func (shared *Root) Import(source string) (AddedFile, error) {
 	if !filepath.IsAbs(source) {
 		return AddedFile{}, ErrBadPath
 	}
-
-	// Links above the file's folder (macOS /var is one) are the person's own layout.
-	// The file itself must still not be a link.
-	source = filepath.Join(resolveParentLinks(filepath.Dir(source)), filepath.Base(source))
 	name := filepath.Base(source)
 	if _, err := Localize(name); err != nil {
 		return AddedFile{}, err
 	}
 
-	// Refuse links and junctions, including paths reached through one.
+	// Refuse links and junctions, including paths reached through one. A root-owned
+	// link above the file (macOS /var) is the machine's layout and may stay.
 	for current := source; ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
-		if err != nil || isImportLink(info) {
+		if err != nil || (isImportLink(info) && (current == source || !isSystemLink(info))) {
 			return AddedFile{}, ErrDenied
 		}
 		if filepath.Dir(current) == current {

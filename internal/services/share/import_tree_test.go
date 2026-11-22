@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
@@ -35,31 +34,6 @@ func TestImportTreePreservesFilesAndCounts(t *testing.T) {
 		if summary, ok := shared.TreeSummary(name); !ok || summary != added {
 			t.Fatalf("summary = %+v %v", summary, ok)
 		}
-	}
-}
-
-// macOS keeps temp folders under /var, a link to /private/var. A link above the picked folder
-// is fine; the picked folder itself must still not be one.
-func TestImportTreeAllowsLinkAboveSource(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows still refuses a junction above the folder")
-	}
-
-	shared, inside, _ := openShared(t)
-	real := t.TempDir()
-	writeFile(t, filepath.Join(real, "Photos", "one.txt"), "abc")
-	above := filepath.Join(t.TempDir(), "above")
-	if err := os.Symlink(real, above); err != nil {
-		t.Skip(err)
-	}
-
-	added, err := shared.ImportTree(filepath.Join(above, "Photos"))
-	if err != nil || added.Count != 1 {
-		t.Fatalf("%+v %v", added, err)
-	}
-
-	if _, err := os.Stat(filepath.Join(inside, "Photos", "one.txt")); err != nil {
-		t.Fatal(err)
 	}
 }
 
