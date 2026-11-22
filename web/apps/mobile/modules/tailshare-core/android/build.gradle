@@ -17,7 +17,17 @@ android {
   }
 }
 
+// A library module may not depend on a local .aar file directly, so the
+// gomobile output is served from a flat folder repo that every project sees.
+// The app then pulls the .aar in through this module's dependency.
+def goLibs = "${projectDir}/libs"
+rootProject.allprojects {
+  repositories {
+    flatDir { dirs goLibs }
+  }
+}
+
 dependencies {
   // Built by `task mobile:aar` (gomobile bind) before Gradle runs.
-  implementation files("libs/tailshare.aar")
+  implementation(name: 'tailshare', ext: 'aar')
 }
