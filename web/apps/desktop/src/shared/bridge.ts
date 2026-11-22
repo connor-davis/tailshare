@@ -81,7 +81,7 @@ export interface UpdateStatus {
     | "ready"
     | "error"
   /** Why a packaged copy cannot update itself. */
-  readonly reason?: "portable"
+  readonly reason?: "portable" | "unsigned"
   readonly version?: string
   readonly notes?: string
   readonly percent?: number
@@ -102,7 +102,12 @@ export function isUpdateStatus(value: unknown): value is UpdateStatus {
     ].includes(String(value.state))
   )
     return false
-  if ("reason" in value && value.reason !== "portable") return false
+  if (
+    "reason" in value &&
+    value.reason !== "portable" &&
+    value.reason !== "unsigned"
+  )
+    return false
   if (
     value.state === "available" &&
     (!("version" in value) ||

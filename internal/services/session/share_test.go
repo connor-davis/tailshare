@@ -70,6 +70,11 @@ func TestSecondJoinerRejected(t *testing.T) {
 
 func TestJoinerGivesUpClearsPending(t *testing.T) {
 	options := localSettings(t)
+
+	// A joiner that closes its tunnel right after giving up may never get its close to the
+	// host (seen on macOS). The prompt then clears at the allow window, so keep that well
+	// inside waitState's 40 seconds.
+	options.allowWindow = 10 * time.Second
 	host, code := startHost(t, options)
 	ctx, cancel := context.WithCancel(t.Context())
 	results := startMember(t, ctx, code, options)

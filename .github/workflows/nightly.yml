@@ -85,3 +85,12 @@ jobs:
     secrets: inherit
     permissions:
       contents: write
+  desktop-unix:
+    needs: nightly
+    uses: ./.github/workflows/desktop-unix.yml
+    with:
+      version: ${{ needs.nightly.outputs.version }}
+      channel: nightly
+      upload: true
+    permissions:
+      contents: write

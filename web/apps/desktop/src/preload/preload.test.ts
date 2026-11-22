@@ -135,6 +135,12 @@ describe("preload update validation", () => {
     ])
       expect(isUpdateStatus(value)).toBe(false)
   })
+
+  it("accepts the two disabled reasons and rejects others", () => {
+    for (const reason of ["portable", "unsigned"])
+      expect(isUpdateStatus({ state: "disabled", reason })).toBe(true)
+    expect(isUpdateStatus({ state: "disabled", reason: "other" })).toBe(false)
+  })
 })
 
 describe("dropped files", () => {

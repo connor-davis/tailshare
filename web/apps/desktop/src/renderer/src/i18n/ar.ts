@@ -5,6 +5,8 @@ import type { en } from "./en"
 export const ar = {
   "updatesCard.portableUpdates":
     "لا تُحدّث النسخ المحمولة نفسها تلقائيًا. نزّل الإصدار الجديد من صفحة الإصدارات.",
+  "updatesCard.unsignedUpdates":
+    "التحديثات على هذا الجهاز Mac يدوية. نزّل الإصدار الجديد من صفحة الإصدارات.",
   "updatesCard.releasesPage": "صفحة الإصدارات",
   "api.unauthorized": "هذا الطلب غير مصرح به.",
   "api.forbidden": "هذا الطلب غير مسموح به.",

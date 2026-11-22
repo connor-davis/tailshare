@@ -38,6 +38,20 @@ describe("windowOptions", () => {
     })
   })
 
+  it("keeps the system frame on Linux and macOS", () => {
+    for (const platform of ["linux", "darwin"] as const) {
+      const other = windowOptions(
+        "/p",
+        { material: "mica", dark: true },
+        platform
+      )
+
+      expect(other.titleBarStyle).toBeUndefined()
+      expect(other.titleBarOverlay).toBeUndefined()
+      expect(other.backgroundMaterial).toBeUndefined()
+    }
+  })
+
   it("colours the caption symbols to follow the theme", () => {
     expect(titleBarOverlay({ material: "mica", dark: true }).symbolColor).toBe(
       "#ededee"
@@ -162,6 +176,15 @@ describe("window controls", () => {
       "color:#00000000",
       "symbols:#ededee",
     ])
+  })
+
+  it("only recolours the window off Windows", () => {
+    const { window, calls } = fake()
+
+    applyLook(window, { material: "mica", dark: true }, "linux")
+    applyLook(window, { material: "none", dark: false }, "darwin")
+
+    expect(calls).toEqual(["color:#00000000", "color:#faf9f6"])
   })
 
   it("reports whether Mica is really on", () => {

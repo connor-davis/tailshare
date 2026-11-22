@@ -145,6 +145,7 @@ export function releaseNotesToMarkdown(value: unknown): string {
 export function createUpdater(options: {
   packaged: boolean
   isPortable?: boolean
+  platform?: NodeJS.Platform
   adapter: UpdaterAdapter
   channel: UpdateChannel
   send: (status: UpdateStatus) => void
@@ -152,10 +153,15 @@ export function createUpdater(options: {
   every?: (callback: () => void, milliseconds: number) => () => void
   log?: (error: unknown) => void
 }) {
-  const enabled = options.packaged && !options.isPortable
+  // The macOS build is unsigned (no Apple account), and Squirrel.Mac refuses to install an
+  // unsigned app, so a Mac copy gets the releases link instead of a Restart that would fail.
+  const unsigned = options.platform === "darwin"
+  const enabled = options.packaged && !options.isPortable && !unsigned
   const disabledStatus: UpdateStatus = options.isPortable
     ? { state: "disabled", reason: "portable" }
-    : { state: "disabled" }
+    : unsigned
+      ? { state: "disabled", reason: "unsigned" }
+      : { state: "disabled" }
   const adapter = options.adapter
   let status: UpdateStatus = disabledStatus
   let desired = options.channel

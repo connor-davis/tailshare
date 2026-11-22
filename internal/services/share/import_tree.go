@@ -35,9 +35,10 @@ func (shared *Root) ImportTree(source string) (AddedFile, error) {
 		return AddedFile{}, err
 	}
 
+	// A root-owned link above the folder (macOS /var) is the machine's layout.
 	for current := source; ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
-		if err != nil || isImportLink(info) {
+		if err != nil || (isImportLink(info) && (current == source || !isSystemLink(info))) {
 			return AddedFile{}, ErrDenied
 		}
 

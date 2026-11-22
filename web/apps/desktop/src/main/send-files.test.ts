@@ -131,6 +131,20 @@ it("does no registry work in development and tolerates absent keys on removal", 
   expect(run).toHaveBeenCalledTimes(2)
 })
 
+it("does no registry work off Windows", async () => {
+  const run = vi.fn(async () => {})
+  for (const platform of ["linux", "darwin"] as const) {
+    await applyExplorerMenu(true, {
+      packaged: true,
+      platform,
+      execPath: "unused",
+      run,
+    })
+  }
+
+  expect(run).not.toHaveBeenCalled()
+})
+
 it("shows the no-room toast and never queues paths for later", async () => {
   const host = {
     currentRoom: () => null,

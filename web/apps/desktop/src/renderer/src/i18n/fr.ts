@@ -5,6 +5,8 @@ import type { en } from "./en"
 export const fr = {
   "updatesCard.portableUpdates":
     "Les copies portables ne se mettent pas à jour automatiquement. Téléchargez la nouvelle version depuis la page des versions.",
+  "updatesCard.unsignedUpdates":
+    "Les mises à jour sur ce Mac sont manuelles. Téléchargez la nouvelle version depuis la page des versions.",
   "updatesCard.releasesPage": "Page des versions",
   "api.unauthorized": "Cette demande n’est pas autorisée.",
   "api.forbidden": "Cette demande n’est pas permise.",

@@ -16,7 +16,11 @@ import {
   type UpdaterAdapter,
 } from "./updater"
 
-function setup(packaged = true, isPortable = false) {
+function setup(
+  packaged = true,
+  isPortable = false,
+  platform?: NodeJS.Platform
+) {
   const events = new EventEmitter()
   let channel = "latest"
   const adapter: UpdaterAdapter = {
@@ -42,6 +46,7 @@ function setup(packaged = true, isPortable = false) {
   const controller = createUpdater({
     packaged,
     isPortable,
+    platform,
     adapter,
     channel: "latest",
     shutdown,
@@ -65,6 +70,25 @@ describe("updater", () => {
     expect(controller.status()).toEqual({
       state: "disabled",
       reason: "portable",
+    })
+    expect(events.eventNames()).toEqual([])
+    expect(adapter.checkForUpdates).not.toHaveBeenCalled()
+    expect(adapter.downloadUpdate).not.toHaveBeenCalled()
+    await expect(controller.restart()).rejects.toThrow("No update")
+    expect(adapter.quitAndInstall).not.toHaveBeenCalled()
+    controller.stop()
+  })
+
+  it("keeps the unsigned macOS build off the feed and offers the releases page", async () => {
+    vi.useFakeTimers()
+    const { adapter, controller, events } = setup(true, false, "darwin")
+    controller.setChannel("nightly")
+    controller.checkNow()
+    await controller.download()
+    await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS * 5)
+    expect(controller.status()).toEqual({
+      state: "disabled",
+      reason: "unsigned",
     })
     expect(events.eventNames()).toEqual([])
     expect(adapter.checkForUpdates).not.toHaveBeenCalled()

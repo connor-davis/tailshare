@@ -220,8 +220,18 @@ func TestUploadAndDownloadBothWays(t *testing.T) {
 	}
 }
 
+// slowSender caps the sending side to 8 MiB a second, so a 32 MiB file is still running when a
+// test pauses or cancels it. Fast disks and loopback finish it first and the wait never ends.
+func slowSender(t *testing.T, manager *Manager) {
+	t.Helper()
+	if err := manager.SetLimits(8<<10, 0); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPauseThenResume(t *testing.T) {
 	pair := pair(t, "", "")
+	slowSender(t, pair.host)
 	data := putFile(t, pair.hostDir, "source", 32<<20)
 	transfer, err := pair.host.Upload(pair.ctx, "source", "received")
 	if err != nil {
@@ -254,6 +264,7 @@ func TestSessionDropDoesNotReuseDifferentOwner(t *testing.T) {
 	hostDir, joinDir := t.TempDir(), t.TempDir()
 	putFile(t, hostDir, "source", 32<<20)
 	first := pair(t, hostDir, joinDir)
+	slowSender(t, first.host)
 	transfer, err := first.join.Download(first.ctx, "source", "received")
 	if err != nil {
 		t.Fatal(err)
@@ -279,6 +290,7 @@ func TestCancelRemovesPartial(t *testing.T) {
 	for _, side := range []string{"sender", "receiver"} {
 		t.Run(side, func(t *testing.T) {
 			pair := pair(t, "", "")
+			slowSender(t, pair.host)
 			putFile(t, pair.hostDir, "source", 32<<20)
 			transfer, err := pair.host.Upload(pair.ctx, "source", "received")
 			if err != nil {

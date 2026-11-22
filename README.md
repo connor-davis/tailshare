@@ -128,6 +128,8 @@ cd web/apps/desktop && npx electron . --profile=sam
 `task dist` builds an unsigned Windows x64 installer. It installs for the
 current user and needs no admin rights. Steps, the SmartScreen warning and
 firewall notes are in [web/apps/desktop/README.md](web/apps/desktop/README.md).
+The releases page also has a Linux AppImage and unsigned macOS dmgs, and
+[docs/headless.md](docs/headless.md) shows how to host or join with no screen.
 
 Start with [docs/start-here.md](docs/start-here.md). The wire format is in
 [docs/protocol.md](docs/protocol.md). Agents read [AGENTS.md](AGENTS.md).

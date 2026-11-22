@@ -20,6 +20,17 @@ Development branches are `connor_davis/<name>` into `develop`, then `develop`
 into `main`. The owner merges. A push to main publishes a missing stable
 version; a push to develop publishes a nightly with patch+1 and a UTC timestamp.
 
+## Linux, macOS and servers
+
+- **Linux:** download the `Tailshare-<version>-linux-...AppImage` from the
+  releases page, `chmod +x` it and run it. It updates itself like Windows.
+- **macOS:** download the `-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg`
+  (Intel). The app is not signed, so the first time use right-click, **Open**,
+  or run `xattr -dr com.apple.quarantine /Applications/Tailshare.app`. It does
+  not update itself; the **Updates** card links to the releases page.
+- **No screen:** run just the sidecar and host or join by code with the local
+  API: [headless.md](headless.md).
+
 ## What happens when two people share
 
 1. Alice clicks **Host**. Her sidecar makes a code (`7K3Q-9PXM`), derives

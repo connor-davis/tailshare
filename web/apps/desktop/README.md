@@ -57,8 +57,12 @@ Ordinary `task build` uses version `dev`.
 to build both Windows package types for that architecture, or `TARGETS=portable`
 for just the portable copy. GOOS defaults to `windows`, GOARCH to `amd64` and
 TARGETS to `nsis`. The OS and architecture flags also select the matching Go
-sidecar; later platform packaging can use `GOOS=linux TARGETS=AppImage` or
-`GOOS=darwin TARGETS=dmg`. Those desktop targets are not shipped yet.
+sidecar. Linux and macOS packages build only on their own OS, because
+electron-builder cannot make an AppImage on Windows or a dmg off a Mac. CI does
+it in `.github/workflows/desktop-unix.yml`: `GOOS=linux TARGETS=AppImage` on
+Ubuntu (x64), and `GOOS=darwin GOARCH=arm64|amd64 TARGETS=dmg` on macOS. They
+attach to the release the Windows job created. Linux updates itself from
+`<channel>-linux.yml`; the macOS app does not (see Unsigned builds).
 
 `task dist VERSION=0.1.1-nightly.202611201200 CHANNEL=nightly` overrides both
 the Go linker version and electron-builder's `extraMetadata.version` without
@@ -99,6 +103,14 @@ These builds are unsigned, so Windows SmartScreen may warn about an
 unrecognized app. Only if the installer came from the expected Tailshare
 source and the displayed app is the one you expect, choose **More info** →
 **Run anyway**. Your organization's policy may prevent this override.
+
+The macOS dmgs are unsigned too (no Apple account, no notarisation). The first
+time, right-click the app and choose **Open**, or run
+`xattr -dr com.apple.quarantine /Applications/Tailshare.app`. macOS refuses to
+install an update to an unsigned app, so the Mac build never updates itself:
+the **Updates** card links to the releases page instead. On Linux, `chmod +x`
+the AppImage. The `tailshare:` room link may not register until the AppImage
+is integrated into the desktop; paste the code instead.
 
 ## Room links and recent rooms
 

@@ -64,6 +64,21 @@ describe("Updates card", () => {
     expect(downloadUpdate).not.toHaveBeenCalled()
   })
 
+  it("explains manual Mac updates and opens the releases page", async () => {
+    render(<UpdatesCard settings={stable} save={save} saving={false} />)
+    await screen.findByText("No update available.")
+    act(() => listener({ state: "disabled", reason: "unsigned" }))
+    expect(screen.getByRole("status").textContent).toBe(
+      "Updates on this Mac are manual. Download the new version from the releases page."
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Releases page" }))
+    await waitFor(() =>
+      expect(openReleaseLink).toHaveBeenCalledExactlyOnceWith(
+        "https://github.com/connor-davis/tailshare/releases"
+      )
+    )
+  })
+
   it("shows Stable and saves a change to Nightly", async () => {
     render(<UpdatesCard settings={stable} save={save} saving={false} />)
     await screen.findByText("No update available.")
