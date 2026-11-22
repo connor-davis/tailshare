@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { randomUUID } from "node:crypto"
 import {
   mkdirSync,
@@ -25,7 +26,7 @@ const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 export class RecentRoomsError extends Error {}
 
 const invalid = () =>
-  new RecentRoomsError("That room is not valid. Check it and try again.")
+  new RecentRoomsError(t("recentRooms.thatRoomIsNotValidCheckIt"))
 
 /**
  * Opens the recent rooms list under Electron's userData folder. Only the name,
@@ -90,7 +91,7 @@ export function openRecentRooms(directory: string, now = Date.now) {
       renameSync(temporary, file)
     } catch {
       throw new RecentRoomsError(
-        "Tailshare could not save your recent rooms. Try again."
+        t("recentRooms.tailshareCouldNotSaveYourRecentRooms")
       )
     } finally {
       rmSync(temporary, { force: true })

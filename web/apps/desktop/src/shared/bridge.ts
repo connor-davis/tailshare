@@ -1,3 +1,4 @@
+import type { Language } from "./i18n"
 /** Every state the sidecar can report to the window. */
 export const SIDECAR_STATUSES = [
   "starting",
@@ -26,6 +27,8 @@ export interface TrustedComputer {
 
 /** Persistent desktop preferences. Chat never belongs here. */
 export interface Settings {
+  /** The language shared by main and the renderer. */
+  readonly language: Language
   readonly updateChannel: UpdateChannel
   /** Relay preference for the next room; nearest measures latency at room start. */
   readonly relayRegion: "301" | "302" | "303" | "304" | "nearest"

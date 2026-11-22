@@ -1,5 +1,8 @@
+import { setMainLocale } from "./i18n"
+import { t } from "./i18n/index"
 import {
   app,
+  Menu,
   BrowserWindow,
   clipboard,
   dialog,
@@ -49,7 +52,7 @@ import { callMainApi, registerRoomIpc } from "./room-ipc"
 import type { AddFilesResult } from "../shared/bridge"
 import { findProfile } from "./profile"
 import { openSettings } from "./settings"
-import { createTray, trayIconPaths } from "./tray"
+import { createTray, trayIconPaths, trayMenuTemplate } from "./tray"
 import { createUpdater } from "./updater"
 import { Sidecar, sidecarLayer } from "./sidecar"
 import { newToken, spawnSidecar } from "./sidecar-process"
@@ -126,7 +129,10 @@ async function main() {
 
   const settings = openSettings(app.getPath("userData"), {
     downloads: app.getPath("downloads"),
+    locale: app.getLocale(),
   })
+
+  setMainLocale(settings.get().language)
 
   let mainToken = newToken()
   // One key per install, so a host can tell this computer from a stranger.
@@ -495,11 +501,23 @@ async function main() {
       )
       .catch(() => {
         // Registry errors never include the executable path in logs.
-        console.warn("Could not update the Explorer menu.")
+        console.warn(t("index.couldNotUpdateTheExplorerMenu"))
       })
   }
   // One place reacts to a saved change: updater, login item, tray flag, windows.
   settings.onChange((next, previous) => {
+    setMainLocale(next.language)
+    if (next.language !== previous.language) {
+      tray?.setContextMenu(
+        Menu.buildFromTemplate(
+          trayMenuTemplate({
+            onOpen: () => showWindow(window),
+            onQuit: () => app.quit(),
+          })
+        )
+      )
+      explorerMenu(next.explorerMenu)
+    }
     closeToTray = next.closeToTray
     if (next.saveFolder !== previous.saveFolder) void downloads.apply()
     if (
@@ -602,7 +620,7 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   main().catch((error: unknown) => {
-    dialog.showErrorBox("Tailshare could not start", String(error))
+    dialog.showErrorBox(t("index.tailshareCouldNotStart"), String(error))
     app.exit(1)
   })
 }

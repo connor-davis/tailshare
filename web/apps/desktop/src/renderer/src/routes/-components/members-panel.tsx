@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import { useRef, useState } from "react"
 import { announce } from "@/components/status-region"
 import { UserMinusIcon } from "lucide-react"
@@ -10,9 +12,10 @@ import type { SessionMember, SessionState } from "@/lib/api/types"
 import { ConfirmDialog } from "./confirm-dialog"
 import { JoinRequest } from "./join-request"
 
-/** How a member is named: "You", "You (host)" or their own name. */
+/** How a member is named: t("common.you"), "You (host)" or their own name. */
 function label(member: SessionMember): string {
-  if (member.you) return member.host ? "You (host)" : "You"
+  if (member.you)
+    return member.host ? t("membersPanel.youHost") : t("membersPanel.you")
 
   return member.displayName
 }
@@ -28,6 +31,8 @@ export function MembersPanel({
   session: SessionState
   embedded?: boolean
 }) {
+  const t = useT()
+
   const members = session.members ?? []
   const remove = useRemoveMember()
   const [target, setTarget] = useState<SessionMember | null>(null)
@@ -43,18 +48,18 @@ export function MembersPanel({
 
   return (
     <aside
-      aria-label="Members"
+      aria-label={t("membersPanel.members")}
       className="flex h-full min-h-0 flex-col bg-card"
     >
       {embedded ? (
         <p className="border-b px-3 py-2 text-xs text-muted-foreground">
-          {members.length} of 8 seats
+          {t("membersPanel.of8Seats", { length: members.length })}
         </p>
       ) : (
-        <DragBar reserveCaption className="pl-3">
+        <DragBar reserveCaption className="ps-3">
           <h2 className="text-sm font-semibold">
-            Members
-            <span className="ml-2 font-normal text-muted-foreground tabular-nums">
+            {t("membersPanel.members")}
+            <span className="ms-2 font-normal text-muted-foreground tabular-nums">
               {members.length}
             </span>
           </h2>
@@ -66,30 +71,39 @@ export function MembersPanel({
             <JoinRequest key={session.join.id} join={session.join} />
           ) : null}
           {members.length === 0 ? (
-            <p className="text-muted-foreground">Nobody here yet</p>
+            <p className="text-muted-foreground">
+              {t("membersPanel.nobodyHereYet")}
+            </p>
           ) : (
             <ul
               ref={list}
               tabIndex={-1}
-              aria-label="Members list"
+              aria-label={t("membersPanel.membersList")}
               className="flex flex-col gap-2 outline-none"
             >
               {members.map((member) => (
                 <li key={member.id} className="flex min-w-0 items-center gap-2">
                   <span className="min-w-0 flex-1 truncate">
-                    <span title={member.displayName}>{label(member)}</span>
+                    <span title={member.displayName} dir="auto">
+                      {label(member)}
+                    </span>
                     {member.you ? (
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span
+                        className="block truncate text-xs text-muted-foreground"
+                        dir="auto"
+                      >
                         {member.displayName}
                       </span>
                     ) : null}
                     {member.path && member.path.kind !== "unknown" ? (
                       <span className="block text-xs text-muted-foreground">
                         {member.path.kind === "direct"
-                          ? "Direct"
+                          ? t("membersPanel.direct")
                           : member.path.region
-                            ? `Relay · ${member.path.region}`
-                            : "Relay"}
+                            ? t("membersPanel.relay", {
+                                region: member.path.region,
+                              })
+                            : t("membersPanel.relay2")}
                       </span>
                     ) : null}
                     {member.fingerprint ? (
@@ -99,13 +113,15 @@ export function MembersPanel({
                     ) : null}
                   </span>
                   {member.host && !member.you ? (
-                    <Badge variant="secondary">Host</Badge>
+                    <Badge variant="secondary">{t("membersPanel.host")}</Badge>
                   ) : null}
                   {isHost && !member.you && !member.host ? (
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Remove ${member.displayName}`}
+                      aria-label={t("membersPanel.remove", {
+                        displayName: member.displayName,
+                      })}
                       onClick={() => setTarget(member)}
                     >
                       <UserMinusIcon aria-hidden />
@@ -122,10 +138,12 @@ export function MembersPanel({
         onOpenChange={(open) => {
           if (!open) close()
         }}
-        title={`Remove ${target?.displayName ?? "this person"}?`}
-        description="They are taken out of the room. They can ask to join again with the code."
-        confirmLabel="Remove"
-        busyLabel="Removing…"
+        title={t("membersPanel.confirmRemove", {
+          name: target?.displayName ?? t("common.person"),
+        })}
+        description={t("membersPanel.theyAreTakenOutOfTheRoom")}
+        confirmLabel={t("membersPanel.remove2")}
+        busyLabel={t("membersPanel.removing")}
         busy={remove.isPending}
         error={remove.error?.message}
         onCloseAutoFocus={(event) => {
@@ -142,7 +160,7 @@ export function MembersPanel({
           remove.mutate(target.id, {
             onSuccess: () => {
               removed.current = true
-              announce(`${name} was removed.`)
+              announce(t("membersPanel.wasRemoved", { name: name }))
               close()
             },
           })

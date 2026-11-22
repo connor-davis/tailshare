@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import type { UpdateChannel, UpdateStatus } from "../shared/bridge"
 
 /** The electron-updater surface, kept injectable for offline tests. */
@@ -137,7 +138,7 @@ export function releaseNotesToMarkdown(value: unknown): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim()
 
-  return text.slice(0, 20_000) || "No release notes."
+  return text.slice(0, 20_000) || t("updater.noReleaseNotes")
 }
 
 /** Starts one packaged updater; development never touches the network or timers. */
@@ -306,7 +307,7 @@ export function createUpdater(options: {
         status.state !== "ready" ||
         desired !== configured
       ) {
-        throw new Error("No update is ready. Wait for the download to finish.")
+        throw new Error(t("updater.noUpdateIsReadyWaitForThe"))
       }
       installing = true
       cancelTimer()
@@ -317,7 +318,7 @@ export function createUpdater(options: {
       } catch (error) {
         installing = false
         options.log?.(error)
-        throw new Error("Tailshare could not restart to update. Try again.", {
+        throw new Error(t("updater.tailshareCouldNotRestartToUpdateTry"), {
           cause: error,
         })
       }

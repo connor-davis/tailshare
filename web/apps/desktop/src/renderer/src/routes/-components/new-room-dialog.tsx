@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,16 +35,18 @@ export function NewRoomDialog({
   /** Creates the room with the trimmed name; blank means the default. */
   onCreate: (name: string) => void
 }) {
+  const t = useT()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col gap-4 p-6">
-        <DialogTitle>Name your room</DialogTitle>
+        <DialogTitle>{t("newRoomDialog.nameYourRoom")}</DialogTitle>
         <DialogDescription>
-          Everyone who joins sees this name.
+          {t("newRoomDialog.everyoneWhoJoinsSeesThisName")}
         </DialogDescription>
         {/* Mounted only while open, so the box starts fresh every time. */}
         <form
-          className="flex flex-col gap-4 text-left"
+          className="flex flex-col gap-4 text-start"
           onSubmit={(event) => {
             event.preventDefault()
             const name = String(
@@ -61,10 +64,10 @@ export function NewRoomDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("newRoomDialog.cancel")}
             </Button>
             <Button type="submit" disabled={busy}>
-              Create
+              {t("newRoomDialog.create")}
             </Button>
           </div>
         </form>
@@ -74,11 +77,13 @@ export function NewRoomDialog({
 }
 
 function NameBox({ defaultName }: { defaultName: string }) {
+  const t = useT()
+
   const [text, setText] = useState(defaultName)
 
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor="new-room-name">Room name</Label>
+      <Label htmlFor="new-room-name">{t("newRoomDialog.roomName")}</Label>
       <Input
         id="new-room-name"
         name="name"
@@ -86,6 +91,7 @@ function NameBox({ defaultName }: { defaultName: string }) {
         maxLength={maxRoomName}
         onChange={(event) => setText(event.target.value)}
         autoComplete="off"
+        dir="auto"
         autoFocus
       />
     </div>

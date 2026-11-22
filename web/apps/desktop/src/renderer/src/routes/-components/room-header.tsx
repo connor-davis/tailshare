@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useRef, useState } from "react"
 import { announce } from "@/components/status-region"
 import { FolderOpenIcon } from "lucide-react"
@@ -40,6 +41,8 @@ export function RoomHeader({
   /** When the code stops working, from the sidecar. */
   expiresAt?: string | null
 }) {
+  const t = useT()
+
   const live = useLiveStatus()
   const [folderError, setFolderError] = useState(false)
   const [confirmingLeave, setConfirmingLeave] = useState(false)
@@ -68,9 +71,9 @@ export function RoomHeader({
     if (lastLive.current === live) return
 
     lastLive.current = live
-    if (live === "reconnecting") announce("Reconnecting…")
-    else if (live === "open") announce("Connected.")
-  }, [live])
+    if (live === "reconnecting") announce(t("roomHeader.reconnecting"))
+    else if (live === "open") announce(t("roomHeader.connected"))
+  }, [live, t])
 
   return (
     <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b bg-card px-3 py-2">
@@ -94,16 +97,15 @@ export function RoomHeader({
           className="min-w-40 flex-1 truncate outline-none"
         >
           {roomName ? (
-            <span className="text-xl font-semibold" title={roomName}>
+            <span className="text-xl font-semibold" title={roomName} dir="auto">
               {roomName}
               <span className="font-normal text-muted-foreground">
-                {" "}
-                · Waiting for someone to join…
+                {t("roomHeader.waitingForSomeoneToJoin")}
               </span>
             </span>
           ) : (
             <span className="text-xl font-semibold">
-              Waiting for someone to join…
+              {t("roomHeader.waitingForSomeoneToJoin2")}
             </span>
           )}
           <span className="text-sm text-muted-foreground">
@@ -115,12 +117,14 @@ export function RoomHeader({
       {code ? <ShareCode code={code} compact /> : null}
       {peer ? (
         <p className="text-sm font-medium">
-          {reconnecting ? "Reconnecting…" : "Connected"}
+          {reconnecting
+            ? t("roomHeader.reconnecting")
+            : t("roomHeader.connected2")}
         </p>
       ) : null}
       {folderError ? (
         <p role="alert" className="text-sm text-destructive">
-          Could not open the room folder. Try again.
+          {t("roomHeader.couldNotOpenTheRoomFolderTry")}
         </p>
       ) : null}
       {roomCode ? (
@@ -134,7 +138,7 @@ export function RoomHeader({
           }}
         >
           <FolderOpenIcon aria-hidden data-icon="inline-start" />
-          Open folder
+          {t("roomHeader.openFolder")}
         </Button>
       ) : null}
       {roomCode ? <RoomSaveFolder roomCode={roomCode} /> : null}
@@ -146,23 +150,27 @@ export function RoomHeader({
       >
         {peer
           ? leaving
-            ? "Leaving…"
-            : "Leave"
+            ? t("roomHeader.leaving")
+            : t("roomHeader.leave")
           : leaving
-            ? "Cancelling…"
-            : "Cancel"}
+            ? t("roomHeader.cancelling")
+            : t("roomHeader.cancel")}
       </Button>
       <ConfirmDialog
         open={confirmingLeave}
         onOpenChange={setConfirmingLeave}
-        title={host ? "End this room for everyone?" : "Leave this room?"}
+        title={
+          host
+            ? t("roomHeader.endThisRoomForEveryone")
+            : t("roomHeader.leaveThisRoom")
+        }
         description={
           host
-            ? "Everyone is disconnected and the code stops working."
-            : "You can join again later with the code."
+            ? t("roomHeader.everyoneIsDisconnectedAndTheCodeStops")
+            : t("roomHeader.youCanJoinAgainLaterWithThe")
         }
-        confirmLabel={host ? "End room" : "Leave"}
-        busyLabel="Leaving…"
+        confirmLabel={host ? t("roomHeader.endRoom") : t("roomHeader.leave")}
+        busyLabel={t("roomHeader.leaving")}
         busy={leaving}
         onConfirm={() => {
           setConfirmingLeave(false)

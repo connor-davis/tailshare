@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { FolderDownIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,8 @@ export function RoomSaveFolder({
   /** The room's own code. */
   roomCode: string
 }) {
+  const t = useT()
+
   const code = foldCode(roomCode) ?? ""
   const saved = useRecentRooms().find((room) => room.code === code)?.saveFolder
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +36,7 @@ export function RoomSaveFolder({
 
       await window.tailshare.setRoomFolder({ code, folder })
     } catch {
-      setError("Could not use that folder. Pick another one.")
+      setError(t("roomSaveFolder.couldNotUseThatFolderPickAnother"))
     }
   }
 
@@ -46,15 +49,17 @@ export function RoomSaveFolder({
       ) : null}
       <Button
         variant="outline"
-        title={saved ?? "Downloads from this room go to your save folder."}
+        title={saved ?? t("roomSaveFolder.downloadsFromThisRoomGoToYour")}
         onClick={() => void set(true)}
       >
         <FolderDownIcon aria-hidden data-icon="inline-start" />
-        {saved ? `Saves to ${folderName(saved)}` : "Room save folder"}
+        {saved
+          ? t("roomSaveFolder.savesTo", { folder: folderName(saved) })
+          : t("roomSaveFolder.roomSaveFolder")}
       </Button>
       {saved ? (
         <Button variant="ghost" onClick={() => void set(false)}>
-          Use my default
+          {t("roomSaveFolder.useMyDefault")}
         </Button>
       ) : null}
     </>

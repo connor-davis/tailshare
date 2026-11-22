@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { SidecarView } from "@/lib/live/use-live"
@@ -10,6 +11,8 @@ const QUIET_START_MS = 2000
  * while the engine is fine, and nothing for the first moments of a start.
  */
 export function SidecarBanner({ status, error }: SidecarView) {
+  const t = useT()
+
   const [slowStart, setSlowStart] = useState(false)
 
   useEffect(() => {
@@ -22,11 +25,12 @@ export function SidecarBanner({ status, error }: SidecarView) {
 
   const failed = status === "failed"
   let text: string | null = null
-  if (failed) text = "Tailshare's engine stopped. Restart Tailshare."
+  if (failed) text = t("sidecarBanner.tailshareSEngineStoppedRestartTailshare")
   else if (error) text = error
-  else if (status === "restarting") text = "Reconnecting to Tailshare's engine…"
+  else if (status === "restarting")
+    text = t("sidecarBanner.reconnectingToTailshareSEngine")
   else if (status === "starting" && slowStart)
-    text = "Starting Tailshare's engine…"
+    text = t("sidecarBanner.startingTailshareSEngine")
 
   if (!text) return null
 

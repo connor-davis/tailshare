@@ -1,3 +1,4 @@
+import { t } from "./i18n/index"
 import { Effect, Schema } from "effect"
 import type { Settings, TrustedComputer } from "../shared/bridge"
 import { CHANNELS, NODE_KEY, TrustedComputerSchema } from "../shared/ipc-schema"
@@ -37,7 +38,7 @@ const JoinKeySchema = Schema.Struct({
  */
 export function createTrusted(deps: TrustedDeps) {
   let queue: Promise<unknown> = Promise.resolve()
-  const refuse = (what: string) => new Error(`Tailshare could not ${what}.`)
+  const refuse = (what: string) => new Error(what)
 
   const apply = (): Promise<void> => {
     const run = queue.then(() =>
@@ -65,35 +66,33 @@ export function createTrusted(deps: TrustedDeps) {
      */
     async trust(id: unknown): Promise<void> {
       if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1)
-        throw refuse("read that request")
+        throw refuse(t("trusted.readThatRequest"))
 
       const found = await Effect.runPromise(
         check(JoinKeySchema, await deps.joinKey(id))
       ).catch((error: unknown) => {
         // A sidecar sentence is already fit for the screen; a schema error is not.
         if (error instanceof Error && !("_tag" in error)) throw error
-        throw refuse("read that join request")
+        throw refuse(t("trusted.readThatJoinRequest"))
       })
 
       const entry = await Effect.runPromise(
         check(TrustedComputerSchema, {
           key: found.key,
-          label: found.displayName.trim().slice(0, 64) || "Computer",
+          label: found.displayName.trim().slice(0, 64) || t("trusted.computer"),
           addedAt: (deps.now ?? Date.now)(),
           ...(found.fingerprint && /^[0-9a-f]{12}$/.test(found.fingerprint)
             ? { fingerprint: found.fingerprint }
             : {}),
         })
       ).catch(() => {
-        throw refuse("read that join request")
+        throw refuse(t("trusted.readThatJoinRequest"))
       })
 
       const saved = deps.settings.get().trustedComputers
       const known = saved.find((computer) => computer.key === entry.key)
       if (!known && saved.length >= MAX_TRUSTED)
-        throw new Error(
-          "You can trust up to 100 computers. Remove one in Settings first."
-        )
+        throw new Error(t("trusted.youCanTrustUpTo100Computers"))
 
       deps.settings.update({
         trustedComputers: [
@@ -109,7 +108,7 @@ export function createTrusted(deps: TrustedDeps) {
     /** Forgets one computer by its exact key. Someone already inside stays. */
     revoke(key: unknown): void {
       if (typeof key !== "string" || !NODE_KEY.test(key))
-        throw refuse("read that request")
+        throw refuse(t("trusted.readThatRequest"))
 
       const saved = deps.settings.get().trustedComputers
       if (!saved.some((computer) => computer.key === key)) return
@@ -131,9 +130,10 @@ export function registerTrustedIpc(host: IpcHost, trusted: Trusted) {
     [CHANNELS.revokeTrusted, (value: unknown) => trusted.revoke(value)],
   ] as const) {
     host.handle(channel, async (senderOk, args) => {
-      if (!senderOk) throw new Error("Tailshare could not answer this window.")
+      if (!senderOk)
+        throw new Error(t("trusted.tailshareCouldNotAnswerThisWindow"))
       if (args.length !== 1)
-        throw new Error("Tailshare could not read that request.")
+        throw new Error(t("trusted.tailshareCouldNotReadThatRequest"))
 
       await action(args[0])
     })

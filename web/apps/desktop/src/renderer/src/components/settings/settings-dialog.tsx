@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { t } from "../../i18n/index"
 import {
   createContext,
   useContext,
@@ -27,17 +29,18 @@ import { UpdatesCard } from "./updates-card"
 import { useSettings } from "./use-settings"
 
 /** The menu entries, in order. */
-const SECTIONS = [
-  { id: "you", label: "You" },
-  { id: "saving", label: "Saving" },
-  { id: "transfers", label: "Transfers" },
-  { id: "connection", label: "Connection" },
-  { id: "trusted", label: "Trusted" },
-  { id: "app", label: "App" },
-  { id: "updates", label: "Updates" },
-] as const
+const sections = () =>
+  [
+    { id: "you", label: t("settingsDialog.you") },
+    { id: "saving", label: t("settingsDialog.saving") },
+    { id: "transfers", label: t("settingsDialog.transfers") },
+    { id: "connection", label: t("settingsDialog.connection") },
+    { id: "trusted", label: t("settingsDialog.trusted") },
+    { id: "app", label: t("settingsDialog.app") },
+    { id: "updates", label: t("settingsDialog.updates") },
+  ] as const
 
-type SectionId = (typeof SECTIONS)[number]["id"]
+type SectionId = ReturnType<typeof sections>[number]["id"]
 
 const OpenContext = createContext<() => void>(() => {})
 
@@ -65,6 +68,8 @@ export function SettingsDialogProvider({ children }: { children: ReactNode }) {
 
 /** The menu and the chosen section. Mounted only while the dialog is open. */
 function SettingsBody() {
+  const t = useT()
+
   const [current, setCurrent] = useState<SectionId>("you")
   const handle = useSettings()
   const { settings, error, saving, save } = handle
@@ -72,20 +77,20 @@ function SettingsBody() {
   return (
     <div className="flex min-h-0 flex-1">
       <nav
-        aria-label="Settings sections"
-        className="spaces-rail flex w-28 shrink-0 flex-col gap-1 border-r p-2 sm:w-44 sm:p-3"
+        aria-label={t("settingsDialog.settingsSections")}
+        className="spaces-rail flex w-28 shrink-0 flex-col gap-1 border-e p-2 sm:w-44 sm:p-3"
       >
         <DialogTitle className="mb-2 border-b border-primary px-2 pt-1 pb-3 text-base font-semibold">
-          Settings
+          {t("settingsDialog.settings")}
         </DialogTitle>
-        {SECTIONS.map(({ id, label }) => (
+        {sections().map(({ id, label }) => (
           <button
             key={id}
             type="button"
             aria-current={current === id ? "page" : undefined}
             onClick={() => setCurrent(id)}
             className={cn(
-              "rounded-md px-2 py-1.5 text-left text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              "rounded-md px-2 py-1.5 text-start text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               current === id && "bg-accent text-accent-foreground"
             )}
           >
@@ -95,10 +100,9 @@ function SettingsBody() {
       </nav>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-4 p-4 pr-10 sm:p-6 sm:pr-12">
+        <div className="flex flex-col gap-4 p-4 pe-10 sm:p-6 sm:pe-12">
           <DialogDescription>
-            Speed limits, your display name and transfers at once take effect
-            from the next update. Tailshare saves them now.
+            {t("settingsDialog.speedLimitsYourDisplayNameAndTransfers")}
           </DialogDescription>
 
           {error ? (
@@ -141,7 +145,9 @@ function SettingsBody() {
             </>
           ) : error ? null : (
             <div role="status" aria-busy="true" className="flex flex-col gap-4">
-              <span className="sr-only">Loading your settings…</span>
+              <span className="sr-only">
+                {t("settingsDialog.loadingYourSettings")}
+              </span>
               <Skeleton className="h-32 w-full" />
               <Skeleton className="h-32 w-full" />
             </div>

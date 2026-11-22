@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { RotateCcwIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,15 +46,17 @@ export function RailRoomRow({
   /** Removes the room from the saved list. */
   onForget: (code: string) => void
 }) {
+  const t = useT()
+
   return (
     <li className="group relative flex h-8 items-center rounded-md focus-within:bg-accent/60 hover:bg-accent/60">
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-disabled={!canStart}
-            aria-label={`Rejoin ${room.name}, recent room`}
+            aria-label={t("railRoomRow.rejoinRecentRoom", { name: room.name })}
             onClick={() => {
               if (canStart) onRejoin(room.code)
             }}
@@ -62,23 +65,28 @@ export function RailRoomRow({
               {Array.from(room.name)[0]}
             </span>
             <Dot live={false} />
-            <span className="min-w-0 flex-1 truncate">{room.name}</span>
+            <span className="min-w-0 flex-1 truncate" dir="auto">
+              {room.name}
+            </span>
             <span className="text-xs text-muted-foreground tabular-nums group-focus-within:hidden group-hover:hidden">
               {formatAgo(room.lastSeen)}
             </span>
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          {room.name} · Recent · {formatCode(room.code)} · Last seen{" "}
-          {formatAgo(room.lastSeen)}.{" "}
-          {!idle ? "Leave this room first to rejoin another." : ""}
+          {t("railRoomRow.recentDescription", {
+            name: room.name,
+            code: formatCode(room.code),
+            time: formatAgo(room.lastSeen),
+            hint: !idle ? t("railRoomRow.leaveFirst") : "",
+          })}
         </TooltipContent>
       </Tooltip>
       <Button
         size="icon-xs"
         variant="ghost"
-        className="absolute right-7 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-        aria-label={`Reopen ${room.name}`}
+        className="absolute end-7 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+        aria-label={t("railRoomRow.reopen", { name: room.name })}
         aria-disabled={!canStart}
         onClick={() => {
           if (canStart) onReopen(room)
@@ -89,8 +97,8 @@ export function RailRoomRow({
       <Button
         size="icon-xs"
         variant="ghost"
-        className="absolute right-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
-        aria-label={`Forget ${room.name}`}
+        className="absolute end-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+        aria-label={t("railRoomRow.forget", { name: room.name })}
         onClick={() => onForget(room.code)}
       >
         <XIcon aria-hidden />

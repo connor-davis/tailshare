@@ -1,3 +1,4 @@
+import { LANGUAGES } from "./i18n"
 import { Schema } from "effect"
 import { JOIN_CODE, SIDECAR_STATUSES } from "./bridge"
 
@@ -70,6 +71,7 @@ export const TrustedComputerSchema = Schema.Struct({
 
 /** Every setting and the rule it must meet. 0 for a limit means unlimited. */
 export const SETTINGS_FIELDS = {
+  language: Schema.Literals(LANGUAGES),
   updateChannel: Schema.Literals(["latest", "nightly"]),
   relayRegion: Schema.Literals(["301", "302", "303", "304", "nearest"]),
   displayName: Schema.String.check(Schema.isBetweenLength(1, 64)),

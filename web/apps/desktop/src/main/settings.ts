@@ -1,3 +1,5 @@
+import { normalizeLanguage } from "../shared/i18n"
+import { t } from "./i18n/index"
 import { randomUUID } from "node:crypto"
 import {
   mkdirSync,
@@ -16,6 +18,8 @@ import { SETTINGS_FIELDS, SettingsSchema } from "../shared/ipc-schema"
 export interface SettingsDefaults {
   /** The user's Downloads folder. Downloads land in `Tailshare` inside it. */
   readonly downloads?: string
+  /** Operating-system locale, resolved once when language is first saved. */
+  readonly locale?: string
   /** The computer name, used until the user picks a display name. */
   readonly computerName?: string
 }
@@ -24,12 +28,13 @@ export interface SettingsDefaults {
 export class SettingsError extends Error {}
 
 const invalid = () =>
-  new SettingsError("Those settings are not valid. Check them and try again.")
+  new SettingsError(t("settings.thoseSettingsAreNotValidCheckThem"))
 
 /** The values a fresh install starts with. */
 export function defaultSettings(from: SettingsDefaults = {}): Settings {
   const name = (from.computerName ?? hostname()).trim().slice(0, 64)
   return {
+    language: normalizeLanguage(from.locale ?? "en"),
     updateChannel: "latest",
     relayRegion: "303",
     displayName: name || "Tailshare",
@@ -67,6 +72,7 @@ export function openSettings(directory: string, from: SettingsDefaults = {}) {
       ? value.trim() || defaults.displayName
       : value
 
+  let needsLanguage = true
   let current = load()
 
   function load(): Settings {
@@ -99,6 +105,7 @@ export function openSettings(directory: string, from: SettingsDefaults = {}) {
       if (!isField(key)) continue
       try {
         next[key] = decodeField(key, clean(key, value))
+        if (key === "language") needsLanguage = false
       } catch {
         // Keeps the default for this field.
       }
@@ -106,7 +113,7 @@ export function openSettings(directory: string, from: SettingsDefaults = {}) {
     return next as unknown as Settings
   }
 
-  return {
+  const store = {
     get: (): Settings => ({ ...current }),
 
     /**
@@ -140,7 +147,7 @@ export function openSettings(directory: string, from: SettingsDefaults = {}) {
         renameSync(temporary, file)
       } catch {
         throw new SettingsError(
-          "Tailshare could not save your settings. Try again."
+          t("settings.tailshareCouldNotSaveYourSettingsTry")
         )
       } finally {
         rmSync(temporary, { force: true })
@@ -157,6 +164,9 @@ export function openSettings(directory: string, from: SettingsDefaults = {}) {
       return () => void listeners.delete(listener)
     },
   }
+  // Persist the OS-derived default, including migration of older settings.
+  if (needsLanguage) store.update({ language: current.language })
+  return store
 }
 
 /** The preferences boundary used by main and IPC. */

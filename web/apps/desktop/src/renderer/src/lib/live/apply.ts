@@ -1,3 +1,4 @@
+import { t } from "../../i18n/index"
 import type { QueryClient } from "@tanstack/react-query"
 import { announce } from "../../components/status-region"
 import { keys } from "../api/keys"
@@ -181,10 +182,13 @@ export function applyEvent(client: QueryClient, event: LiveEvent): void {
 
       if (known?.state !== item.state) {
         if (item.state === "done") {
-          announce(`${fileName(item.source)} finished.`)
+          announce(t("apply.transferFinished", { name: fileName(item.source) }))
           toast("done", fileName(item.source))
         } else if (item.state === "failed") {
-          announce(`${fileName(item.source)} failed.`, "assertive")
+          announce(
+            t("apply.transferFailed", { name: fileName(item.source) }),
+            "assertive"
+          )
           toast("failed", fileName(item.source))
         }
       }

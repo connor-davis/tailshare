@@ -44,7 +44,7 @@ describe("apiFetch", () => {
     expect(error).toBeInstanceOf(ApiError)
     expect(error).toMatchObject({
       code: "not_connected",
-      message: "Join a room first.",
+      message: "Connect to another computer first.",
       status: 409,
     })
   })

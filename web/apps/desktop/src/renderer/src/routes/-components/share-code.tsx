@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { announce } from "@/components/status-region"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,8 @@ export function ShareCode({
   /** Smaller type and buttons, for the header. */
   compact?: boolean
 }) {
+  const t = useT()
+
   const [copied, setCopied] = useState<"code" | "link" | null>(null)
   const [failed, setFailed] = useState(false)
   const size = compact ? "sm" : "default"
@@ -30,11 +33,15 @@ export function ShareCode({
       .then(() => {
         setCopied(kind)
         setFailed(false)
-        announce(kind === "code" ? "Code copied" : "Link copied")
+        announce(
+          kind === "code"
+            ? t("shareCode.codeCopied")
+            : t("shareCode.linkCopied")
+        )
       })
       .catch(() => {
         setFailed(true)
-        announce("Could not copy. Select the code instead.")
+        announce(t("shareCode.couldNotCopySelectTheCodeInstead"))
       })
   }
 
@@ -47,6 +54,7 @@ export function ShareCode({
       }
     >
       <p
+        dir="ltr"
         className={
           compact
             ? "rounded-md bg-chrome px-3 py-1 font-mono text-base font-semibold tracking-widest text-primary tabular-nums"
@@ -57,15 +65,15 @@ export function ShareCode({
       </p>
       <div className="flex items-center gap-2">
         <Button variant="outline" size={size} onClick={() => copy("code")}>
-          {copied === "code" ? "Copied" : "Copy code"}
+          {copied === "code" ? t("shareCode.copied") : t("shareCode.copyCode")}
         </Button>
         <Button variant="outline" size={size} onClick={() => copy("link")}>
-          {copied === "link" ? "Copied" : "Copy link"}
+          {copied === "link" ? t("shareCode.copied") : t("shareCode.copyLink")}
         </Button>
       </div>
       {failed ? (
         <p role="alert" className="text-sm text-destructive">
-          Could not copy. Select the code and copy it by hand.
+          {t("shareCode.couldNotCopySelectTheCodeAnd")}
         </p>
       ) : null}
     </div>

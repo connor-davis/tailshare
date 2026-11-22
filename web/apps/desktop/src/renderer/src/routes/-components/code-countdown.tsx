@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useState } from "react"
 import { formatCountdown } from "@/lib/format"
 
@@ -6,6 +7,8 @@ import { formatCountdown } from "@/lib/format"
  * reload shows the same count.
  */
 export function CodeCountdown({ expiresAt }: { expiresAt?: string | null }) {
+  const t = useT()
+
   const [now, setNow] = useState(() => Date.now())
   const end = expiresAt ? Date.parse(expiresAt) : NaN
 
@@ -19,13 +22,15 @@ export function CodeCountdown({ expiresAt }: { expiresAt?: string | null }) {
   }, [end])
 
   // No end time means someone already joined, so the code is used up.
-  if (Number.isNaN(end)) return <>Code used</>
+  if (Number.isNaN(end)) return <>{t("codeCountdown.codeUsed")}</>
 
   const left = end - now
 
   return (
     <span className="tabular-nums">
-      {left > 0 ? `Expires in ${formatCountdown(left)}` : "This code ran out."}
+      {left > 0
+        ? t("codeCountdown.expiresIn", { time: formatCountdown(left) })
+        : t("codeCountdown.thisCodeRanOut")}
     </span>
   )
 }

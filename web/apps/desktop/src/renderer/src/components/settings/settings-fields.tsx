@@ -1,3 +1,5 @@
+import { useT } from "@/i18n/provider"
+import { SettingsLanguage } from "./settings-language"
 import { useState, type ReactNode } from "react"
 import { FolderIcon } from "lucide-react"
 import type { Settings } from "../../../../shared/bridge"
@@ -69,13 +71,15 @@ function SaveRow({
 
 /** The name the other computer sees. */
 export function YouSection({ settings, save, saving }: SectionProps) {
+  const t = useT()
+
   const [name, setName] = useState(settings.displayName)
 
   return (
     <Section
       id="you-title"
-      title="You"
-      description="How the other computer sees you."
+      title={t("settingsFields.you")}
+      description={t("settingsFields.howTheOtherComputerSeesYou")}
     >
       <form
         onSubmit={(event) => {
@@ -85,9 +89,9 @@ export function YouSection({ settings, save, saving }: SectionProps) {
       >
         <SettingList>
           <SettingRow
-            label="Display name"
+            label={t("settingsFields.displayName")}
             htmlFor="display-name"
-            description="Up to 64 characters. Leave it empty to use this computer's name."
+            description={t("settingsFields.upTo64CharactersLeaveItEmpty")}
           >
             <Input
               id="display-name"
@@ -99,7 +103,7 @@ export function YouSection({ settings, save, saving }: SectionProps) {
             />
           </SettingRow>
           <SaveRow disabled={saving || name.trim() === settings.displayName}>
-            Save name
+            {t("settingsFields.saveName")}
           </SaveRow>
         </SettingList>
       </form>
@@ -109,23 +113,25 @@ export function YouSection({ settings, save, saving }: SectionProps) {
 
 /** Where downloads go: the save folder. */
 export function SavingSection({ settings, save, saving, fail }: SectionProps) {
+  const t = useT()
+
   async function change() {
     try {
       const picked = await window.tailshare.chooseFolder()
       if (picked) await save({ saveFolder: picked })
     } catch {
-      fail("Could not open the folder picker. Try again.")
+      fail(t("settingsFields.couldNotOpenTheFolderPickerTry"))
     }
   }
 
   return (
     <Section
       id="saving-title"
-      title="Saving"
-      description="What happens to files you download."
+      title={t("settingsFields.saving")}
+      description={t("settingsFields.whatHappensToFilesYouDownload")}
     >
       <RadioGroup
-        aria-label="Where downloads go"
+        aria-label={t("settingsFields.whereDownloadsGo")}
         value={settings.saveMode}
         disabled={saving}
         className="gap-0"
@@ -136,16 +142,16 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
       >
         <SettingList>
           <SettingRow
-            label="Save to my folder"
+            label={t("settingsFields.saveToMyFolder")}
             htmlFor="save-mode-folder"
-            description="Every file goes to the folder below."
+            description={t("settingsFields.everyFileGoesToTheFolderBelow")}
           >
             <RadioGroupItem value="folder" id="save-mode-folder" />
           </SettingRow>
           <SettingRow
-            label="Ask every time"
+            label={t("settingsFields.askEveryTime")}
             htmlFor="save-mode-ask"
-            description="Pick where each file goes."
+            description={t("settingsFields.pickWhereEachFileGoes")}
           >
             <RadioGroupItem value="ask" id="save-mode-ask" />
           </SettingRow>
@@ -153,7 +159,7 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
       </RadioGroup>
       <SettingList>
         <SettingRow
-          label="Save folder"
+          label={t("settingsFields.saveFolder")}
           description={
             <Tooltip>
               <TooltipTrigger asChild>
@@ -173,7 +179,7 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
             disabled={saving}
             onClick={() => void change()}
           >
-            Change
+            {t("settingsFields.change")}
           </Button>
         </SettingRow>
       </SettingList>
@@ -227,6 +233,8 @@ function NumberRow({
 
 /** Speed limits and how many transfers run together. */
 export function TransfersSection({ settings, save, saving }: SectionProps) {
+  const t = useT()
+
   const [upload, setUpload] = useState(String(settings.uploadLimitKiB))
   const [download, setDownload] = useState(String(settings.downloadLimitKiB))
   const [slots, setSlots] = useState(String(settings.transfersAtOnce))
@@ -239,13 +247,15 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
     downloadValue !== settings.downloadLimitKiB ||
     slotsValue !== settings.transfersAtOnce
 
-  const limitHint = `KiB per second, 0 to ${MAX_LIMIT_KIB}. 0 means no limit.`
+  const limitHint = t("settingsFields.kibPerSecond0To0Means", {
+    MAX_LIMIT_KIB: MAX_LIMIT_KIB,
+  })
 
   return (
     <Section
       id="transfers-title"
-      title="Transfers"
-      description="How fast, and how many at the same time."
+      title={t("settingsFields.transfers")}
+      description={t("settingsFields.howFastAndHowManyAtThe")}
     >
       <form
         onSubmit={(event) => {
@@ -263,7 +273,7 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
         <SettingList>
           <NumberRow
             id="upload-limit"
-            label="Upload limit"
+            label={t("settingsFields.uploadLimit")}
             hint={limitHint}
             text={upload}
             valid={uploadValue !== null}
@@ -271,7 +281,7 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
           />
           <NumberRow
             id="download-limit"
-            label="Download limit"
+            label={t("settingsFields.downloadLimit")}
             hint={limitHint}
             text={download}
             valid={downloadValue !== null}
@@ -279,8 +289,8 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
           />
           <NumberRow
             id="transfers-at-once"
-            label="Transfers at once"
-            hint="A whole number from 1 to 8."
+            label={t("settingsFields.transfersAtOnce")}
+            hint={t("settingsFields.aWholeNumberFrom1To8")}
             text={slots}
             valid={slotsValue !== null}
             onChange={setSlots}
@@ -294,7 +304,7 @@ export function TransfersSection({ settings, save, saving }: SectionProps) {
               slotsValue === null
             }
           >
-            Save transfers
+            {t("settingsFields.saveTransfers")}
           </SaveRow>
         </SettingList>
       </form>
@@ -338,14 +348,17 @@ function SwitchRow({
 
 /** Windows start-up, the tray and the window background. */
 export function AppSection({ settings, save, saving }: SectionProps) {
+  const t = useT()
+
   return (
     <Section
       id="app-title"
-      title="App"
-      description="How Tailshare lives on this computer."
+      title={t("settingsFields.app")}
+      description={t("settingsFields.howTailshareLivesOnThisComputer")}
     >
+      <SettingsLanguage settings={settings} save={save} saving={saving} />
       <RadioGroup
-        aria-label="Appearance"
+        aria-label={t("settingsFields.appearance")}
         value={settings.theme}
         disabled={saving}
         className="gap-0"
@@ -356,16 +369,16 @@ export function AppSection({ settings, save, saving }: SectionProps) {
       >
         <SettingList>
           <SettingRow
-            label="System"
+            label={t("settingsFields.system")}
             htmlFor="theme-system"
-            description="Light or dark, whichever Windows uses."
+            description={t("settingsFields.lightOrDarkWhicheverWindowsUses")}
           >
             <RadioGroupItem value="system" id="theme-system" />
           </SettingRow>
-          <SettingRow label="Light" htmlFor="theme-light">
+          <SettingRow label={t("settingsFields.light")} htmlFor="theme-light">
             <RadioGroupItem value="light" id="theme-light" />
           </SettingRow>
-          <SettingRow label="Dark" htmlFor="theme-dark">
+          <SettingRow label={t("settingsFields.dark")} htmlFor="theme-dark">
             <RadioGroupItem value="dark" id="theme-dark" />
           </SettingRow>
         </SettingList>
@@ -373,40 +386,40 @@ export function AppSection({ settings, save, saving }: SectionProps) {
       <SettingList>
         <SwitchRow
           id="start-with-windows"
-          label="Start with Windows"
-          description="Opens hidden in the tray when you sign in."
+          label={t("settingsFields.startWithWindows")}
+          description={t("settingsFields.opensHiddenInTheTrayWhenYou")}
           checked={settings.startWithWindows}
           disabled={saving}
           onChange={(value) => void save({ startWithWindows: value })}
         />
         <SwitchRow
           id="explorer-menu"
-          label="Send from Explorer"
-          description="Adds Send with Tailshare to the right-click menu for files and folders."
+          label={t("settingsFields.sendFromExplorer")}
+          description={t("settingsFields.addsSendWithTailshareToTheRight")}
           checked={settings.explorerMenu}
           disabled={saving}
           onChange={(value) => void save({ explorerMenu: value })}
         />
         <SwitchRow
           id="close-to-tray"
-          label="Close to tray"
-          description="The close button hides the window. Use the tray to quit."
+          label={t("settingsFields.closeToTray")}
+          description={t("settingsFields.theCloseButtonHidesTheWindowUse")}
           checked={settings.closeToTray}
           disabled={saving}
           onChange={(value) => void save({ closeToTray: value })}
         />
         <SwitchRow
           id="notifications"
-          label="Notifications"
-          description="A Windows alert when someone asks to join or a transfer ends, while Tailshare is in the background."
+          label={t("settingsFields.notifications")}
+          description={t("settingsFields.aWindowsAlertWhenSomeoneAsksTo")}
           checked={settings.notifications}
           disabled={saving}
           onChange={(value) => void save({ notifications: value })}
         />
         <SwitchRow
           id="background-effect"
-          label="Background effect"
-          description="A soft Mica look behind the window. Windows 11 only."
+          label={t("settingsFields.backgroundEffect")}
+          description={t("settingsFields.aSoftMicaLookBehindTheWindow")}
           checked={settings.mica}
           disabled={saving}
           onChange={(value) => void save({ mica: value })}

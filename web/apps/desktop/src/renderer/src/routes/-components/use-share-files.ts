@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useState } from "react"
 import { announce } from "@/components/status-region"
 import { ApiError } from "@/lib/api/client"
@@ -13,6 +14,8 @@ export type SkippedFile = AddFilesResult["skipped"][number]
  * `share`; the screen only ever hands over files, never a path.
  */
 export function useShareFiles() {
+  const t = useT()
+
   const send = useSendChat()
   const [skipped, setSkipped] = useState<SkippedFile[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -33,14 +36,14 @@ export function useShareFiles() {
         await send.mutateAsync({ text: "", attachment: { path: added.name } })
       }
       if (result.added.length > 0) {
-        announce(`Shared ${result.added.length} file(s).`)
+        announce(t("shareFiles.sharedCount", { count: result.added.length }))
       }
     } catch (reason) {
       // Only the sidecar's own sentences go on screen; anything else is vague.
       setError(
         reason instanceof ApiError
           ? reason.message
-          : "Could not add those files. Try again."
+          : t("useShareFiles.couldNotAddThoseFilesTryAgain")
       )
     } finally {
       setBusy(false)
@@ -67,7 +70,7 @@ export function useShareFiles() {
           return null
         }
         if (pasted.kind === "none") {
-          setError("Nothing to paste. Copy some text or a picture first.")
+          setError(t("useShareFiles.nothingToPasteCopySomeTextOr"))
           return null
         }
 

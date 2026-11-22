@@ -17,6 +17,7 @@ afterEach(() => {
   vi.resetAllMocks()
 })
 const settings: Settings = {
+  language: "en",
   relayRegion: "303",
   updateChannel: "latest",
   displayName: "PC",

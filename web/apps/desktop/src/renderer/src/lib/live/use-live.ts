@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useState } from "react"
 import { useQuery, useQueryClient, skipToken } from "@tanstack/react-query"
 import type { SidecarStatus } from "../../../../shared/bridge"
@@ -19,6 +20,8 @@ export interface SidecarView {
  * Call it once, from the root route.
  */
 export function useLive(): SidecarView {
+  const t = useT()
+
   const client = useQueryClient()
   const [status, setStatus] = useState<SidecarStatus>("starting")
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +57,7 @@ export function useLive(): SidecarView {
         setError(
           reason instanceof ApiError
             ? reason.message
-            : "Tailshare is not responding."
+            : t("useLive.tailshareIsNotResponding")
         )
       }
     }
@@ -76,7 +79,7 @@ export function useLive(): SidecarView {
       unsubscribe()
       stopSocket()
     }
-  }, [client])
+  }, [client, t])
 
   return { status, error }
 }

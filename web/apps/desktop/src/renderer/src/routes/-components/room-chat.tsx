@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider"
 import { useEffect, useRef, useState, type DragEvent } from "react"
 import { MessageSquareIcon, UploadIcon, XIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -25,6 +26,8 @@ const STICK_PX = 48
  * gone when the session ends.
  */
 export function RoomChat({ connected = true }: { connected?: boolean }) {
+  const t = useT()
+
   const { data: messages = [], error } = useChat(connected)
   const share = useShareFiles()
   const [log, setLog] = useState<HTMLDivElement | null>(null)
@@ -95,7 +98,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
       <div
         role="log"
         aria-live="polite"
-        aria-label="Chat messages"
+        aria-label={t("roomChat.chatMessages")}
         className="flex min-h-0 flex-1 flex-col"
       >
         {messages.length === 0 && !error ? (
@@ -106,12 +109,14 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
                 <MessageSquareIcon aria-hidden />
               </EmptyMedia>
               <EmptyTitle>
-                {connected ? "No messages yet" : "Nobody here yet"}
+                {connected
+                  ? t("roomChat.noMessagesYet")
+                  : t("roomChat.nobodyHereYet")}
               </EmptyTitle>
               <EmptyDescription>
                 {connected
-                  ? "Write one, or add a file with the + button."
-                  : "Send the link. You can write and share files once someone else joins."}
+                  ? t("roomChat.writeOneOrAddAFileWith")
+                  : t("roomChat.sendTheLinkYouCanWriteAnd")}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -122,14 +127,16 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
                 <div key={message.id} className="flex flex-col gap-1.5">
                   <p className="text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground">
-                      {message.fromPeer ? "Them" : "You"}
+                      {message.fromPeer
+                        ? t("roomChat.them")
+                        : t("roomChat.you")}
                     </span>{" "}
                     <time dateTime={message.time}>
                       {formatTime(message.time)}
                     </time>
                   </p>
                   {message.text ? (
-                    <p className="break-words whitespace-pre-wrap">
+                    <p className="break-words whitespace-pre-wrap" dir="auto">
                       {message.text}
                     </p>
                   ) : null}
@@ -155,7 +162,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
           <Alert
             role={share.error ? "alert" : "status"}
             variant={share.error ? "destructive" : "default"}
-            className="relative pr-10"
+            className="relative pe-10"
           >
             <AlertDescription>
               {share.error ??
@@ -166,8 +173,8 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
             <Button
               size="icon-xs"
               variant="ghost"
-              className="absolute top-2 right-2"
-              aria-label="Dismiss chat notice"
+              className="absolute end-2 top-2"
+              aria-label={t("roomChat.dismissChatNotice")}
               onClick={share.dismiss}
             >
               <XIcon aria-hidden />
@@ -188,7 +195,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
           className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary bg-background/85 text-primary"
         >
           <UploadIcon aria-hidden className="size-8" />
-          <p className="text-lg font-semibold">Drop to share</p>
+          <p className="text-lg font-semibold">{t("roomChat.dropToShare")}</p>
         </div>
       ) : null}
     </div>

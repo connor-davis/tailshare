@@ -243,3 +243,21 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Cancellable source/partial hashes and size-scaled download offer deadline | `internal/services/transfer/send.go`, `receive.go`, `run.go` |
 | Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |
 | Backend audit regressions, offline network abuse checks and actual Windows short alias | `internal/services/{share,peer,mesh,session,transfer}/audit*_test.go`, `internal/api/audit_test.go` |
+
+## Desktop language catalogs
+
+Paths below are under `web/apps/desktop/src/`.
+
+| Job                                                                                                        | Owner                                                                                                |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Supported language values, OS locale normalization, typed interpolation and Intl cardinal plural selection | `shared/i18n.ts`; `shared/i18n.test.ts`                                                              |
+| English UI source catalog, current locale and non-React translator                                         | `renderer/src/i18n/en.ts`, `renderer/src/i18n/index.ts`                                              |
+| Settings-backed locale subscription and React locale/translation hooks                                     | `renderer/src/i18n/provider.tsx`; `provider.test.tsx`                                                |
+| Native tray, toast, Explorer, dialog and safe IPC English catalog                                          | `main/i18n/en.ts`, `main/i18n/index.ts`; settings startup and native menu refresh in `main/index.ts` |
+| Five-language picker with native language names in Settings > App                                                             | `renderer/src/components/settings/settings-language.tsx`                                             |
+| Stable API error code to catalog key mapping, with English fallback for unknown or coarse codes            | `renderer/src/lib/api/error-message.ts`; `error-message.test.ts`                                     |
+| Shipped Spanish, French, German and Arabic renderer/main catalogs | `renderer/src/i18n/{es,fr,de,ar,catalogs}.ts`, `main/i18n/{es,fr,de,ar,catalogs}.ts` |
+| Exact catalog keys, placeholders and Intl plural categories | `shared/catalog-validation.ts`; `shared/catalogs.test.ts`, `renderer/src/i18n/catalogs.test.ts`, `main/i18n/catalogs.test.ts` |
+| Development-only en-XA expansion and key-screen extraction checks | `shared/pseudo-locale.ts`; `renderer/src/i18n/pseudo.test.tsx` |
+| JSX text and accessible string extraction guard | `renderer/src/i18n/hardcoded.test.ts` |
+| Live language selection, native menu and notification translations | `renderer/src/components/settings/settings-language.test.tsx`, `renderer/src/i18n/provider.test.tsx`, `main/i18n/native-language.test.ts` |
