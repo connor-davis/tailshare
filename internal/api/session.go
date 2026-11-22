@@ -10,6 +10,7 @@ import (
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
 	"github.com/connor-davis/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/services/mesh"
 	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
@@ -58,9 +59,10 @@ type SessionState struct {
 // MemberInfo is one person in the share, as the screen shows them. Addresses
 // and keys never leave the sidecar.
 type MemberInfo struct {
-	ID          string `json:"id"`
-	Fingerprint string `json:"fingerprint,omitempty"`
-	DisplayName string `json:"displayName"`
+	Path        *mesh.Path `json:"path,omitempty"`
+	ID          string     `json:"id"`
+	Fingerprint string     `json:"fingerprint,omitempty"`
+	DisplayName string     `json:"displayName"`
 	// Host is true for the computer that admitted everyone else.
 	Host bool `json:"host,omitempty"`
 	// You is true for this computer.
@@ -106,7 +108,7 @@ func (server *Server) stateLocked() SessionState {
 		for index, member := range server.sess.Members() {
 			state.Members = append(state.Members, MemberInfo{
 				ID: member.ID, DisplayName: member.DisplayName, Fingerprint: peer.Fingerprint(member.ID),
-				Host: index == 0, You: member.ID == selfID,
+				Host: index == 0, You: member.ID == selfID, Path: server.sess.Path(member.ID),
 			})
 		}
 	}
@@ -200,9 +202,9 @@ func (server *Server) hostSession(c fiber.Ctx) error {
 	host := displayName(in.DisplayName)
 	// ponytail: the name is fixed when the room is created; renaming later is not built.
 	room := roomName(in.RoomName, host)
-	sess, code, err := session.Host(server.ctx, server.cfg, host, session.Options{
+	sess, code, err := session.Host(server.ctx, server.connectionConfig(), host, session.Options{
 		Root: root, Handlers: manager.Handlers(), Code: selected, RoomName: room,
-		RoomHandlers: forwards.RoomHandlers(),
+		RoomHandlers: forwards.RoomHandlers(), Trusted: server.trusted,
 	})
 	if err != nil {
 		forwards.Close()
@@ -294,7 +296,7 @@ func (server *Server) joinSession(c fiber.Ctx) error {
 
 	manager := server.roomManager(root)
 	forwards := server.newForwards()
-	sess, err := session.Join(ctx, in.Code, server.cfg, displayName(in.DisplayName), session.Options{
+	sess, err := session.Join(ctx, in.Code, server.connectionConfig(), displayName(in.DisplayName), session.Options{
 		Root: root, Handlers: manager.Handlers(),
 		RoomHandlers: forwards.RoomHandlers(),
 	})

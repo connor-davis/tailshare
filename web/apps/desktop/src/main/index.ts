@@ -20,6 +20,9 @@ import { CHANNELS } from "../shared/ipc-schema"
 import { resolveSidecarPath } from "./config"
 import { createDownloads } from "./downloads"
 import { createLimits } from "./limits"
+import { createRelayRegion } from "./relay-region"
+import { loadIdentity } from "./identity"
+import { createTrusted, registerTrustedIpc } from "./trusted"
 import { checkHealth } from "./health"
 import {
   registerDownloadsIpc,
@@ -126,6 +129,8 @@ async function main() {
   })
 
   let mainToken = newToken()
+  // One key per install, so a host can tell this computer from a stranger.
+  const identity = loadIdentity(app.getPath("userData"))
 
   const downloads = createDownloads({
     configure: async () =>
@@ -152,12 +157,48 @@ async function main() {
       ),
   })
 
+  const callMain = async (
+    route: Parameters<typeof callMainApi>[2],
+    body?: unknown
+  ) =>
+    callMainApi(
+      await runtime.runPromise(sidecar.connectionInfo),
+      mainToken,
+      route,
+      body
+    )
+
+  const trusted = createTrusted({
+    settings,
+    push: (body) => callMain("/api/session/trusted", body),
+    joinKey: (id) => callMain(`/api/session/joins/${id}/key`),
+    allow: (id) => callMain(`/api/session/joins/${id}/allow`, {}),
+  })
+
+  const relayRegion = createRelayRegion({
+    settings: () => settings.get(),
+    send: async (body) =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/connection/region",
+        body
+      ),
+  })
+
   const runtime = ManagedRuntime.make(
     sidecarLayer({
       spawn: (token) => {
         mainToken = newToken()
 
-        return spawnSidecar(binary, token, roomsDir, mainToken)
+        return spawnSidecar(
+          binary,
+          token,
+          roomsDir,
+          mainToken,
+          identity,
+          settings.get().relayRegion
+        )
       },
       newToken,
       // A bad save folder must not look like a dead engine, so it is applied
@@ -177,12 +218,16 @@ async function main() {
     if (status === "ready") {
       void downloads.apply()
       void limits.apply()
+      void relayRegion.apply()
+      void trusted.apply()
     }
   })
 
   if (sidecar.status() === "ready") {
     void downloads.apply()
     void limits.apply()
+    void relayRegion.apply()
+    void trusted.apply()
   }
 
   closeToTray = settings.get().closeToTray
@@ -411,6 +456,7 @@ async function main() {
   registerSavedIpc(host, saved, {
     startDrag: (file) =>
       liveWindow()?.webContents.startDrag({ file, icon: dragIcon }),
+    reveal: (file) => shell.showItemInFolder(file),
     preview: async ({ folder, name }) =>
       callMainApi(
         await runtime.runPromise(sidecar.connectionInfo),
@@ -422,6 +468,7 @@ async function main() {
 
   registerUpdateIpc(host, settings, updater, (url) => shell.openExternal(url))
   registerRecentRoomsIpc(host, recentRooms)
+  registerTrustedIpc(host, trusted)
   recentRooms.onChange((rooms) => {
     for (const open of BrowserWindow.getAllWindows())
       open.webContents.send(CHANNELS.recentRoomsChanged, rooms)
@@ -461,6 +508,13 @@ async function main() {
       next.downloadLimitKiB !== previous.downloadLimitKiB
     )
       void limits.apply()
+    if (next.relayRegion !== previous.relayRegion) void relayRegion.apply()
+    // Compare by content: every save decodes a fresh list.
+    if (
+      JSON.stringify(next.trustedComputers) !==
+      JSON.stringify(previous.trustedComputers)
+    )
+      void trusted.apply()
     if (next.updateChannel !== previous.updateChannel)
       updater.setChannel(next.updateChannel)
     if (next.startWithWindows !== previous.startWithWindows)

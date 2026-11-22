@@ -41,7 +41,7 @@ export function TransfersPanel() {
 
   return (
     <section
-      aria-label="Transfers"
+      aria-label="Transfer list"
       className="flex h-full min-h-0 flex-col bg-card"
     >
       <header className="flex min-h-10 shrink-0 flex-wrap items-center gap-2 px-3 py-2">

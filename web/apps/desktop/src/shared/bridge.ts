@@ -12,9 +12,23 @@ export type SidecarStatus = (typeof SIDECAR_STATUSES)[number]
 /** The two supported release feeds. */
 export type UpdateChannel = "latest" | "nightly"
 
+/** One computer the host let in without asking again. */
+export interface TrustedComputer {
+  /** The full node public key, `nodekey:` and 64 hex characters. The only thing matched. */
+  readonly key: string
+  /** The name it offered when trusted, 1 to 64 characters. Only a reminder. */
+  readonly label: string
+  /** When it was trusted, in ms since 1970. */
+  readonly addedAt: number
+  /** The short fingerprint the join prompt showed, so the person can compare. */
+  readonly fingerprint?: string
+}
+
 /** Persistent desktop preferences. Chat never belongs here. */
 export interface Settings {
   readonly updateChannel: UpdateChannel
+  /** Relay preference for the next room; nearest measures latency at room start. */
+  readonly relayRegion: "301" | "302" | "303" | "304" | "nearest"
   /** Shown to the other side. 1 to 64 characters. */
   readonly displayName: string
   /** `folder` saves into {@link Settings.saveFolder}; `ask` opens a Save dialog for each file. */
@@ -39,10 +53,19 @@ export interface Settings {
   readonly mica: boolean
   /** `system` follows Windows; `light` and `dark` force the look. */
   readonly theme: "system" | "light" | "dark"
+  /**
+   * Computers that skip Allow, at most 100. Only main adds to it (see `trustJoin`);
+   * the page may not patch it, only remove an entry with `revokeTrusted`.
+   */
+  readonly trustedComputers: readonly TrustedComputer[]
 }
 
-/** Any subset of {@link Settings}. A patch is applied whole or not at all. */
-export type SettingsPatch = Partial<Settings>
+/**
+ * Any subset of {@link Settings} the page may change. A patch is applied whole
+ * or not at all. Trusted computers change only through `trustJoin` and
+ * `revokeTrusted`.
+ */
+export type SettingsPatch = Partial<Omit<Settings, "trustedComputers">>
 
 /** Safe update state sent to the renderer without upstream error details. */
 export interface UpdateStatus {
@@ -324,8 +347,17 @@ export interface TailshareBridge {
   readonly canDragFile: (transferId: string) => Promise<boolean>
   /** Starts dragging a finished download out of the window. Sends an id, never a path. */
   readonly startFileDrag: (transferId: string) => Promise<void>
+  /** Shows a finished download in the file manager. Sends an id, never a path. */
+  readonly revealDownload: (transferId: string) => Promise<void>
   /** A small preview of a download saved by this window. Never leaves the machine. */
   readonly previewDownload: (transferId: string) => Promise<FilePreview>
+  /**
+   * Trusts and allows the computer behind this waiting join request. Main reads
+   * its key from the sidecar, saves it, then allows. A stale id fails.
+   */
+  readonly trustJoin: (pendingId: number) => Promise<void>
+  /** Stops skipping Allow for one saved computer, by its exact key. */
+  readonly revokeTrusted: (key: string) => Promise<void>
   /** Opens the persistent folder for a validated room code. */
   readonly openRoomFolder: (code: string) => Promise<void>
   /** Calls `listener` on each status change. Returns an unsubscribe. */

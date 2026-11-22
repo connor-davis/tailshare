@@ -29,6 +29,7 @@ describe("settings", () => {
     const path = directory()
     expect(open(path).get()).toEqual({
       updateChannel: "latest",
+      relayRegion: "303",
       displayName: "BOX",
       saveMode: "folder",
       saveFolder: join("C:\\Users\\me\\Downloads", "Tailshare"),
@@ -41,8 +42,42 @@ describe("settings", () => {
       mica: true,
       theme: "system",
       notifications: true,
+      trustedComputers: [],
     })
     expect(readdirSync(path)).toEqual([])
+  })
+
+  it("saves trusted computers, keeps them after a restart, and skips bad ones", () => {
+    const path = directory()
+    const entry = {
+      key: `nodekey:${"a".repeat(64)}`,
+      label: "Pat",
+      addedAt: 1,
+      fingerprint: "0123456789ab",
+    }
+
+    open(path).update({ trustedComputers: [entry] })
+    expect(open(path).get().trustedComputers).toEqual([entry])
+
+    for (const bad of [
+      [{ ...entry, key: "nodekey:short" }],
+      [{ ...entry, label: "" }],
+      [{ ...entry, fingerprint: "xyz" }],
+      Array.from({ length: 101 }, () => entry),
+    ])
+      expect(() => open(path).update({ trustedComputers: bad })).toThrow(
+        "not valid"
+      )
+
+    // A bad saved list falls back to nobody trusted, other fields stay.
+    writeFileSync(
+      join(path, "settings.json"),
+      JSON.stringify({ theme: "dark", trustedComputers: [{ key: "x" }] })
+    )
+    expect(open(path).get()).toMatchObject({
+      theme: "dark",
+      trustedComputers: [],
+    })
   })
 
   it("cuts a long computer name to 64 characters", () => {

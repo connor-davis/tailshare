@@ -90,10 +90,10 @@ describe("AppsPanel", () => {
     })
     render(<AppsPanel />)
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }))
+    fireEvent.click(screen.getByRole("button", { name: "Stop Mine" }))
     expect(mocks.stop).toHaveBeenCalledWith("mine")
 
-    fireEvent.click(screen.getByRole("button", { name: "Open" }))
+    fireEvent.click(screen.getByRole("button", { name: "Open Web" }))
     expect(mocks.open).toHaveBeenCalledWith("a1")
   })
 
@@ -103,17 +103,19 @@ describe("AppsPanel", () => {
 
     expect(screen.getByText("127.0.0.1:51234")).toBeTruthy()
 
-    fireEvent.click(screen.getByRole("button", { name: /Copy/ }))
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy address for Web" })
+    )
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith("127.0.0.1:51234")
     )
 
-    fireEvent.click(screen.getByRole("button", { name: /Open in browser/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Open Web in browser" }))
     expect(openForwardLink).toHaveBeenCalledExactlyOnceWith(
       "http://127.0.0.1:51234/"
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    fireEvent.click(screen.getByRole("button", { name: "Close Web" }))
     expect(mocks.close).toHaveBeenCalledWith("a1")
   })
 

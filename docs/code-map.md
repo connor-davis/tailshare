@@ -17,6 +17,8 @@ line when you add an owner.
 | --- | --- |
 | Share lifetime, roster snapshots, changes, per-member control and data tunnel access | `internal/services/session/session.go` (`Session`, `Options`, `Members`, `Pending`, `Close`) |
 | Code server, takeover startup and unused-code expiry | `internal/services/session/host.go` (`Host`) |
+| Relay preference, bounded four-region bootstrap race and loser cleanup | `internal/services/session/regions.go`, `host.go` (`selectedRegion`) |
+| Per-member path observation cadence and changed-only publication | `internal/services/session/path.go`; `internal/services/mesh/path.go` (authenticated incoming/outgoing link classification) |
 | Join by code and resolve the relay address | `internal/services/session/join.go` (`Join`) |
 | Bounded authenticated join line without consuming hello, handshake deadline cleanup | `internal/services/session/joinline.go` |
 | Local Allow/Deny prompt, decision timeout and admission peer handlers | `internal/services/session/admission.go` |
@@ -73,6 +75,7 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | --- | --- |
 | Error type for the screen (status, stable code, plain sentence) | `internal/platform/apperr/apperr.go` (`Error`, `New`, `BadRequest`, `Internal`) |
 | API construction, listener, shutdown, route table, the one state owner | `internal/api/server.go` (`Server`, `New`, `Listen`, `Serve`, `Shutdown`) |
+| Main-only next-room relay preference and one-shot connection test | `internal/api/connection.go`; `internal/services/connection/connection.go` (free relay map, netcheck and safe hints) |
 | Host, Origin and bearer-token guard, CORS preflight, live-socket handshake check | `internal/api/middleware.go` (`guard`) |
 | Service and peer errors to safe API errors, the JSON error handler | `internal/api/errors.go` (`errorHandler`, `toAppError`) |
 | Host, join, leave, session state and peer-loss cleanup | `internal/api/session.go` |
@@ -160,6 +163,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Recent rooms store: `recent-rooms.json` in userData, max 20, 30-day prune, atomic write, change listeners | `src/main/recent-rooms.ts`, `src/main/recent-rooms.test.ts` |
 | Sidecar supervisor: start, health, restart with backoff, stop (Effect service and layer) | `src/main/sidecar.ts` |
 | Room file IPC (a big drop is cut into 100-path calls), the `startDownload` Save dialog ("Ask every time"), canonical folder opening and main-only HTTP calls | `src/main/room-ipc.ts` (`registerRoomIpc`, `roomFolder`, `callMainApi`) |
+| Relay preference sent after ready and on change | `src/main/relay-region.ts`; `src/renderer/src/components/settings/connection-section.tsx` (region selector and one-shot test) |
 | Transfer count and speed caps sent to the sidecar after ready and on change | `src/main/limits.ts` (`createLimits`), `limits.test.ts` |
 | Real sidecar process (spawn, both tokens, room storage env, stdin pipe) | `src/main/sidecar-process.ts` |
 | Ready-line parsing with a size bound | `src/main/ready-line.ts` |
@@ -228,6 +232,13 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Concurrent bounded prefix routing and one pending control per member | `internal/services/mesh/link.go` (`Accept`, `routeStream`) |
 | Join stream cap, deny backoff, pending fingerprint and expiry after a linked member | `internal/services/session/host.go`, `admission.go`, `mesh.go` |
 | Admitter-only member removal route and replacement transfer manager | `internal/api/session_members.go`; `internal/services/session/mesh.go` (`RemoveMember`, `SetHandlers`) |
+| Trusted key set (validated, capped at 100) and the admission skip for an exact trusted key | `internal/services/session/trusted.go` (`Trusted`), `admission.go` (`allowLocked`, `PendingKey`) |
+| Main-only trusted list and pending-join key routes | `internal/api/session_trusted.go` |
+| Stable joiner key from `TAILSHARE_IDENTITY`, checked at load | `internal/platform/config/config.go` (`IdentityKey`), `internal/services/session/join.go` |
+| Per-install join key file (`identity.key`, never in settings or IPC) | `web/apps/desktop/src/main/identity.ts` |
+| Trusted computers: save, push, `trustJoin`, `revokeTrusted` | `web/apps/desktop/src/main/trusted.ts` (`createTrusted`, `registerTrustedIpc`) |
+| Trust button on a join request | `web/apps/desktop/src/renderer/src/routes/-components/join-request.tsx`; `lib/api/session.ts` (`useTrustJoin`) |
+| Trusted computers list in Settings | `web/apps/desktop/src/renderer/src/components/settings/trusted-section.tsx` |
 | Attached-conversation transfer authorization, offer rate and refusal cleanup | `internal/services/transfer/offer.go` |
 | Cancellable source/partial hashes and size-scaled download offer deadline | `internal/services/transfer/send.go`, `receive.go`, `run.go` |
 | Terminal history cap and pinned download-root introspection | `internal/services/transfer/run.go`, `downloads.go` (`PinsRoot`) |

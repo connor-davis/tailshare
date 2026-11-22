@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import { Maximize2Icon, Minimize2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +50,9 @@ export function RoomView({
   const [expanded, setExpanded] = useState<Tile | null>(null)
 
   const [folder, setFolder] = useState<BrowseFolder | null>(null)
+  // Closing the folder view removes the button that had focus; the Files
+  // expand button is the nearest place to land.
+  const filesExpand = useRef<HTMLButtonElement>(null)
 
   const connected = peer !== undefined
 
@@ -57,24 +60,25 @@ export function RoomView({
     <Card
       key={name}
       hidden={!!expanded && expanded !== name}
-      aria-label={`${name} tile`}
+      role="region"
+      aria-labelledby={`tile-${name}`}
       className={`spaces-tile spaces-tile-${name.toLowerCase()} gap-0 overflow-hidden py-0 ${expanded && expanded !== name ? "hidden" : ""}`}
     >
       <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
         <span aria-hidden className="size-2.5 shrink-0 bg-primary" />
-        <h2 className="mr-auto text-xs font-extrabold tracking-widest uppercase">
+        <h2
+          id={`tile-${name}`}
+          className="mr-auto text-xs font-extrabold tracking-widest uppercase"
+        >
           {name}
         </h2>
         {name === "People" && session.role === "host" && session.join ? (
-          <Badge
-            role="status"
-            variant="secondary"
-            className="whitespace-normal"
-          >
+          <Badge variant="secondary" className="whitespace-normal">
             Someone wants to join
           </Badge>
         ) : null}
         <Button
+          ref={name === "Files" ? filesExpand : undefined}
           variant="ghost"
           size="icon-sm"
           aria-label={
@@ -114,10 +118,7 @@ export function RoomView({
         />
         {/* People may be below the fold or hidden by another expanded tile. */}
         {session.role === "host" && session.join && expanded !== "People" ? (
-          <div
-            role="status"
-            className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2"
-          >
+          <div className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2">
             <p className="mr-auto">Someone wants to join.</p>
             <Button
               variant="outline"
@@ -138,7 +139,10 @@ export function RoomView({
               folder ? (
                 <RoomFolderBrowser
                   folder={folder}
-                  onClose={() => setFolder(null)}
+                  onClose={() => {
+                    setFolder(null)
+                    filesExpand.current?.focus()
+                  }}
                 />
               ) : (
                 <RoomFiles connected={connected} />

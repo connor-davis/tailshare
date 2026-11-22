@@ -365,24 +365,33 @@ export async function callMainApi(
     | "/api/transfers"
     | "/api/transfers/save"
     | "/api/downloads/preview"
-    | "/api/transfers/limits",
+    | "/api/transfers/limits"
+    | "/api/connection/region"
+    | "/api/session/trusted"
+    | `/api/session/joins/${number}/key`
+    | `/api/session/joins/${number}/allow`,
   body: unknown,
   timeout = 120_000
 ): Promise<unknown> {
-  const put = route === "/api/downloads" || route === "/api/transfers/limits"
+  const put =
+    route === "/api/downloads" ||
+    route === "/api/transfers/limits" ||
+    route === "/api/connection/region" ||
+    route === "/api/session/trusted"
+  const get = route === "/api/session" || route.endsWith("/key")
 
   const generic = "Tailshare could not complete that file request."
 
   let response: Response
   try {
     response = await fetch(info.baseUrl + route, {
-      method: route === "/api/session" ? "GET" : put ? "PUT" : "POST",
+      method: get ? "GET" : put ? "PUT" : "POST",
       headers: {
         Authorization: `Bearer ${info.token}`,
         "X-Tailshare-Main": mainToken,
         "Content-Type": "application/json",
       },
-      body: route === "/api/session" ? undefined : JSON.stringify(body),
+      body: get ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(timeout),
     })
   } catch {

@@ -4,6 +4,26 @@ import { newToken, spawnSidecar } from "./sidecar-process"
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }))
 vi.mock("node:child_process", () => ({ spawn }))
 
+describe("real sidecar spawn identity", () => {
+  const child = () => ({
+    stderr: { resume: vi.fn() },
+    stdout: { setEncoding: vi.fn() },
+    stdin: { on: vi.fn() },
+    once: vi.fn(),
+  })
+
+  it("hands the join key to the sidecar only when there is one", () => {
+    spawn.mockReturnValue(child())
+    const identity = `privkey:${"ab".repeat(32)}`
+
+    spawnSidecar("tailshare.exe", "t", "C:/rooms", "m", identity)
+    expect(spawn.mock.lastCall?.[2].env.TAILSHARE_IDENTITY).toBe(identity)
+
+    spawnSidecar("tailshare.exe", "t", "C:/rooms", "m")
+    expect("TAILSHARE_IDENTITY" in spawn.mock.lastCall![2].env).toBe(false)
+  })
+})
+
 describe("real sidecar spawn environment", () => {
   it("passes both secrets and the persistent rooms directory in dev too", () => {
     spawn.mockReturnValue({
@@ -35,4 +55,15 @@ describe("real sidecar spawn environment", () => {
       })
     )
   })
+})
+
+it("starts with the saved relay preference while preserving the identity argument", () => {
+  spawn.mockReturnValue({
+    stderr: { resume: vi.fn() },
+    stdout: { setEncoding: vi.fn() },
+    stdin: { on: vi.fn() },
+    once: vi.fn(),
+  })
+  spawnSidecar("tailshare.exe", "t", "C:/rooms", "m", undefined, "nearest")
+  expect(spawn.mock.lastCall?.[2].env.TAILSHARE_REGION).toBe("nearest")
 })

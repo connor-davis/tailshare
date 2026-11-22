@@ -72,6 +72,20 @@ export function useAllowJoin() {
   )
 }
 
+/**
+ * Trust the computer behind the current join request, then let it in. Main
+ * does both, so the page never sees or names a key.
+ */
+export function useTrustJoin() {
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => window.tailshare.trustJoin(id),
+    // The allow changes the session, so ask for the new state.
+    onSettled: () => client.invalidateQueries({ queryKey: keys.session }),
+  })
+}
+
 /** Remove one member from the room. Only the host can; the sidecar says so otherwise. */
 export function useRemoveMember() {
   return useSessionCall<string>((id) =>

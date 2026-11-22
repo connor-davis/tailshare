@@ -17,6 +17,9 @@ import { Route } from "../index"
 const mocks = vi.hoisted(() => ({
   hostMutate: vi.fn(),
   joinMutate: vi.fn(),
+  announce: vi.fn(),
+  leaveMutate: vi.fn(),
+  joinError: null as Error | null,
 }))
 const { hostMutate, joinMutate } = mocks
 let session: SessionState | undefined = { state: "idle" }
@@ -32,13 +35,19 @@ vi.mock("@/lib/api/session", () => {
   return {
     useSession: () => ({ data: session }),
     useHost: action(mocks.hostMutate),
-    useJoin: action(mocks.joinMutate),
-    useLeave: action(vi.fn()),
+    useJoin: () => ({
+      mutate: mocks.joinMutate,
+      isPending: false,
+      error: mocks.joinError,
+    }),
+    useLeave: action(mocks.leaveMutate),
     useRemoveMember: action(vi.fn()),
     useAllowJoin: action(vi.fn()),
     useDenyJoin: action(vi.fn()),
+    useTrustJoin: action(vi.fn()),
   }
 })
+vi.mock("@/components/status-region", () => ({ announce: mocks.announce }))
 vi.mock("@/lib/api/forwards", () => ({
   useForwards: () => ({ data: [], isLoading: false }),
   useShareApp: () => ({ mutate: vi.fn(), isPending: false }),
@@ -81,6 +90,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   window.localStorage.clear()
   session = { state: "idle" }
+  mocks.joinError = null
   vi.stubGlobal("tailshare", {
     onJoinLink: (listener: (code: string) => void) => {
       joinLink = listener
@@ -215,7 +225,7 @@ describe("shell", () => {
 
     expect(screen.getByRole("log", { name: "Chat messages" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Add files" })).toBeTruthy()
-    expect(screen.getByRole("region", { name: "Transfers" })).toBeTruthy()
+    expect(screen.getByRole("region", { name: "Transfer list" })).toBeTruthy()
     expect(screen.getByText("Host")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Leave" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Expand Chat" })).toBeTruthy()
@@ -233,9 +243,9 @@ describe("shell", () => {
     }
     shell()
     expect(screen.queryByRole("button", { name: "Collapse" })).toBeNull()
-    expect(screen.getByRole("region", { name: "Transfers" })).toBeTruthy()
+    expect(screen.getByRole("region", { name: "Transfer list" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Expand Transfers" }))
-    expect(screen.getByRole("region", { name: "Transfers" })).toBeTruthy()
+    expect(screen.getByRole("region", { name: "Transfer list" })).toBeTruthy()
     expect(window.localStorage.getItem("tailshare.layout.transfers.open")).toBe(
       "false"
     )
@@ -301,10 +311,10 @@ describe("shell", () => {
       join: { id: 1, displayName: "Pat" },
     }
     shell()
-    const people = screen.getByLabelText("People tile")
-    expect(within(people).getByRole("status").textContent).toBe(
-      "Someone wants to join"
-    )
+    const people = screen.getByRole("region", { name: "People" })
+    expect(
+      within(people).getAllByText("Someone wants to join").length
+    ).toBeGreaterThan(0)
     expect(within(people).getByRole("button", { name: "Allow" })).toBeTruthy()
     expect(within(people).getByRole("button", { name: "Deny" })).toBeTruthy()
     expect(
@@ -359,6 +369,67 @@ describe("shell", () => {
     expect(screen.queryByRole("complementary", { name: "Rooms" })).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Show or hide rooms" }))
     expect(screen.getByRole("complementary", { name: "Rooms" })).toBeTruthy()
+  })
+
+  it("announces the notice when the other computer leaves", () => {
+    session = {
+      state: "connected",
+      role: "joiner",
+      peer: { displayName: "Pat" },
+    }
+    const view = shell()
+
+    session = { state: "idle" }
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+
+    expect(mocks.announce).toHaveBeenCalledWith(
+      "The other computer left the room."
+    )
+    expect(screen.getByRole("status").textContent).toContain(
+      "The other computer left the room."
+    )
+  })
+
+  it("announces who joined and left, and stays silent at first", () => {
+    const you = { id: "a", displayName: "Studio", host: true, you: true }
+    const pat = { id: "b", displayName: "Pat" }
+    session = {
+      state: "hosting",
+      role: "host",
+      code: "7K3Q9PXM",
+      members: [you, pat],
+    }
+    const view = shell()
+    const names = () => mocks.announce.mock.calls.map((call) => call[0])
+
+    expect(names().filter((text) => /joined|left/.test(text))).toEqual([])
+
+    session = {
+      state: "hosting",
+      role: "host",
+      code: "7K3Q9PXM",
+      members: [you, pat, { id: "c", displayName: "Kim" }],
+    }
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+    expect(names()).toContain("Kim joined.")
+
+    session = {
+      state: "hosting",
+      role: "host",
+      code: "7K3Q9PXM",
+      members: [you, pat],
+    }
+    view.rerender(<TooltipProvider>{shellNode()}</TooltipProvider>)
+    expect(names()).toContain("Kim left.")
+  })
+
+  it("shows a failed join with the alert role", () => {
+    mocks.joinError = new Error("That code did not work.")
+    shell()
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "That code did not work."
+    )
   })
 
   it("keeps the 138 px caption corner empty on the rightmost bar", () => {

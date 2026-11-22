@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -156,6 +156,7 @@ function Directory({
             <Button
               variant="outline"
               disabled={page.isFetchingNextPage}
+              aria-label={`Load more in ${folder.name}`}
               onClick={() => void page.fetchNextPage()}
             >
               {page.isFetchingNextPage ? "Loading…" : "Load more"}
@@ -180,13 +181,28 @@ export function RoomFolderBrowser({
   folder: BrowseFolder
   onClose: () => void
 }) {
+  // Browse came from another tile that is now hidden, so focus follows to the
+  // folder name. Fields the person is typing in are left alone.
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    const here = document.activeElement
+    if (here?.closest("input, textarea, select, [contenteditable]")) return
+
+    heading.current?.focus()
+  }, [])
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-3 border-b p-3">
         <Button variant="outline" onClick={onClose}>
           Shared files
         </Button>
-        <h3 className="min-w-0 truncate font-semibold" title={folder.name}>
+        <h3
+          ref={heading}
+          tabIndex={-1}
+          className="min-w-0 truncate font-semibold outline-none"
+          title={folder.name}
+        >
           {folder.name}
         </h3>
       </div>

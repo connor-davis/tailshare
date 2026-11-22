@@ -21,6 +21,8 @@ import {
   TransfersSection,
   YouSection,
 } from "./settings-fields"
+import { ConnectionSection } from "./connection-section"
+import { TrustedSection } from "./trusted-section"
 import { UpdatesCard } from "./updates-card"
 import { useSettings } from "./use-settings"
 
@@ -29,6 +31,8 @@ const SECTIONS = [
   { id: "you", label: "You" },
   { id: "saving", label: "Saving" },
   { id: "transfers", label: "Transfers" },
+  { id: "connection", label: "Connection" },
+  { id: "trusted", label: "Trusted" },
   { id: "app", label: "App" },
   { id: "updates", label: "Updates" },
 ] as const
@@ -121,6 +125,12 @@ function SettingsBody() {
                   {...handle}
                   settings={settings}
                 />
+              ) : null}
+              {current === "connection" ? (
+                <ConnectionSection {...handle} settings={settings} />
+              ) : null}
+              {current === "trusted" ? (
+                <TrustedSection {...handle} settings={settings} />
               ) : null}
               {current === "app" ? (
                 <AppSection {...handle} settings={settings} />

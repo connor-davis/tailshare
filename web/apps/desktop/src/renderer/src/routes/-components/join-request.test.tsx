@@ -82,6 +82,49 @@ describe("JoinRequest", () => {
     ).toBe(true)
   })
 
+  it("trusts through main, never through the sidecar API, and refreshes", async () => {
+    const trustJoin = vi.fn(async () => undefined)
+    vi.stubGlobal("tailshare", { trustJoin })
+    const client = show()
+    const refresh = vi.spyOn(client, "invalidateQueries")
+
+    fireEvent.click(screen.getByRole("button", { name: "Trust this computer" }))
+
+    await waitFor(() => expect(trustJoin).toHaveBeenCalledWith(7))
+    await waitFor(() =>
+      expect(refresh).toHaveBeenCalledWith({ queryKey: keys.session })
+    )
+    expect(apiFetch).not.toHaveBeenCalled()
+    expect(screen.getByText(/still need the code/i)).toBeTruthy()
+    vi.unstubAllGlobals()
+  })
+
+  it("shows a failed trust inline and disables choices while waiting", async () => {
+    let fail: (error: Error) => void = () => {}
+    vi.stubGlobal("tailshare", {
+      trustJoin: () => new Promise((_, reject) => (fail = reject)),
+    })
+    show()
+
+    fireEvent.click(screen.getByRole("button", { name: "Trust this computer" }))
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Trusting…" }) as HTMLButtonElement)
+          .disabled
+      ).toBe(true)
+    )
+    expect(
+      (screen.getByRole("button", { name: "Allow" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true)
+
+    fail(new Error("That join request is no longer waiting."))
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain("no longer")
+    )
+    vi.unstubAllGlobals()
+  })
+
   it("shows a failed decision inline", async () => {
     vi.mocked(apiFetch).mockRejectedValue(
       new Error("That join request is no longer waiting.")

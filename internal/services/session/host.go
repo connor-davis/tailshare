@@ -9,14 +9,17 @@ import (
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
 	"github.com/connor-davis/tailshare/internal/services/codes"
+	"github.com/connor-davis/tailshare/internal/services/connection"
 	"github.com/tailscale/tailcat"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 )
 
 // Host starts a share with a ten-minute unused code expiry. The context owns its lifetime.
 func Host(ctx context.Context, cfg config.Config, name string, options Options) (*Session, codes.Code, error) {
+	region := selectedRegion(ctx, cfg)
 	return host(ctx, settings{
-		regionID: cfg.Region, mapURL: cfg.DERPMapURL, expiry: 10 * time.Minute,
+		regionID: region, mapURL: cfg.DERPMapURL, expiry: 10 * time.Minute,
 		name: name, options: options, allowWindow: allowWindow, lostGrace: lostGrace,
 	})
 }
@@ -139,3 +142,18 @@ func tailcatIP(peer key.NodePublic) netip.Addr {
 }
 
 func quietLog(string, ...any) {}
+
+func selectedRegion(ctx context.Context, cfg config.Config) tailcfg.DERPRegionID {
+	if !cfg.Nearest {
+		return cfg.Region
+	}
+	bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	relayMap, err := connection.FreeMap(bounded, cfg.DERPMapURL)
+	if err == nil {
+		if region, err := tailcat.PickBestRegion(bounded, relayMap); err == nil && region != 0 {
+			return region
+		}
+	}
+	return 303
+}

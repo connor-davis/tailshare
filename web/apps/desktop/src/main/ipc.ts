@@ -104,6 +104,10 @@ export function registerUpdateIpc(
     if (!senderOk) throw refuse("answer this window")
     if (args.length !== 1) throw refuse("read that request")
 
+    // The page may only remove a trusted computer (revokeTrusted), never add one.
+    if (args[0] && typeof args[0] === "object" && "trustedComputers" in args[0])
+      throw refuse("read that request")
+
     const result = settings.update(args[0])
     return Effect.runPromise(check(SettingsSchema, result))
   })

@@ -41,7 +41,9 @@ it("filters saved cards and uses their real Rejoin and Forget actions", async ()
       onOpenRoom={open}
     />
   )
-  const card = await screen.findByLabelText("Saved room: Studio")
+  const card = await screen.findByRole("region", {
+    name: "Saved room: Studio",
+  })
   expect(within(card).queryByText(/seats/)).toBeNull()
   expect(within(card).queryByText(/Closed|Live/)).toBeNull()
 

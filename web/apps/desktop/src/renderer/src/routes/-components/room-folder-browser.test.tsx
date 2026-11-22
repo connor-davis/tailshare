@@ -92,12 +92,50 @@ it("loads opened folders only, filters loaded names, pages and downloads files o
     destination: "first.txt",
   })
 
-  fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+  fireEvent.click(screen.getByRole("button", { name: "Load more in Tree" }))
   await screen.findByText("later.txt")
   expect(mocks.fetch).toHaveBeenCalledTimes(3)
   await waitFor(() =>
-    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Load more in Tree" })
+    ).toBeNull()
   )
+})
+
+it("moves focus to the folder name when it opens", async () => {
+  mocks.fetch.mockResolvedValue({ entries: [], total: 0 })
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <RoomFolderBrowser
+        folder={{ name: "Photos", path: "Photos", scope: "local" }}
+        onClose={vi.fn()}
+      />
+    </QueryClientProvider>
+  )
+
+  expect(document.activeElement).toBe(
+    screen.getByRole("heading", { name: "Photos" })
+  )
+  await screen.findByText("This folder is empty.")
+})
+
+it("leaves focus alone when the person is typing elsewhere", async () => {
+  mocks.fetch.mockResolvedValue({ entries: [], total: 0 })
+  const field = document.createElement("input")
+  document.body.append(field)
+  field.focus()
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <RoomFolderBrowser
+        folder={{ name: "Photos", path: "Photos", scope: "local" }}
+        onClose={vi.fn()}
+      />
+    </QueryClientProvider>
+  )
+
+  expect(document.activeElement).toBe(field)
+  field.remove()
+  await screen.findByText("This folder is empty.")
 })
 
 it("uses the local endpoint for our own folder and shows an empty state", async () => {

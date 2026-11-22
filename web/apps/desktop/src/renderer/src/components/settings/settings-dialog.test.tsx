@@ -17,6 +17,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { SettingsDialogProvider, useOpenSettings } from "./settings-dialog"
 
 const saved: Settings = {
+  relayRegion: "303",
   notifications: true,
   updateChannel: "latest",
   displayName: "Connor's PC",
@@ -30,6 +31,7 @@ const saved: Settings = {
   closeToTray: true,
   mica: true,
   theme: "system",
+  trustedComputers: [],
 }
 
 let pushed: (settings: Settings) => void

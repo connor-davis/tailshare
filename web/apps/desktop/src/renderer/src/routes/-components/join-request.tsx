@@ -1,7 +1,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAllowJoin, useDenyJoin } from "@/lib/api/session"
+import { useAllowJoin, useDenyJoin, useTrustJoin } from "@/lib/api/session"
 import type { SessionState } from "@/lib/api/types"
 
 /** A local decision for one person waiting to enter the share. */
@@ -12,8 +12,9 @@ export function JoinRequest({
 }) {
   const allow = useAllowJoin()
   const deny = useDenyJoin()
-  const busy = allow.isPending || deny.isPending
-  const error = allow.error ?? deny.error
+  const trust = useTrustJoin()
+  const busy = allow.isPending || deny.isPending || trust.isPending
+  const error = allow.error ?? deny.error ?? trust.error
   return (
     <Card
       role="region"
@@ -35,7 +36,7 @@ export function JoinRequest({
         <p className="text-muted-foreground">
           Let this computer into the room?
         </p>
-        <div className="flex gap-2" aria-busy={busy}>
+        <div className="flex flex-wrap gap-2" aria-busy={busy}>
           <Button disabled={busy} onClick={() => allow.mutate(join.id)}>
             {allow.isPending ? "Allowing…" : "Allow"}
           </Button>
@@ -46,7 +47,19 @@ export function JoinRequest({
           >
             {deny.isPending ? "Denying…" : "Deny"}
           </Button>
+          <Button
+            variant="outline"
+            disabled={busy}
+            aria-describedby="trust-help"
+            onClick={() => trust.mutate(join.id)}
+          >
+            {trust.isPending ? "Trusting…" : "Trust this computer"}
+          </Button>
         </div>
+        <p id="trust-help" className="text-xs text-muted-foreground">
+          Trusted computers skip this question next time. They still need the
+          code.
+        </p>
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error.message}</AlertDescription>

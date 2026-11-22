@@ -4,10 +4,8 @@ import {
   LayoutGridIcon,
   LogInIcon,
   PlusIcon,
-  RotateCcwIcon,
   SearchIcon,
   SettingsIcon,
-  XIcon,
 } from "lucide-react"
 import { useOpenSettings } from "@/components/settings/settings-dialog"
 import { DragBar } from "@/components/drag-bar"
@@ -27,10 +25,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { SessionState } from "@/lib/api/types"
-import { formatCode } from "@/lib/code-input"
-import { formatAgo } from "@/lib/format"
 import { JoinDialog } from "./join-dialog"
 import { NameEditor } from "./name-editor"
+import { Dot, RailRoomRow } from "./rail-room-row"
 import { useRecentRooms } from "./recent-rooms"
 import logo from "../../../../../build/logo.svg"
 
@@ -50,20 +47,6 @@ function Label({ id, children }: { id: string; children: string }) {
     <h2 id={id} className="px-2 text-xs font-medium text-muted-foreground">
       {children}
     </h2>
-  )
-}
-
-/** The dot in front of a room: green while live, muted when only saved. */
-function Dot({ live }: { live: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={
-        live
-          ? "size-2 shrink-0 rounded-full bg-success"
-          : "size-2 shrink-0 rounded-full bg-muted-foreground/40"
-      }
-    />
   )
 }
 
@@ -111,6 +94,7 @@ export function RoomSidebar({
   const [query, setQuery] = useState("")
   const [forgetError, setForgetError] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+  const joinRef = useRef<HTMLButtonElement>(null)
   const needle = query.trim().toLowerCase()
   const matches = (name: string, code?: string) =>
     needle === "" ||
@@ -133,6 +117,16 @@ export function RoomSidebar({
     return () => window.removeEventListener("keydown", onKey)
   }, [])
   const canStart = idle && !busy
+
+  // When a room ends, its Leave button is gone, so focus goes to Join room.
+  // Only when focus is already lost: someone typing elsewhere keeps it.
+  const wasIdle = useRef(idle)
+  useEffect(() => {
+    const ended = idle && !wasIdle.current
+    wasIdle.current = idle
+    const here = document.activeElement
+    if (ended && (!here || here === document.body)) joinRef.current?.focus()
+  }, [idle])
 
   return (
     <aside
@@ -167,6 +161,7 @@ export function RoomSidebar({
             type="search"
             value={query}
             aria-label="Search rooms"
+            aria-keyshortcuts="Control+K"
             placeholder="Search rooms"
             autoComplete="off"
             className="pl-8"
@@ -176,20 +171,21 @@ export function RoomSidebar({
             }}
           />
         </div>
-        {/* A disabled button gets no hover, so each span carries its tooltip. */}
+        {/* aria-disabled keeps the buttons in Tab order, so the tooltip says why. */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={canStart ? undefined : 0}>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="New room"
-                disabled={!canStart}
-                onClick={onNewRoom}
-              >
-                <PlusIcon aria-hidden />
-              </Button>
-            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="New room"
+              aria-disabled={!canStart}
+              className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              onClick={() => {
+                if (canStart) onNewRoom()
+              }}
+            >
+              <PlusIcon aria-hidden />
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             {idle ? "New room" : "Leave this room to start another."}
@@ -197,17 +193,19 @@ export function RoomSidebar({
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={idle ? undefined : 0}>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Join room"
-                disabled={!idle || busy}
-                onClick={() => setJoining(true)}
-              >
-                <LogInIcon aria-hidden />
-              </Button>
-            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              ref={joinRef}
+              aria-label="Join room"
+              aria-disabled={!canStart}
+              className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              onClick={() => {
+                if (canStart) setJoining(true)
+              }}
+            >
+              <LogInIcon aria-hidden />
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             {idle ? "Join room" : "Leave this room to join another."}
@@ -288,69 +286,20 @@ export function RoomSidebar({
             ) : (
               <ul className="flex flex-col">
                 {shown.map((room) => (
-                  <li
+                  <RailRoomRow
                     key={room.code}
-                    className="group relative flex h-8 items-center rounded-md focus-within:bg-accent/60 hover:bg-accent/60"
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span
-                          tabIndex={canStart ? undefined : 0}
-                          className="flex h-full min-w-0 flex-1"
-                        >
-                          <button
-                            type="button"
-                            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-                            disabled={!canStart}
-                            aria-label={`Rejoin ${room.name}, recent room`}
-                            onClick={() => onRejoin(room.code)}
-                          >
-                            <span aria-hidden className="rail-initial">
-                              {Array.from(room.name)[0]}
-                            </span>
-                            <Dot live={false} />
-                            <span className="min-w-0 flex-1 truncate">
-                              {room.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground tabular-nums group-focus-within:hidden group-hover:hidden">
-                              {formatAgo(room.lastSeen)}
-                            </span>
-                          </button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {room.name} · Recent · {formatCode(room.code)} · Last
-                        seen {formatAgo(room.lastSeen)}.{" "}
-                        {!idle
-                          ? "Leave this room first to rejoin another."
-                          : ""}
-                      </TooltipContent>
-                    </Tooltip>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      className="absolute right-7 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
-                      aria-label={`Reopen ${room.name}`}
-                      disabled={!canStart}
-                      onClick={() => onReopen(room)}
-                    >
-                      <RotateCcwIcon aria-hidden />
-                    </Button>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      className="absolute right-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
-                      aria-label={`Forget ${room.name}`}
-                      onClick={() => {
-                        setForgetError(false)
-                        window.tailshare
-                          .removeRecentRoom(room.code)
-                          .catch(() => setForgetError(true))
-                      }}
-                    >
-                      <XIcon aria-hidden />
-                    </Button>
-                  </li>
+                    room={room}
+                    idle={idle}
+                    canStart={canStart}
+                    onRejoin={onRejoin}
+                    onReopen={onReopen}
+                    onForget={(code) => {
+                      setForgetError(false)
+                      window.tailshare
+                        .removeRecentRoom(code)
+                        .catch(() => setForgetError(true))
+                    }}
+                  />
                 ))}
               </ul>
             )}

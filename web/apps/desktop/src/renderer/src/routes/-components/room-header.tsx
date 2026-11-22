@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { announce } from "@/components/status-region"
 import { FolderOpenIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -45,7 +45,29 @@ export function RoomHeader({
   const [confirmingLeave, setConfirmingLeave] = useState(false)
   const reconnecting = live === "reconnecting"
 
+  // A room just opened, so the old trigger (a closed dialog or a disabled
+  // button) held focus. Move it to the room's name, unless the person has
+  // already started typing somewhere. The short wait lets a closing dialog
+  // finish first.
+  // ponytail: a fixed delay; an onCloseAutoFocus on each dialog would be exact.
+  const title = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
+    const timer = setTimeout(() => {
+      const here = document.activeElement
+      if (here?.closest("input, textarea, select, [contenteditable]")) return
+
+      title.current?.focus()
+    }, 200)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  // The shell already says "Connected." on join, so the first value is skipped.
+  const lastLive = useRef(live)
+  useEffect(() => {
+    if (lastLive.current === live) return
+
+    lastLive.current = live
     if (live === "reconnecting") announce("Reconnecting…")
     else if (live === "open") announce("Connected.")
   }, [live])
@@ -53,7 +75,11 @@ export function RoomHeader({
   return (
     <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b bg-card px-3 py-2">
       {peer ? (
-        <p className="min-w-40 flex-1 truncate">
+        <p
+          ref={title}
+          tabIndex={-1}
+          className="min-w-40 flex-1 truncate outline-none"
+        >
           <span
             className="text-xl font-semibold"
             title={roomName ?? peer.displayName}
@@ -62,7 +88,11 @@ export function RoomHeader({
           </span>
         </p>
       ) : (
-        <p className="min-w-40 flex-1 truncate">
+        <p
+          ref={title}
+          tabIndex={-1}
+          className="min-w-40 flex-1 truncate outline-none"
+        >
           {roomName ? (
             <span className="text-xl font-semibold" title={roomName}>
               {roomName}

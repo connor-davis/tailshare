@@ -87,3 +87,19 @@ computer for at most 30 days, 20 rooms at most. Chat is never saved.
 Windows may prompt when the sidecar opens its UDP socket. Allowing it on
 private networks gives faster direct links; denying it still works through
 the relay. The installer does not change firewall settings.
+
+## Keyboard
+
+Everything can be reached with Tab and Shift+Tab. These keys do more:
+
+| Keys        | Where                          | What it does          |
+| ----------- | ------------------------------ | --------------------- |
+| Ctrl+K      | Anywhere in the window         | Jumps to Search rooms |
+| Escape      | Search rooms                   | Clears the search     |
+| Enter       | Chat box                       | Sends the message     |
+| Shift+Enter | Chat box                       | Starts a new line     |
+| Escape      | While dragging files over chat | Stops the drag        |
+
+Buttons that are not available right now (New room while a room is open, for
+example) stay in the Tab order and say why in their tooltip. A finished
+download has a Show file button, so the file can be found without dragging.

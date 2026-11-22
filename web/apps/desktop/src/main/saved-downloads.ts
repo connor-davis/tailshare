@@ -82,12 +82,14 @@ export type SavedDownloads = ReturnType<typeof createSavedDownloads>
 export interface SavedHost {
   /** Starts the OS drag of one file out of the window. */
   startDrag(file: string): void
+  /** Shows one file in the file manager, selected. */
+  reveal(file: string): void
   /** Asks the sidecar for a preview of a file in a folder. */
   preview(entry: SavedDownload): Promise<unknown>
 }
 
 /**
- * Registers drag-out and preview for finished downloads. The page sends a
+ * Registers drag-out, reveal and preview for finished downloads. The page sends a
  * transfer id and nothing else; ids main does not know are quietly ignored.
  */
 export function registerSavedIpc(
@@ -115,6 +117,11 @@ export function registerSavedIpc(
   host.handle(CHANNELS.startFileDrag, async (senderOk, args) => {
     const found = saved.locate(await idFrom(senderOk, args))
     if (found) deps.startDrag(found.file)
+  })
+
+  host.handle(CHANNELS.revealDownload, async (senderOk, args) => {
+    const found = saved.locate(await idFrom(senderOk, args))
+    if (found) deps.reveal(found.file)
   })
 
   host.handle(CHANNELS.previewDownload, async (senderOk, args) => {

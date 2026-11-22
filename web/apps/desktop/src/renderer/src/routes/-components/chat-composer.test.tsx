@@ -20,6 +20,19 @@ function type(text: string) {
 }
 
 describe("ChatComposer", () => {
+  it("draws the frame with the input border so it is visible", () => {
+    render(
+      <ChatComposer
+        connected
+        busy={false}
+        onAddFiles={() => {}}
+        onPaste={() => {}}
+      />
+    )
+
+    expect(box().closest(".rounded-2xl")?.className).toContain("border-input")
+  })
+
   it("clears the box when the sent text is unchanged", () => {
     render(
       <ChatComposer

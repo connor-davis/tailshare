@@ -16,7 +16,9 @@ export function spawnSidecar(
   binary: string,
   token: string,
   roomsDir: string,
-  mainToken: string
+  mainToken: string,
+  identity?: string,
+  relayRegion = "303"
 ): SidecarChild {
   const child = spawn(binary, ["serve"], {
     env: {
@@ -25,6 +27,9 @@ export function spawnSidecar(
       TAILSHARE_TOKEN: token,
       TAILSHARE_MAIN_TOKEN: mainToken,
       TAILSHARE_ROOMS_DIR: roomsDir,
+      TAILSHARE_REGION: relayRegion,
+      // Only the sidecar ever sees this secret join key.
+      ...(identity ? { TAILSHARE_IDENTITY: identity } : {}),
     },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,

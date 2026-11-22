@@ -21,6 +21,11 @@ export interface SessionMember {
   you?: boolean
   /** Short code (12 hex characters) that tells two same-named computers apart. */
   fingerprint?: string
+  /** Last sidecar observation of this member's mesh link; absent before the first probe. */
+  path?:
+    | { kind: "direct" }
+    | { kind: "relay"; region?: string }
+    | { kind: "unknown" }
 }
 
 /** The session as the sidecar reports it (`GET /api/session`). */

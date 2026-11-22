@@ -343,3 +343,21 @@ describe("chat memory bound", () => {
     expect(mergeChat(many(300))[0]!.id).toBe("m100")
   })
 })
+
+it("keeps optional member paths from session events", () => {
+  const client = new QueryClient()
+  const state: SessionState = {
+    ...connected,
+    members: [
+      {
+        id: "peer",
+        displayName: "Other",
+        path: { kind: "relay", region: "FRA" },
+      },
+    ],
+  }
+  applyEvent(client, { seq: 1, type: "session.state", data: state })
+  expect(
+    client.getQueryData<SessionState>(keys.session)?.members?.[0]?.path
+  ).toEqual({ kind: "relay", region: "FRA" })
+})
