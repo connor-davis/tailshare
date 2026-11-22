@@ -216,6 +216,19 @@ func TestNextEvent(t *testing.T) {
 		t.Fatalf("first = %+v", got)
 	}
 
+	// The host registers the phone's control a moment after the join returns;
+	// a notice sent before that reaches nobody.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, ok := host.Control(client.session.SelfID()); ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("host never registered the phone")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
 	pending := read()
 	host.NotifyShareChanged()
 	if got := wait(pending); got.err != nil || got.event != `{"type":"files.changed"}` {
