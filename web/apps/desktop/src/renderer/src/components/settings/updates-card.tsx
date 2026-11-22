@@ -98,7 +98,9 @@ export function UpdatesCard({
           description={
             <span role="status">
               {status
-                ? messages()[status.state]
+                ? status.reason === "portable"
+                  ? t("updatesCard.portableUpdates")
+                  : messages()[status.state]
                 : t("updatesCard.checkingForUpdates")}
               {status?.state === "downloading" && status.percent !== undefined
                 ? ` ${Math.round(status.percent)}%`
@@ -106,7 +108,24 @@ export function UpdatesCard({
             </span>
           }
         >
-          {status?.state === "ready" ? (
+          {status?.reason === "portable" ? (
+            <Button
+              variant="outline"
+              onClick={() =>
+                void window.tailshare
+                  .openReleaseLink(
+                    "https://github.com/connor-davis/tailshare/releases"
+                  )
+                  .catch(() =>
+                    setCheckError(
+                      t("updatesCard.couldNotCheckForUpdatesTryAgain")
+                    )
+                  )
+              }
+            >
+              {t("updatesCard.releasesPage")}
+            </Button>
+          ) : status?.state === "ready" ? (
             <Button
               disabled={actions.pending === "restart"}
               onClick={() => void actions.restart()}

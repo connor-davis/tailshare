@@ -13,9 +13,14 @@ export interface LoginItemHost {
  */
 export function applyLoginItem(
   enabled: boolean,
-  options: { packaged: boolean; execPath: string; host: LoginItemHost }
+  options: {
+    packaged: boolean
+    isPortable?: boolean
+    execPath: string
+    host: LoginItemHost
+  }
 ): void {
-  if (!options.packaged) return
+  if (!options.packaged || options.isPortable) return
 
   options.host.setLoginItemSettings({
     openAtLogin: enabled,

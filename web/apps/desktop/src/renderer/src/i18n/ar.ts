@@ -3,6 +3,9 @@ import type { en } from "./en"
 
 /** Machine-drafted ar messages; native review is still needed. */
 export const ar = {
+  "updatesCard.portableUpdates":
+    "لا تُحدّث النسخ المحمولة نفسها تلقائيًا. نزّل الإصدار الجديد من صفحة الإصدارات.",
+  "updatesCard.releasesPage": "صفحة الإصدارات",
   "api.unauthorized": "هذا الطلب غير مصرح به.",
   "api.forbidden": "هذا الطلب غير مسموح به.",
   "api.internal": "حدث خطأ. حاول مرة أخرى.",

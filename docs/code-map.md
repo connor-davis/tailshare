@@ -273,3 +273,12 @@ Paths below are under `web/apps/desktop/src/`.
 | Development-only en-XA expansion and key-screen extraction checks | `shared/pseudo-locale.ts`; `renderer/src/i18n/pseudo.test.tsx` |
 | JSX text and accessible string extraction guard | `renderer/src/i18n/hardcoded.test.ts` |
 | Live language selection, native menu and notification translations | `renderer/src/components/settings/settings-language.test.tsx`, `renderer/src/i18n/provider.test.tsx`, `main/i18n/native-language.test.ts` |
+
+## Platform packaging
+
+| Job | Owner |
+| --- | --- |
+| Parameterised sidecar/package OS, architecture, targets and Windows feed names | `Taskfile.yml` (`dist`), `web/apps/desktop/electron-builder.yml` |
+| Non-required Linux/macOS Go tests and Windows-hosted cross-compile gates | `.github/workflows/platforms.yml` |
+| ARM64 GitHub update manifest selection preserving nightly tag matching; x64 uses upstream provider | `web/apps/desktop/src/main/update-provider.ts`; integration tests in `updater.test.ts` |
+| Portable launcher detection, adjacent `Tailshare Data` path and room-protocol registration guard | `web/apps/desktop/src/main/portable.ts`, `portable.test.ts`; login/Explorer guards in their existing owners |

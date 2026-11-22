@@ -3,6 +3,9 @@ import type { en } from "./en"
 
 /** Machine-drafted es messages; native review is still needed. */
 export const es = {
+  "updatesCard.portableUpdates":
+    "Las copias portátiles no se actualizan solas. Descarga la nueva versión desde la página de versiones.",
+  "updatesCard.releasesPage": "Página de versiones",
   "api.unauthorized": "Esta solicitud no está autorizada.",
   "api.forbidden": "Esta solicitud no está permitida.",
   "api.internal": "Algo salió mal. Inténtalo de nuevo.",
