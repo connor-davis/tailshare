@@ -467,3 +467,60 @@ func TestSessionStreamsStayOutOfTransferQueue(t *testing.T) {
 	default:
 	}
 }
+
+func TestSessionStreamBurstWaitsForConsumer(t *testing.T) {
+	relay := tailcattest.LocalDERP(t)
+	host, joiner := localMesh(t, relay, "Host"), localMesh(t, relay, "Joiner")
+	link := prepareJoin(t, host, joiner)[host.Self().ID]
+	connectControl(t, joiner, host, link)
+	tunnel, _ := host.Tunnel(joiner.Self().ID)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	var outgoing []net.Conn
+	for i := range peer.MaxForwardConns {
+		conn, err := link.OpenStream(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Cleanup(func() { _ = conn.Close() })
+		_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
+		if _, err := conn.Write([]byte{byte(i)}); err != nil {
+			t.Fatal(err)
+		}
+		outgoing = append(outgoing, conn)
+	}
+
+	// A slow consumer must not lose admitted streams before it can accept them.
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for len(tunnel.streams) != len(outgoing) {
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			t.Fatalf("only %d of %d streams survived the burst", len(tunnel.streams), len(outgoing))
+		}
+	}
+
+	seen := make(map[byte]bool)
+	for range outgoing {
+		conn, err := tunnel.AcceptStream()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
+		var index [1]byte
+		if _, err := io.ReadFull(conn, index[:]); err != nil {
+			t.Fatal(err)
+		}
+
+		if int(index[0]) >= len(outgoing) || seen[index[0]] {
+			t.Fatalf("unexpected stream index %d", index[0])
+		}
+		seen[index[0]] = true
+		exchange(t, outgoing[index[0]], conn)
+		_ = conn.Close()
+	}
+}
