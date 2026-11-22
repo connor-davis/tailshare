@@ -7,8 +7,8 @@ const share = vi.hoisted(() => ({
   addFiles: vi.fn(),
   addDropped: vi.fn(),
   busy: false,
-  error: null,
-  skipped: [],
+  error: null as string | null,
+  skipped: [] as { name: string; reason: string }[],
   dismiss: vi.fn(),
 }))
 vi.mock("./use-share-files", () => ({ useShareFiles: () => share }))
@@ -38,7 +38,11 @@ vi.mock("./file-card", () => ({
   ),
 }))
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  share.error = null
+  share.skipped = []
+})
 afterEach(cleanup)
 
 it("collects real chat attachments and opens the existing file picker", () => {
@@ -47,6 +51,19 @@ it("collects real chat attachments and opens the existing file picker", () => {
   expect(screen.queryByText("A message")).toBeNull()
   fireEvent.click(screen.getByRole("button", { name: "Share files" }))
   expect(share.addFiles).toHaveBeenCalledOnce()
+})
+
+it("uses the alert role for an error and status for a skipped file", () => {
+  share.error = "Could not add that file."
+  const { unmount } = render(<RoomFiles connected />)
+  expect(screen.getByRole("alert").textContent).toContain("Could not add")
+  unmount()
+
+  share.error = null
+  share.skipped = [{ name: "big.iso", reason: "That is a folder." }]
+  render(<RoomFiles connected />)
+  expect(screen.getByRole("status").textContent).toContain("big.iso")
+  expect(screen.queryByRole("alert")).toBeNull()
 })
 
 it("passes dropped files through the guarded desktop import flow", () => {

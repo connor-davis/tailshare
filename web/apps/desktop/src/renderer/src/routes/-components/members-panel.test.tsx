@@ -11,9 +11,11 @@ import type { ReactElement } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { apiFetch } from "@/lib/api/client"
 import type { SessionState } from "@/lib/api/types"
+import { announce } from "@/components/status-region"
 import { MembersPanel } from "./members-panel"
 
 vi.mock("@/lib/api/client", () => ({ apiFetch: vi.fn() }))
+vi.mock("@/components/status-region", () => ({ announce: vi.fn() }))
 vi.mock("./join-request", () => ({
   JoinRequest: () => <p>request shown</p>,
 }))
@@ -121,6 +123,12 @@ describe("MembersPanel", () => {
       })
     )
     await waitFor(() => expect(screen.queryByText("Remove Laptop?")).toBeNull())
+    expect(announce).toHaveBeenCalledWith("Laptop was removed.")
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("list", { name: "Members list" })
+      )
+    )
   })
 
   it("keeps Cancel from removing anyone", () => {
@@ -149,4 +157,22 @@ describe("MembersPanel", () => {
     )
     expect(screen.getByText("Remove Laptop?")).toBeTruthy()
   })
+})
+
+it("shows observed paths as words and leaves unknown paths unlabelled", () => {
+  show({
+    ...base,
+    members: [
+      { id: "direct", displayName: "Direct peer", path: { kind: "direct" } },
+      {
+        id: "relay",
+        displayName: "Relayed peer",
+        path: { kind: "relay", region: "FRA" },
+      },
+      { id: "unknown", displayName: "Unknown peer", path: { kind: "unknown" } },
+    ],
+  })
+  expect(screen.getByText("Direct")).toBeTruthy()
+  expect(screen.getByText("Relay · FRA")).toBeTruthy()
+  expect(screen.queryByText("Unknown")).toBeNull()
 })

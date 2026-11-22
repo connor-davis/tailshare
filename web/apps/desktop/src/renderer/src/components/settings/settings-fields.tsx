@@ -159,7 +159,7 @@ export function SavingSection({ settings, save, saving, fail }: SectionProps) {
               <TooltipTrigger asChild>
                 <span className="flex max-w-64 items-center gap-2">
                   <FolderIcon aria-hidden className="size-4 shrink-0" />
-                  <span tabIndex={0} className="min-w-0 truncate">
+                  <span className="min-w-0 break-all">
                     {settings.saveFolder}
                   </span>
                 </span>

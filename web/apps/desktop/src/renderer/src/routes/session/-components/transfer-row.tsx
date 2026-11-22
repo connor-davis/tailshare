@@ -115,22 +115,56 @@ export function TransferRow({
         </span>
         <span className="ml-auto flex shrink-0 gap-1">
           {running ? (
-            <Button size="sm" variant="outline" onClick={() => act("pause")}>
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={`Pause ${name}`}
+              onClick={() => act("pause")}
+            >
               Pause
             </Button>
           ) : null}
           {item.state === "paused" ? (
-            <Button size="sm" variant="outline" onClick={() => act("resume")}>
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={`Resume ${name}`}
+              onClick={() => act("resume")}
+            >
               Resume
             </Button>
           ) : null}
           {item.state === "failed" && retrySeconds === null ? (
-            <Button size="sm" variant="outline" onClick={() => act("resume")}>
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={`Retry ${name}`}
+              onClick={() => act("resume")}
+            >
               Retry
             </Button>
           ) : null}
+          {draggable ? (
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={`Show file ${name}`}
+              onClick={() =>
+                Promise.resolve(window.tailshare.revealDownload(item.id)).catch(
+                  () => {}
+                )
+              }
+            >
+              Show file
+            </Button>
+          ) : null}
           {running || item.state === "paused" ? (
-            <Button size="sm" variant="outline" onClick={() => act("cancel")}>
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={`Cancel ${name}`}
+              onClick={() => act("cancel")}
+            >
               Cancel
             </Button>
           ) : null}

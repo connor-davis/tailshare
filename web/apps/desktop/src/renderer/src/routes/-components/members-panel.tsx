@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { announce } from "@/components/status-region"
 import { UserMinusIcon } from "lucide-react"
 import { DragBar } from "@/components/drag-bar"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +32,9 @@ export function MembersPanel({
   const remove = useRemoveMember()
   const [target, setTarget] = useState<SessionMember | null>(null)
   const isHost = session.role === "host"
+  // The Remove button disappears with the person, so focus lands on the list.
+  const list = useRef<HTMLUListElement>(null)
+  const removed = useRef(false)
 
   const close = () => {
     setTarget(null)
@@ -64,7 +68,12 @@ export function MembersPanel({
           {members.length === 0 ? (
             <p className="text-muted-foreground">Nobody here yet</p>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul
+              ref={list}
+              tabIndex={-1}
+              aria-label="Members list"
+              className="flex flex-col gap-2 outline-none"
+            >
               {members.map((member) => (
                 <li key={member.id} className="flex min-w-0 items-center gap-2">
                   <span className="min-w-0 flex-1 truncate">
@@ -72,6 +81,15 @@ export function MembersPanel({
                     {member.you ? (
                       <span className="block truncate text-xs text-muted-foreground">
                         {member.displayName}
+                      </span>
+                    ) : null}
+                    {member.path && member.path.kind !== "unknown" ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {member.path.kind === "direct"
+                          ? "Direct"
+                          : member.path.region
+                            ? `Relay · ${member.path.region}`
+                            : "Relay"}
                       </span>
                     ) : null}
                     {member.fingerprint ? (
@@ -110,8 +128,24 @@ export function MembersPanel({
         busyLabel="Removing…"
         busy={remove.isPending}
         error={remove.error?.message}
+        onCloseAutoFocus={(event) => {
+          if (!removed.current) return
+
+          removed.current = false
+          event.preventDefault()
+          list.current?.focus()
+        }}
         onConfirm={() => {
-          if (target) remove.mutate(target.id, { onSuccess: close })
+          if (!target) return
+
+          const name = target.displayName
+          remove.mutate(target.id, {
+            onSuccess: () => {
+              removed.current = true
+              announce(`${name} was removed.`)
+              close()
+            },
+          })
         }}
       />
     </aside>

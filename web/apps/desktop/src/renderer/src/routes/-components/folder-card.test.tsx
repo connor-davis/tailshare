@@ -42,7 +42,7 @@ it.each([true, false])(
       </FolderBrowseContext>
     )
     expect(screen.getByText(/3 files/)).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "Browse" }))
+    fireEvent.click(screen.getByRole("button", { name: "Browse Photos" }))
     expect(browse).toHaveBeenCalledWith({
       name: "Photos",
       path: "Photos",

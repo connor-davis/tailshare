@@ -36,6 +36,7 @@ describe("preload bridge", () => {
       "canDragFile",
       "startFileDrag",
       "previewDownload",
+      "revealDownload",
       "onSidecarStatus",
       "getSettings",
       "updateSettings",

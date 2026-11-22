@@ -57,6 +57,36 @@ it.each(["Files", "People", "Chat", "Transfers", "Apps"])(
   }
 )
 
+it("names each tile as a region", () => {
+  render(
+    <RoomView
+      session={{ state: "hosting" }}
+      onLeave={vi.fn()}
+      leaving={false}
+    />
+  )
+
+  for (const name of ["Files", "People", "Chat", "Transfers", "Apps"])
+    expect(screen.getByRole("region", { name })).toBeTruthy()
+})
+
+it("keeps a join request out of live regions, so the shell says it once", () => {
+  render(
+    <RoomView
+      session={{
+        state: "hosting",
+        role: "host",
+        join: { id: 2, displayName: "Pat" },
+      }}
+      onLeave={vi.fn()}
+      leaving={false}
+    />
+  )
+
+  expect(screen.getByText("Someone wants to join.")).toBeTruthy()
+  expect(screen.queryAllByRole("status")).toHaveLength(0)
+})
+
 it("exposes a join request while a different tile is expanded", () => {
   render(
     <RoomView

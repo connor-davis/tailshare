@@ -64,6 +64,7 @@ export function HomeBoard({
             {active && matches(name, session.code) ? (
               <Card
                 className="gap-0 overflow-hidden py-0"
+                role="region"
                 aria-label={`Current room: ${name}`}
               >
                 <RoomCardHeader
@@ -96,6 +97,7 @@ export function HomeBoard({
               <Card
                 key={room.code}
                 className="gap-0 overflow-hidden py-0"
+                role="region"
                 aria-label={`Saved room: ${room.name}`}
               >
                 <RoomCardHeader

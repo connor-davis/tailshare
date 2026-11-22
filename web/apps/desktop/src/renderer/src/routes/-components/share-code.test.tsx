@@ -7,7 +7,10 @@ import {
   waitFor,
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { announce } from "@/components/status-region"
 import { ShareCode } from "./share-code"
+
+vi.mock("@/components/status-region", () => ({ announce: vi.fn() }))
 
 const writeText = vi.fn<(text: string) => Promise<void>>(async () => {})
 
@@ -30,6 +33,20 @@ describe("ShareCode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }))
     await waitFor(() =>
       expect(writeText).toHaveBeenLastCalledWith("tailshare://join/7K3Q9PXM")
+    )
+  })
+
+  it("says which of the two was copied", async () => {
+    render(<ShareCode code="7K3Q-9PXM" />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }))
+    await waitFor(() =>
+      expect(announce).toHaveBeenLastCalledWith("Link copied")
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy code" }))
+    await waitFor(() =>
+      expect(announce).toHaveBeenLastCalledWith("Code copied")
     )
   })
 

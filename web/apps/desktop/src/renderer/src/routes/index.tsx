@@ -142,6 +142,33 @@ function Shell() {
       announce("Someone wants to join. Open People to answer.", "assertive")
   }, [joinId])
 
+  // The notice bar appears already filled, which screen readers can miss.
+  useEffect(() => {
+    if (notice) announce(notice)
+  }, [notice])
+
+  // Say who came and went. The first list is silent: it is only the room as
+  // it already was.
+  const members = session?.members
+  const knownMembers = useRef<Map<string, string> | null>(null)
+  useEffect(() => {
+    if (!members || (state !== "hosting" && state !== "connected")) {
+      knownMembers.current = null
+      return
+    }
+
+    const now = new Map(
+      members.filter((member) => !member.you).map((m) => [m.id, m.displayName])
+    )
+    const before = knownMembers.current
+    knownMembers.current = now
+    if (!before) return
+
+    for (const [id, name] of now)
+      if (!before.has(id)) announce(`${name} joined.`)
+    for (const [id, name] of before) if (!now.has(id)) announce(`${name} left.`)
+  }, [members, state])
+
   useEffect(() => {
     if (state !== "idle" || !openRoom.current) return
     rememberRoom(openRoom.current.roomName, openRoom.current.code)
@@ -171,8 +198,12 @@ function Shell() {
       { onSuccess: () => setHome(false) }
     )
   const leaveRoom = () => {
+    const hosting = session.role === "host"
     setOwnEnd(true)
-    leave.mutate(undefined, { onError: () => setOwnEnd(false) })
+    leave.mutate(undefined, {
+      onSuccess: () => announce(hosting ? "Room ended." : "You left the room."),
+      onError: () => setOwnEnd(false),
+    })
   }
 
   const showHome = home && !joinWaiting
@@ -211,7 +242,7 @@ function Shell() {
           <DownloadsAlert />
           {notice || error ? (
             <Alert
-              role="status"
+              role={notice ? "status" : "alert"}
               variant={notice ? "default" : "destructive"}
               className="rounded-none border-x-0 border-t-0"
             >

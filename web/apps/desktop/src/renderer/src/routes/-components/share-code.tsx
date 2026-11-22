@@ -30,7 +30,7 @@ export function ShareCode({
       .then(() => {
         setCopied(kind)
         setFailed(false)
-        announce("Copied")
+        announce(kind === "code" ? "Code copied" : "Link copied")
       })
       .catch(() => {
         setFailed(true)
@@ -47,7 +47,6 @@ export function ShareCode({
       }
     >
       <p
-        aria-label={`Code ${code.replace(/-/g, "").split("").join(" ")}`}
         className={
           compact
             ? "rounded-md bg-chrome px-3 py-1 font-mono text-base font-semibold tracking-widest text-primary tabular-nums"

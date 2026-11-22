@@ -118,8 +118,14 @@ const bridge: TailshareBridge = Object.freeze({
     ipcRenderer.invoke("tailshare:can-drag-file", transferId),
   startFileDrag: (transferId: string) =>
     ipcRenderer.invoke("tailshare:start-file-drag", transferId),
+  revealDownload: (transferId: string) =>
+    ipcRenderer.invoke("tailshare:reveal-download", transferId),
   previewDownload: (transferId: string) =>
     ipcRenderer.invoke("tailshare:preview-download", transferId),
+  trustJoin: (pendingId: number) =>
+    ipcRenderer.invoke("tailshare:trust-join", pendingId),
+  revokeTrusted: (key: string) =>
+    ipcRenderer.invoke("tailshare:revoke-trusted", key),
   openRoomFolder: (code: string) =>
     ipcRenderer.invoke("tailshare:open-room-folder", code),
   onSidecarStatus: (listener: (status: SidecarStatus) => void) => {

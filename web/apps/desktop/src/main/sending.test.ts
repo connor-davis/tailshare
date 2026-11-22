@@ -109,10 +109,11 @@ describe("saved downloads: drag out and preview", () => {
     writeFileSync(join(folder, "a.txt"), "hello")
     const saved = createSavedDownloads()
     const startDrag = vi.fn()
+    const reveal = vi.fn()
     const preview = vi.fn(async () => ({ kind: "text", text: "hello" }))
     const { ipc, call } = host()
-    registerSavedIpc(ipc, saved, { startDrag, preview })
-    return { folder, saved, startDrag, preview, call }
+    registerSavedIpc(ipc, saved, { startDrag, reveal, preview })
+    return { folder, saved, startDrag, reveal, preview, call }
   }
 
   it("refuses a stranger, extra arguments and bad ids", async () => {
@@ -121,6 +122,7 @@ describe("saved downloads: drag out and preview", () => {
     for (const channel of [
       CHANNELS.canDragFile,
       CHANNELS.startFileDrag,
+      CHANNELS.revealDownload,
       CHANNELS.previewDownload,
     ]) {
       await expect(call(channel, false, [ID])).rejects.toThrow()
@@ -151,6 +153,17 @@ describe("saved downloads: drag out and preview", () => {
 
     expect(startDrag).toHaveBeenCalledTimes(1)
     expect(startDrag).toHaveBeenCalledWith(join(folder, "a.txt"))
+  })
+
+  it("reveals only a remembered file, with the path main built", async () => {
+    const { call, saved, folder, reveal } = setup()
+
+    await call(CHANNELS.revealDownload, true, [ID])
+    expect(reveal).not.toHaveBeenCalled()
+
+    saved.remember({ id: ID, destination: "a.txt" }, folder)
+    await call(CHANNELS.revealDownload, true, [ID])
+    expect(reveal).toHaveBeenCalledWith(join(folder, "a.txt"))
   })
 
   it("refuses names that point outside the folder", () => {

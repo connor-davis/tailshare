@@ -31,6 +31,7 @@ export function defaultSettings(from: SettingsDefaults = {}): Settings {
   const name = (from.computerName ?? hostname()).trim().slice(0, 64)
   return {
     updateChannel: "latest",
+    relayRegion: "303",
     displayName: name || "Tailshare",
     saveMode: "folder",
     saveFolder: join(
@@ -46,6 +47,7 @@ export function defaultSettings(from: SettingsDefaults = {}): Settings {
     notifications: true,
     mica: true,
     theme: "system",
+    trustedComputers: [],
   }
 }
 

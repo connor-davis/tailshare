@@ -47,6 +47,27 @@ Limits, all required:
   wait 60 seconds before retrying (a bounded 256-key table). Busy refusals close
   after a 100 ms reply grace, rather than the preparation backstop. Prompts show
   a twelve-hex-character fingerprint of the authenticated client public key.
+- **Trusted computers.** A host can choose "Trust this computer" on a join
+  request. After that, the same computer skips the Allow question for later
+  joins. It still needs the code, and every other check is unchanged: the
+  eight-member cap, the one-prompt-at-a-time rule, the deny wait and the
+  60-second expiry of a prompt that is still shown. Trust matches the full
+  authenticated public key, never the name or the twelve-hex fingerprint
+  (the fingerprint is only for people to compare). The key list lives in the
+  desktop's settings file and the sidecar holds a copy in memory only. Main
+  sends the whole list after every start and every change (`PUT
+  /api/session/trusted`, main-only, at most 100 valid keys). The page cannot
+  add a key: it calls `trustJoin(pendingId)`, main asks the sidecar for that
+  waiting prompt's key, saves it, sends the list and then allows. A stale
+  prompt fails and trusts nobody. The page can only remove a key
+  (`revokeTrusted`). Removing affects the next join; it does not kick anyone.
+  A trusted computer that joins while you are away is let in without asking, so
+  trust only computers you own or know. To make trust possible the desktop
+  keeps one random join key per install in `identity.key` in its data folder
+  (mode 0600, never in settings, IPC or the page). A stable join key lets a host
+  recognise the same computer across rooms, and deleting `identity.key` resets
+  it, so you are a stranger again to every host. Without it (Go tests,
+  headless) the sidecar uses a fresh random key per join, so nobody matches.
 - **Unused-code expiry.** A code expires ten minutes after it is shown unless
   someone is allowed. Pending and denied requests do not stop expiry. The
   first registered mesh control stream stops expiry for the remainder of the share.

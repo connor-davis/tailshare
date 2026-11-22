@@ -57,3 +57,18 @@ func ServeMap(t testing.TB, derpMap *tailcfg.DERPMap) string {
 
 	return server.URL
 }
+
+// MultiRegion starts one local relay for each of the four free region IDs.
+func MultiRegion(t testing.TB) *tailcfg.DERPMap {
+	t.Helper()
+	result := &tailcfg.DERPMap{Regions: make(map[tailcfg.DERPRegionID]*tailcfg.DERPRegion)}
+	for _, id := range []tailcfg.DERPRegionID{301, 302, 303, 304} {
+		region := LocalDERP(t).Regions[RegionID]
+		region.RegionID = id
+		for _, node := range region.Nodes {
+			node.RegionID = id
+		}
+		result.Regions[id] = region
+	}
+	return result
+}

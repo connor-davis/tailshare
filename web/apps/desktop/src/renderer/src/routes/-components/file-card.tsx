@@ -162,6 +162,7 @@ export function FileCard({
           <Button
             variant="outline"
             size="sm"
+            aria-label={`Browse ${attachment.name}`}
             onClick={() =>
               browse({
                 path: attachment.path,

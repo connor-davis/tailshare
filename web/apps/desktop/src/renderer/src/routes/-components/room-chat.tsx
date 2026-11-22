@@ -153,7 +153,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
       {share.error || share.skipped.length > 0 ? (
         <div className="flex w-full px-4 pb-2">
           <Alert
-            role="status"
+            role={share.error ? "alert" : "status"}
             variant={share.error ? "destructive" : "default"}
             className="relative pr-10"
           >
@@ -167,7 +167,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
               size="icon-xs"
               variant="ghost"
               className="absolute top-2 right-2"
-              aria-label="Dismiss"
+              aria-label="Dismiss chat notice"
               onClick={share.dismiss}
             >
               <XIcon aria-hidden />

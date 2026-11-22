@@ -262,6 +262,20 @@ describe("update IPC", () => {
     ).rejects.toThrow("not valid")
     expect(settings.get().closeToTray).toBe(false)
   })
+
+  it("never lets the page add a trusted computer", async () => {
+    const { handler, settings } = setupUpdates()
+    await expect(
+      handler(CHANNELS.updateSettings)(true, [
+        {
+          trustedComputers: [
+            { key: `nodekey:${"a".repeat(64)}`, label: "Me", addedAt: 0 },
+          ],
+        },
+      ])
+    ).rejects.toThrow("could not read that request")
+    expect(settings.update).not.toHaveBeenCalled()
+  })
 })
 
 describe("window IPC", () => {

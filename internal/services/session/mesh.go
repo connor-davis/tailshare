@@ -89,6 +89,7 @@ func (session *Session) startControl(ctx context.Context, id string, conn net.Co
 	session.changedLocked()
 	session.mu.Unlock()
 	go session.watchMember(id, control, subscription)
+	go session.observePath(id, control)
 	if tunnel, ok := session.mesh.Tunnel(id); ok {
 		go session.serveStreams(id, tunnel)
 	}
@@ -138,6 +139,7 @@ func (session *Session) dropMember(id string, control *peer.Peer, clean bool) {
 	}
 	_ = session.mesh.Remove(id)
 	delete(session.controls, id)
+	delete(session.paths, id)
 	remaining := len(session.mesh.Roster().Members)
 	takeover := wasAdmitter && session.mesh.IsAdmitter()
 	session.changedLocked()
@@ -195,6 +197,7 @@ func (session *Session) RemoveMember(id string) error {
 	}
 	control := session.controls[id]
 	delete(session.controls, id)
+	delete(session.paths, id)
 	session.changedLocked()
 	session.mu.Unlock()
 	if control != nil {

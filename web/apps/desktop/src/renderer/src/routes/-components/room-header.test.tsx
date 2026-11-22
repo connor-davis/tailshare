@@ -8,19 +8,24 @@ import {
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { announce } from "@/components/status-region"
 import { RoomHeader } from "./room-header"
 
-vi.mock("@/lib/live/use-live", () => ({ useLiveStatus: () => "open" }))
+const live = vi.hoisted(() => ({ value: "open" }))
+vi.mock("@/lib/live/use-live", () => ({ useLiveStatus: () => live.value }))
+vi.mock("@/components/status-region", () => ({ announce: vi.fn() }))
 
 const openRoomFolder = vi.fn()
 
-beforeEach(() =>
+beforeEach(() => {
+  live.value = "open"
+  vi.mocked(announce).mockClear()
   vi.stubGlobal("tailshare", {
     openRoomFolder,
     getRecentRooms: async () => [],
     onRecentRoomsChanged: () => () => {},
   })
-)
+})
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -42,6 +47,31 @@ function show(
     </TooltipProvider>
   )
 }
+
+describe("RoomHeader live words", () => {
+  const header = () => (
+    <TooltipProvider>
+      <RoomHeader
+        peer={{ displayName: "Pat" }}
+        onLeave={() => {}}
+        leaving={false}
+      />
+    </TooltipProvider>
+  )
+
+  it("is silent on mount and speaks only when the link changes", () => {
+    const view = render(header())
+    expect(announce).not.toHaveBeenCalled()
+
+    live.value = "reconnecting"
+    view.rerender(header())
+    expect(announce).toHaveBeenLastCalledWith("Reconnecting…")
+
+    live.value = "open"
+    view.rerender(header())
+    expect(announce).toHaveBeenLastCalledWith("Connected.")
+  })
+})
 
 describe("RoomHeader Leave", () => {
   it("asks the host before ending the room for everyone", () => {

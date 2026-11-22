@@ -15,9 +15,14 @@ import (
 
 // Join waits for local approval and connects every member. Close owns the returned lifetime.
 func Join(ctx context.Context, input string, cfg config.Config, name string, options Options) (*Session, error) {
+	identity, err := cfg.IdentityKey()
+	if err != nil {
+		return nil, errors.New("Could not start sharing on this computer.")
+	}
+
 	return join(ctx, input, settings{
-		regionID: cfg.Region, mapURL: cfg.DERPMapURL, name: name, options: options,
-		allowWindow: allowWindow, lostGrace: lostGrace,
+		regionID: selectedRegion(ctx, cfg), mapURL: cfg.DERPMapURL, name: name, options: options,
+		allowWindow: allowWindow, lostGrace: lostGrace, identity: identity,
 	})
 }
 
@@ -25,18 +30,6 @@ func join(ctx context.Context, input string, options settings) (*Session, error)
 	code, err := codes.Parse(input)
 	if err != nil {
 		return nil, err
-	}
-
-	var resolveOptions []any
-	if options.derpMap != nil {
-		resolveOptions = append(resolveOptions, options.derpMap)
-	} else if options.mapURL != "" {
-		resolveOptions = append(resolveOptions, tailcat.DERPMapURL(options.mapURL))
-	}
-
-	address, err := codes.Addr(code, options.regionID).Resolve(ctx, resolveOptions...)
-	if err != nil {
-		return nil, errors.New("Could not find the relay for the other computer.")
 	}
 
 	session, err := newSession(context.Background(), options, code)
@@ -50,16 +43,18 @@ func join(ctx context.Context, input string, options settings) (*Session, error)
 		}
 	}()
 
-	identity := key.NewNode()
-	client := tailcat.NewClient(address)
-	client.Key = identity
-	client.Logf = quietLog
-	defer client.Close()
+	// The app's saved key lets a host recognise this computer next time. Without one
+	// (tests, headless) every join is a stranger.
+	identity := options.identity
+	if identity.IsZero() {
+		identity = key.NewNode()
+	}
 
-	conn, err := dialBootstrap(ctx, client)
+	client, conn, err := raceBootstrap(ctx, code, identity, options)
 	if err != nil {
 		return nil, errors.New("Could not reach the other computer.")
 	}
+	defer client.Close()
 	defer conn.Close()
 
 	if err := writeJoinLine(ctx, conn, identity.Public(), session.mesh.Self().Address); err != nil {

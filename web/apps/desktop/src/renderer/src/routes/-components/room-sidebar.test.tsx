@@ -81,17 +81,53 @@ describe("RoomSidebar", () => {
     expect(onNewRoom).toHaveBeenCalledOnce()
   })
 
+  it("keeps New room and Join room in Tab order and ignores clicks while busy", () => {
+    const { onNewRoom, onJoin } = show(connected)
+    const newRoom = screen.getByRole("button", { name: "New room" })
+
+    newRoom.focus()
+    expect(document.activeElement).toBe(newRoom)
+    fireEvent.click(newRoom)
+    fireEvent.click(screen.getByRole("button", { name: "Join room" }))
+
+    expect(onNewRoom).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(onJoin).not.toHaveBeenCalled()
+  })
+
+  it("does not rejoin or reopen a recent room while a room is open", async () => {
+    const { onRejoin, onReopen } = show(connected)
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Rejoin Pat's room, recent room",
+      })
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Reopen Pat's room" }))
+
+    expect(onRejoin).not.toHaveBeenCalled()
+    expect(onReopen).not.toHaveBeenCalled()
+  })
+
+  it("tells assistive tech about Ctrl+K on the search box", () => {
+    show(idle)
+
+    expect(
+      screen
+        .getByRole("searchbox", { name: "Search rooms" })
+        .getAttribute("aria-keyshortcuts")
+    ).toBe("Control+K")
+  })
+
   it("shows the open room with its member count, and locks New room", () => {
     show(connected)
 
     expect(screen.getByText("Pat's room")).toBeTruthy()
     expect(screen.getByText("2")).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: "New room" }).hasAttribute("disabled")
-    ).toBe(true)
-    expect(
-      screen.getByRole("button", { name: "Join room" }).hasAttribute("disabled")
-    ).toBe(true)
+    for (const name of ["New room", "Join room"])
+      expect(
+        screen.getByRole("button", { name }).getAttribute("aria-disabled")
+      ).toBe("true")
   })
 
   it("shows the host's name for the room", () => {
@@ -288,9 +324,9 @@ it("lets keyboard users read a disabled recent room and why rejoin is unavailabl
   const rejoin = await screen.findByRole("button", {
     name: "Rejoin Pat's room, recent room",
   })
-  expect(rejoin.hasAttribute("disabled")).toBe(true)
-  expect(rejoin.parentElement?.getAttribute("tabindex")).toBe("0")
-  fireEvent.focus(rejoin.parentElement!)
+  expect(rejoin.getAttribute("aria-disabled")).toBe("true")
+  expect(rejoin.hasAttribute("disabled")).toBe(false)
+  fireEvent.focus(rejoin)
   const tooltip = await screen.findByRole("tooltip")
   expect(tooltip.textContent).toContain("Pat's room · Recent")
   expect(tooltip.textContent).toContain("Leave this room first")

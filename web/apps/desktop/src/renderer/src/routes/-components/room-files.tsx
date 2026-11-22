@@ -101,7 +101,7 @@ export function RoomFiles({ connected }: { connected: boolean }) {
       {share.error || share.skipped.length ? (
         <Alert
           className="relative rounded-none pr-12"
-          role="status"
+          role={share.error ? "alert" : "status"}
           variant={share.error ? "destructive" : "default"}
         >
           <AlertDescription>

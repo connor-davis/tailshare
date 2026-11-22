@@ -37,11 +37,30 @@ func (session *Session) Allow(id uint64) error {
 		return errors.New("That join request is no longer waiting.")
 	}
 
+	return session.allowLocked(gate)
+}
+
+// allowLocked starts the bounded preparation slot and settles the gate. A person's Allow and
+// a trusted key both end here, so the capacity and slot checks are the same.
+func (session *Session) allowLocked(gate *joinGate) error {
 	admission, err := session.mesh.BeginAdmission(gate.member)
 	gate.admission = admission
 
 	session.decideLocked(gate, err)
 	return err
+}
+
+// PendingKey gives the full node key and fingerprint of the person waiting under this prompt
+// ID, so the app can remember them as trusted. A stale or settled ID fails.
+func (session *Session) PendingKey(id uint64) (string, string, error) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	gate := session.gate
+	if session.closed || gate == nil || gate.decided || gate.pending.ID != id {
+		return "", "", errors.New("That join request is no longer waiting.")
+	}
+
+	return gate.requester, gate.pending.Fingerprint, nil
 }
 
 // Deny refuses only the current prompt. Stale prompt IDs cannot affect another joiner.
@@ -163,6 +182,11 @@ func (session *Session) admitStream(server *tailcat.Server, conn net.Conn) {
 		session.decideLocked(gate, &peer.RemoteError{
 			Code: peer.CodeBusy, Message: "Someone else is joining. Try again shortly.",
 		})
+	case session.settings.options.Trusted.Has(gate.requester):
+		// The code and the key were already checked above, and the cases before this one
+		// still apply. Only the person's click is skipped.
+		session.gate = gate
+		_ = session.allowLocked(gate)
 	default:
 		session.nextJoin++
 		gate.pending = PendingJoin{

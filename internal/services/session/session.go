@@ -13,6 +13,7 @@ import (
 	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/tailscale/tailcat"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 )
 
 const (
@@ -35,6 +36,8 @@ type Options struct {
 	// RoomHandlers live as long as the session. SetHandlers never replaces them. A
 	// handler finds its sender with peer.Conversation(ctx).MemberID().
 	RoomHandlers map[string]peer.Handler
+	// Trusted lists computers that skip the Allow prompt. Nil trusts nobody.
+	Trusted *Trusted
 }
 
 // PendingJoin is one person waiting for the local Allow or Deny.
@@ -67,6 +70,7 @@ type Session struct {
 	nextJoin   uint64
 	deniedKeys map[string]time.Time
 	roomName   string
+	paths      map[string]mesh.Path
 	streams    streams
 }
 
@@ -80,6 +84,8 @@ type settings struct {
 	allowWindow time.Duration
 	lostGrace   time.Duration
 	options     Options
+	// identity is the joiner's bootstrap node key. Zero means a random key per join.
+	identity key.NodePrivate
 }
 
 func newSession(ctx context.Context, options settings, code codes.Code) (*Session, error) {
@@ -99,7 +105,8 @@ func newSession(ctx context.Context, options settings, code codes.Code) (*Sessio
 	options.options.Handlers = copied
 	lifetime, cancel := context.WithCancel(ctx)
 	session := &Session{
-		mesh: network, done: make(chan struct{}), changes: make(chan struct{}, 1),
+		paths: make(map[string]mesh.Path),
+		mesh:  network, done: make(chan struct{}), changes: make(chan struct{}, 1),
 		ctx: lifetime, cancel: cancel, settings: options, code: code, roomName: options.options.RoomName,
 		streams:    streams{handlers: make(map[byte]StreamHandler), waiting: make(map[string]*waiter)},
 		deniedKeys: make(map[string]time.Time), controls: make(map[string]*peer.Peer), bootstraps: make(map[net.Conn]struct{}),

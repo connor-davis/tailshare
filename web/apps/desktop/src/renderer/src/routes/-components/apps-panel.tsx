@@ -53,7 +53,7 @@ function Row({
 }
 
 /** Where an opened app can be reached, with Copy and Open in browser. */
-function Address({ localPort }: { localPort: number }) {
+function Address({ localPort, label }: { localPort: number; label: string }) {
   const address = `127.0.0.1:${localPort}`
   const [error, setError] = useState<string>()
 
@@ -63,6 +63,7 @@ function Address({ localPort }: { localPort: number }) {
       <Button
         size="sm"
         variant="outline"
+        aria-label={`Copy address for ${label}`}
         onClick={() => {
           setError(undefined)
           // Promise.resolve also covers a clipboard that throws before returning.
@@ -77,6 +78,7 @@ function Address({ localPort }: { localPort: number }) {
       <Button
         size="sm"
         variant="outline"
+        aria-label={`Open ${label} in browser`}
         onClick={() => {
           setError(undefined)
           void window.tailshare
@@ -159,6 +161,7 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
                   size="sm"
                   variant="outline"
                   disabled={stop.isPending}
+                  aria-label={`Stop ${item.label}`}
                   onClick={() => stop.mutate(item.id)}
                 >
                   Stop
@@ -169,11 +172,12 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
               <Row key={item.id} item={item}>
                 {item.open && item.localPort ? (
                   <>
-                    <Address localPort={item.localPort} />
+                    <Address localPort={item.localPort} label={item.label} />
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={close.isPending}
+                      aria-label={`Close ${item.label}`}
                       onClick={() => close.mutate(item.id)}
                     >
                       Close
@@ -183,6 +187,7 @@ export function AppsPanel({ connected = true }: { connected?: boolean }) {
                   <Button
                     size="sm"
                     disabled={open.isPending}
+                    aria-label={`Open ${item.label}`}
                     onClick={() => open.mutate(item.id)}
                   >
                     Open

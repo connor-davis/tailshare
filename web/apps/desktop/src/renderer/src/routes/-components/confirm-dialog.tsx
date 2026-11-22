@@ -21,6 +21,7 @@ export function ConfirmDialog({
   busy = false,
   error,
   onConfirm,
+  onCloseAutoFocus,
 }: {
   /** True while the dialog is shown. */
   open: boolean
@@ -40,10 +41,15 @@ export function ConfirmDialog({
   error?: string
   /** Runs the action. */
   onConfirm: () => void
+  /** Runs as the dialog closes; preventDefault to place focus yourself. */
+  onCloseAutoFocus?: (event: Event) => void
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col gap-4 p-6">
+      <DialogContent
+        className="flex flex-col gap-4 p-6"
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
         {error ? (

@@ -187,6 +187,10 @@ describe("adding files", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add files" }))
 
     expect(await screen.findByText("big.iso: That is a folder.")).toBeTruthy()
+    expect(screen.getByRole("status").textContent).toContain("big.iso")
+    expect(
+      screen.getByRole("button", { name: "Dismiss chat notice" })
+    ).toBeTruthy()
   })
 })
 

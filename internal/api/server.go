@@ -61,7 +61,9 @@ type Server struct {
 	manager       *transfer.Manager
 	downloadRoot  *share.Root
 	downloadRoots []*share.Root
+	relayRegion   string
 	limits        transferLimits
+	trusted       *session.Trusted
 	transfers     Transfers
 	transferDone  chan struct{}
 	ending        chan struct{}
@@ -85,6 +87,7 @@ func New(cfg config.Config) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
 		cfg: cfg, hub: newHub(), ctx: ctx, cancel: cancel, phase: phaseIdle,
+		trusted: session.NewTrusted(),
 	}
 
 	server.app = fiber.New(fiber.Config{ErrorHandler: errorHandler, BodyLimit: bodyLimit})
@@ -159,6 +162,8 @@ func (server *Server) routes() {
 
 	api := server.app.Group("/api")
 	api.Get("/health", server.health)
+	api.Put("/connection/region", server.mainOnly, server.putRelayRegion)
+	api.Post("/connection/test", server.testConnection)
 	api.Get("/live", server.liveHandler())
 
 	api.Get("/session", server.getSession)
@@ -166,6 +171,8 @@ func (server *Server) routes() {
 	api.Post("/session/join", server.joinSession)
 	api.Delete("/session", server.leaveSession)
 	api.Delete("/session/members/:id", server.removeMember)
+	api.Put("/session/trusted", server.mainOnly, server.putTrusted)
+	api.Get("/session/joins/:id/key", server.mainOnly, server.joinKey)
 	api.Post("/session/joins/:id/allow", server.allowJoin)
 	api.Post("/session/joins/:id/deny", server.denyJoin)
 

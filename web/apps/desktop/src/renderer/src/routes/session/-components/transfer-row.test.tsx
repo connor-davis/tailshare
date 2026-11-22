@@ -57,6 +57,28 @@ describe("TransferRow", () => {
     expect(buttons()).toEqual(expected)
   })
 
+  it("offers Show file on a finished download main can find", async () => {
+    const revealDownload = vi.fn(async () => {})
+    vi.stubGlobal("tailshare", {
+      canDragFile: async () => true,
+      revealDownload,
+    })
+    show("done")
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Show file cat.png" })
+    )
+    expect(revealDownload).toHaveBeenCalledWith("t1")
+  })
+
+  it("hides Show file when main does not know the file", async () => {
+    vi.stubGlobal("tailshare", { canDragFile: async () => false })
+    show("done")
+
+    await Promise.resolve()
+    expect(screen.queryByRole("button", { name: /Show file/ })).toBeNull()
+  })
+
   it("shows why a transfer failed, in words", () => {
     show("failed", "The other computer ran out of space.")
 
@@ -129,6 +151,6 @@ describe("TransferRow on a narrow room", () => {
 
     const line = screen.getByText("cat.png").parentElement!
     expect(line.className).toContain("flex-wrap")
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Pause cat.png" })).toBeTruthy()
   })
 })

@@ -39,6 +39,9 @@ export const CHANNELS = {
   canDragFile: "tailshare:can-drag-file",
   startFileDrag: "tailshare:start-file-drag",
   previewDownload: "tailshare:preview-download",
+  trustJoin: "tailshare:trust-join",
+  revokeTrusted: "tailshare:revoke-trusted",
+  revealDownload: "tailshare:reveal-download",
 } as const
 
 /** Our own bridge methods take no arguments, so any extra one is refused. */
@@ -52,9 +55,23 @@ export const AbsolutePath = Schema.String.check(
 
 const KiB = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 1048576 }))
 
+/** A node public key as the sidecar writes it. */
+export const NODE_KEY = /^nodekey:[0-9a-f]{64}$/
+
+/** One trusted computer. */
+export const TrustedComputerSchema = Schema.Struct({
+  key: Schema.String.check(Schema.isPattern(NODE_KEY)),
+  label: Schema.String.check(Schema.isBetweenLength(1, 64)),
+  addedAt: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  fingerprint: Schema.optionalKey(
+    Schema.String.check(Schema.isPattern(/^[0-9a-f]{12}$/))
+  ),
+})
+
 /** Every setting and the rule it must meet. 0 for a limit means unlimited. */
 export const SETTINGS_FIELDS = {
   updateChannel: Schema.Literals(["latest", "nightly"]),
+  relayRegion: Schema.Literals(["301", "302", "303", "304", "nearest"]),
   displayName: Schema.String.check(Schema.isBetweenLength(1, 64)),
   saveMode: Schema.Literals(["folder", "ask"]),
   saveFolder: AbsolutePath,
@@ -69,6 +86,9 @@ export const SETTINGS_FIELDS = {
   notifications: Schema.Boolean,
   mica: Schema.Boolean,
   theme: Schema.Literals(["system", "light", "dark"]),
+  trustedComputers: Schema.Array(TrustedComputerSchema).check(
+    Schema.isMaxLength(100)
+  ),
 }
 
 /** Validated preferences returned to the renderer. */
