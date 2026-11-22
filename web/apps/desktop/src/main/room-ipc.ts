@@ -120,19 +120,15 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
     )
   }
 
-  const add = async (paths: unknown) => {
+  const add = async (paths: unknown, roomCode = currentRoom?.code) => {
     if (!Array.isArray(paths))
       throw new Error(t("roomIpc.tailshareCouldNotAddThoseFiles"))
 
-    const roomCode = currentRoom?.code
     // A failed chunk must not hide the others: its files are reported as skipped.
     const merged: AddFilesResult = { added: [], skipped: [] }
 
     let failed = 0
     for (let start = 0; start < paths.length; start += CHUNK) {
-      if (currentRoom?.code !== roomCode)
-        throw new Error(t("roomIpc.theOpenRoomChangedSendAgain"))
-
       const chunk = paths.slice(start, start + CHUNK)
       try {
         const result = await addChunk(chunk, roomCode)
@@ -155,7 +151,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
   }
   // A pasted picture gets a folder of its own, so it can keep a readable name
   // and two pastes never collide. The folder is gone once the room has a copy.
-  const pasteImage = async (png: Buffer) => {
+  const pasteImage = async (png: Buffer, roomCode?: string) => {
     if (png.length > MAX_PASTE_BYTES)
       throw new Error(t("roomIpc.thatPictureIsTooBigToPaste"))
 
@@ -169,7 +165,7 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
       )
       await writeFile(path, png, { flag: "wx", mode: 0o600 })
 
-      return { kind: "file" as const, result: await add([path]) }
+      return { kind: "file" as const, result: await add([path], roomCode) }
     } finally {
       await rm(folder, { recursive: true, force: true })
     }
@@ -269,9 +265,12 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
     if (!senderOk || args.length !== 0) throw refuse()
 
     // A picture wins over text when the clipboard holds both.
+    const roomCode = currentRoom?.code
     const png = await files.clipboard.readPng()
     if (png)
-      return Effect.runPromise(check(PasteResultSchema, await pasteImage(png)))
+      return Effect.runPromise(
+        check(PasteResultSchema, await pasteImage(png, roomCode))
+      )
 
     const text = await files.clipboard.readText()
 
@@ -313,17 +312,19 @@ export function registerRoomIpc(host: IpcHost, files: RoomFilesHost) {
   host.handle(CHANNELS.addFiles, async (senderOk, args) => {
     if (!senderOk || args.length !== 0) throw refuse()
 
+    const roomCode = currentRoom?.code
     const paths = await files.pickFiles()
 
-    return paths === null ? null : add(paths)
+    return paths === null ? null : add(paths, roomCode)
   })
 
   host.handle(CHANNELS.addFolder, async (senderOk, args) => {
     if (!senderOk || args.length !== 0) throw refuse()
 
+    const roomCode = currentRoom?.code
     const folder = await (files.pickFolder?.() ?? host.pickFolder())
 
-    return folder === null ? null : add([folder])
+    return folder === null ? null : add([folder], roomCode)
   })
 
   host.handle(CHANNELS.addDroppedFiles, async (senderOk, args) => {

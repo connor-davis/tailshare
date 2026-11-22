@@ -79,19 +79,13 @@ it("shows actual live seats and opens the room without joining again", async () 
     />
   )
   expect(screen.getByText("1 of 8 seats")).toBeTruthy()
-  expect(
-    screen.getByText("Leave this room first to create or join another.")
-  ).toBeTruthy()
   fireEvent.click(screen.getByRole("button", { name: "Open room" }))
   expect(open).toHaveBeenCalledOnce()
   expect(
     (await screen.findByRole("button", { name: "Rejoin Studio" })).hasAttribute(
       "disabled"
     )
-  ).toBe(true)
-  expect(
-    screen.getByText("Leave this room first to rejoin another.")
-  ).toBeTruthy()
+  ).toBe(false)
 })
 
 it("keeps a failed Forget visible with a recovery sentence", async () => {

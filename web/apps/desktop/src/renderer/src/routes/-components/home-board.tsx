@@ -1,4 +1,5 @@
 import { useT } from "@/i18n/provider"
+import { foldCode } from "@/lib/code-input"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -12,12 +13,14 @@ import { useRecentRooms } from "./recent-rooms"
 /** Home cards show only known room history and the current live membership. */
 export function HomeBoard({
   session,
+  openRooms = session.state === "idle" ? [] : [session],
   busy,
   onCreate,
   onJoin,
   onReopen,
   onOpenRoom,
 }: {
+  openRooms?: SessionState[]
   session: SessionState
   busy: boolean
   onCreate: () => void
@@ -31,7 +34,6 @@ export function HomeBoard({
   const rooms = useRecentRooms()
   const [query, setQuery] = useState("")
   const [error, setError] = useState(false)
-  const idle = session.state === "idle"
   const active = session.state === "hosting" || session.state === "connected"
   const needle = query.trim().toLowerCase()
   const matches = (name: string, code = "") =>
@@ -44,7 +46,7 @@ export function HomeBoard({
     <ScrollArea className="h-full min-h-0">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
         <EmptyState
-          enabled={idle}
+          enabled={!busy}
           busy={busy}
           onCreate={onCreate}
           onJoin={onJoin}
@@ -121,14 +123,15 @@ export function HomeBoard({
                       time: formatAgo(room.lastSeen),
                     })}
                   </p>
-                  {!idle ? (
-                    <p className="text-xs text-muted-foreground">
-                      {t("homeBoard.leaveThisRoomFirstToRejoinAnother")}
-                    </p>
-                  ) : null}
                   <div className="flex flex-wrap gap-2">
                     <Button
-                      disabled={!idle || busy}
+                      disabled={
+                        busy ||
+                        openRooms.some(
+                          (open) =>
+                            foldCode(open.room ?? "") === foldCode(room.code)
+                        )
+                      }
                       aria-label={t("homeBoard.rejoinLabel", {
                         name: room.name,
                       })}
@@ -138,7 +141,13 @@ export function HomeBoard({
                     </Button>
                     <Button
                       variant="outline"
-                      disabled={!idle || busy}
+                      disabled={
+                        busy ||
+                        openRooms.some(
+                          (open) =>
+                            foldCode(open.room ?? "") === foldCode(room.code)
+                        )
+                      }
                       aria-label={t("homeBoard.reopenLabel", {
                         name: room.name,
                       })}

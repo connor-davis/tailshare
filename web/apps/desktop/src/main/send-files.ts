@@ -57,7 +57,7 @@ export async function sendToOpenRoom(
   host: {
     currentRoom(): CurrentRoom | null
     connected(): Promise<boolean>
-    add(paths: string[]): Promise<AddFilesResult>
+    add(paths: string[], roomCode?: string): Promise<AddFilesResult>
     post(name: string, roomCode: string): Promise<void>
     showWindow(): void
     noRoom(): void
@@ -75,10 +75,8 @@ export async function sendToOpenRoom(
     return
   }
 
-  const result = await host.add(paths)
+  const result = await host.add(paths, room.code)
   for (const added of result.added) {
-    if (host.currentRoom()?.code !== room.code) return
-
     await host.post(added.name, room.code)
   }
 }

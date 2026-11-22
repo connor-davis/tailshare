@@ -91,7 +91,6 @@ export const es = {
   "common.my": "Mi",
   "roomFiles.waitToShare":
     "Podrás compartir archivos cuando entre alguien más.",
-  "railRoomRow.leaveFirst": "Sal de esta sala antes de volver a otra.",
   "fileCard.downloadFile": "Descargar {name}",
   "fileCard.downloadFileAgain": "Volver a descargar {name}",
   "roomView.files": "Archivos",
@@ -323,8 +322,6 @@ export const es = {
     "Crea una sala y envía el enlace, o entra con un código.",
   "emptyState.working": "En curso…",
   "emptyState.createRoom": "Crear sala",
-  "emptyState.leaveThisRoomFirstToCreateOr":
-    "Sal de esta sala antes de crear otra o entrar.",
   "fileCard.shared": "Compartido",
   "fileCard.addedToTransfers": "Añadido a transferencias",
   "fileCard.progress": "Progreso de {name}",
@@ -354,8 +351,6 @@ export const es = {
   "homeBoard.savedOnThisComputer": "Guardada en este equipo",
   "homeBoard.recent": "Recientes",
   "homeBoard.lastSeen": "Última vez {time}",
-  "homeBoard.leaveThisRoomFirstToRejoinAnother":
-    "Sal de esta sala antes de volver a otra.",
   "homeBoard.rejoin": "Volver a entrar",
   "homeBoard.rejoinLabel": "Volver a {name}",
   "homeBoard.reopen": "Reabrir",
@@ -487,10 +482,6 @@ export const es = {
   "roomSidebar.home": "Inicio",
   "roomSidebar.searchRooms": "Buscar salas",
   "roomSidebar.newRoom": "Nueva sala",
-  "roomSidebar.leaveThisRoomToStartAnother":
-    "Sal de esta sala para iniciar otra.",
-  "roomSidebar.leaveThisRoomToJoinAnother":
-    "Sal de esta sala para entrar en otra.",
   "roomSidebar.openHostRoom": "Abrir {name}, anfitrión, sala actual",
   "roomSidebar.openJoinedRoom": "Abrir {name}, miembro, sala actual",
   "roomSidebar.openNow": "Abierta ahora: ",
@@ -537,7 +528,6 @@ export const es = {
   "index.thatCodeRanOutShowANew": "Ese código ha caducado. Muestra uno nuevo.",
   "index.theOtherComputerLeftTheRoom": "El otro equipo salió de la sala.",
   "index.connected": "Conectado.",
-  "index.leaveTheOpenRoomFirst": "Sal primero de la sala abierta.",
   "index.someoneWantsToJoinOpenPeopleTo":
     "Alguien quiere entrar. Abre Personas para responder.",
   "index.joined": "{name} entró.",

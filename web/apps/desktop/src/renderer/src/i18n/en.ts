@@ -80,8 +80,6 @@ export const en = {
   "common.my": "My",
   "roomFiles.waitToShare": "You can share files once someone else joins.",
 
-  "railRoomRow.leaveFirst": "Leave this room first to rejoin another.",
-
   "fileCard.downloadFile": "Download {name}",
   "fileCard.downloadFileAgain": "Download again {name}",
   "roomView.files": "Files",
@@ -318,8 +316,6 @@ export const en = {
     "Create a room and send the link, or join one with a code.",
   "emptyState.working": "Working…",
   "emptyState.createRoom": "Create room",
-  "emptyState.leaveThisRoomFirstToCreateOr":
-    "Leave this room first to create or join another.",
   "fileCard.shared": "Shared",
   "fileCard.addedToTransfers": "Added to transfers",
   "fileCard.progress": "{name} progress",
@@ -351,8 +347,6 @@ export const en = {
   "homeBoard.savedOnThisComputer": "Saved on this computer",
   "homeBoard.recent": "Recent",
   "homeBoard.lastSeen": "Last seen {time}",
-  "homeBoard.leaveThisRoomFirstToRejoinAnother":
-    "Leave this room first to rejoin another.",
   "homeBoard.rejoin": "Rejoin",
   "homeBoard.rejoinLabel": "Rejoin {name}",
   "homeBoard.reopen": "Reopen",
@@ -485,10 +479,7 @@ export const en = {
   "roomSidebar.home": "Home",
   "roomSidebar.searchRooms": "Search rooms",
   "roomSidebar.newRoom": "New room",
-  "roomSidebar.leaveThisRoomToStartAnother":
-    "Leave this room to start another.",
 
-  "roomSidebar.leaveThisRoomToJoinAnother": "Leave this room to join another.",
   "roomSidebar.openHostRoom": "Open {name}, host, current room",
   "roomSidebar.openJoinedRoom": "Open {name}, joined, current room",
   "roomSidebar.openNow": "Open now: ",
@@ -535,7 +526,6 @@ export const en = {
   "index.thatCodeRanOutShowANew": "That code ran out. Show a new code.",
   "index.theOtherComputerLeftTheRoom": "The other computer left the room.",
   "index.connected": "Connected.",
-  "index.leaveTheOpenRoomFirst": "Leave the open room first.",
   "index.someoneWantsToJoinOpenPeopleTo":
     "Someone wants to join. Open People to answer.",
   "index.joined": "{name} joined.",

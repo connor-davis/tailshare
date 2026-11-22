@@ -42,11 +42,6 @@ export function EmptyState({
           >
             {busy ? t("emptyState.working") : t("emptyState.createRoom")}
           </Button>
-          {!enabled ? (
-            <p className="text-xs text-chrome-muted">
-              {t("emptyState.leaveThisRoomFirstToCreateOr")}
-            </p>
-          ) : null}
         </div>
         <div className="spaces-rail w-full rounded-lg border border-dashed border-border p-4">
           <JoinForm

@@ -183,7 +183,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Local join prompt, pending/error state and Allow/Deny actions | `src/renderer/src/routes/-components/join-request.tsx`, `join-request.test.tsx` beside it |
 | Code typing, folding and display (mirrors `codes.Parse`) | `src/renderer/src/lib/code-input.ts` |
 | Byte, speed, time and date text | `src/renderer/src/lib/format.ts` |
-| Local API client, query keys, hooks and types (match `internal/api`) | `src/renderer/src/lib/api/` |
+| Local API client, open-room list, active selection, query keys, hooks and types (match `internal/api`); `room-cache.ts` resets room data on selection | `src/renderer/src/lib/api/` |
 | One live socket, seq ordering, reconnect, cache updates | `src/renderer/src/lib/live/` |
 | Chat composer (Enter sends, grows to 8 lines, Add files button) and file card (Download, progress, Saved) | `src/renderer/src/routes/-components/` (`chat-composer.tsx`, `file-card.tsx`) |
 | Adding files from the button or a drop, one chat message per file | `src/renderer/src/routes/-components/use-share-files.ts` (calls `window.tailshare.addFiles` and `addDroppedFiles`) |

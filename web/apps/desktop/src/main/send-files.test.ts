@@ -176,7 +176,7 @@ it("imports the current room's batch and posts only the copied base names", asyn
   }
 
   await sendToOpenRoom(["C:\\Tree"], host)
-  expect(host.add).toHaveBeenCalledWith(["C:\\Tree"])
+  expect(host.add).toHaveBeenCalledWith(["C:\\Tree"], "7K3Q9PXM")
   expect(host.post).toHaveBeenCalledWith("Tree", "7K3Q9PXM")
   expect(host.noRoom).not.toHaveBeenCalled()
 })
@@ -197,4 +197,23 @@ it("drops a stale room batch before copying", async () => {
   await sendToOpenRoom(["C:\\Tree"], host)
   expect(host.add).not.toHaveBeenCalled()
   expect(host.noRoom).toHaveBeenCalledOnce()
+})
+
+it("finishes a captured batch in its originating room after a switch", async () => {
+  let room = { code: "7K3Q9PXM", name: "First" }
+  const post = vi.fn(async () => {})
+  const add = vi.fn(async () => {
+    room = { code: "8K3Q9PXM", name: "Second" }
+    return { added: [{ name: "a.txt", size: 1 }], skipped: [] }
+  })
+  await sendToOpenRoom(["C:\\a.txt"], {
+    currentRoom: () => room,
+    connected: async () => true,
+    add,
+    post,
+    showWindow: vi.fn(),
+    noRoom: vi.fn(),
+  })
+  expect(add).toHaveBeenCalledWith(["C:\\a.txt"], "7K3Q9PXM")
+  expect(post).toHaveBeenCalledWith("a.txt", "7K3Q9PXM")
 })

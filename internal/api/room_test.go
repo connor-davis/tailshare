@@ -29,7 +29,7 @@ func TestRoomHelpersKeepSessionOwnership(t *testing.T) {
 	}
 
 	server.forgetRoomLocked(second)
-	if server.activeLocked() != nil || server.active != "" || len(server.rooms) != 1 {
-		t.Fatal("active room cleanup retained the selection or removed another room")
+	if server.activeLocked() != replacement || server.active != first.code || len(server.rooms) != 1 {
+		t.Fatal("active room cleanup did not select the remaining room")
 	}
 }

@@ -275,6 +275,28 @@ describe("paste and the room folder", () => {
     return { call, pasteDir, seen }
   }
 
+  it("keeps a picker import bound to the room selected when it opened", async () => {
+    let picked: (paths: string[]) => void = () => {}
+    const addFiles = vi.fn(async () => ({ added: [], skipped: [] }))
+    const { call } = setup({
+      pickFiles: () =>
+        new Promise<string[]>((resolve) => {
+          picked = resolve
+        }),
+      addFiles,
+    })
+    await call(CHANNELS.setCurrentRoom, true, [
+      { name: "First", code: "7K3Q9PXM" },
+    ])
+    const pending = call(CHANNELS.addFiles, true, [])
+    await call(CHANNELS.setCurrentRoom, true, [
+      { name: "Second", code: "8K3Q9PXM" },
+    ])
+    picked(["C:\\a.txt"])
+    await pending
+    expect(addFiles).toHaveBeenCalledWith(["C:\\a.txt"], "7K3Q9PXM")
+  })
+
   it("refuses paste from a stranger or with arguments", async () => {
     const { call } = setup()
 

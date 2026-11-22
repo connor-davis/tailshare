@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import { applyEvent } from "../live/apply"
 import { apiFetch } from "./client"
 import { keys } from "./keys"
-import { useHost, useRemoveMember } from "./session"
+import { useHost, useRemoveMember, useActivateRoom, useLeave } from "./session"
 import type { SessionState } from "./types"
 
 vi.mock("./client", () => ({ apiFetch: vi.fn() }))
@@ -72,5 +72,55 @@ describe("session calls", () => {
     expect(client.getQueryData<SessionState>(keys.session)?.state).toBe(
       "connected"
     )
+  })
+})
+
+it("switches from the HTTP answer and clears every previous room cache", async () => {
+  const client = new QueryClient()
+  client.setQueryData(keys.session, { state: "hosting", room: "7K3Q-9PXM" })
+  for (const key of [
+    keys.chat,
+    keys.transfers,
+    keys.files,
+    keys.forwards,
+    ["preview", "room"],
+  ])
+    client.setQueryData(key, ["old room"])
+  const next: SessionState = { state: "hosting", room: "8K3Q-9PXM" }
+  vi.mocked(apiFetch).mockResolvedValue(next)
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  )
+  const { result } = renderHook(() => useActivateRoom(), { wrapper })
+  await act(async () => {
+    await result.current.mutateAsync(next.room!)
+  })
+  expect(apiFetch).toHaveBeenCalledWith("/api/rooms/active", {
+    method: "POST",
+    body: { room: next.room },
+  })
+  expect(client.getQueryData(keys.session)).toEqual(next)
+  for (const key of [
+    keys.chat,
+    keys.transfers,
+    keys.files,
+    keys.forwards,
+    ["preview", "room"],
+  ])
+    expect(client.getQueryData(key)).toBeUndefined()
+})
+
+it("leaves the captured room explicitly", async () => {
+  const client = new QueryClient()
+  vi.mocked(apiFetch).mockResolvedValue({ state: "idle" })
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  )
+  const { result } = renderHook(() => useLeave(), { wrapper })
+  await act(async () => {
+    await result.current.mutateAsync("7K3Q-9PXM")
+  })
+  expect(apiFetch).toHaveBeenCalledWith("/api/session?room=7K3Q-9PXM", {
+    method: "DELETE",
   })
 })

@@ -1,10 +1,18 @@
 import { useT } from "@/i18n/provider"
+import { foldCode } from "@/lib/code-input"
 import { useEffect, useRef, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useSettings } from "@/components/settings/use-settings"
 import { announce } from "@/components/status-region"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useHost, useJoin, useLeave, useSession } from "@/lib/api/session"
+import {
+  useHost,
+  useJoin,
+  useLeave,
+  useSession,
+  useRooms,
+  useActivateRoom,
+} from "@/lib/api/session"
 import { HomeBoard } from "./-components/home-board"
 import { DownloadsAlert } from "./-components/downloads-alert"
 import { MainBar } from "./-components/main-bar"
@@ -16,7 +24,6 @@ import { RoomView } from "./-components/room-view"
 
 /**
  * The Spaces shell: black room rail, home cards and the active room board.
- * Today there is one room at a time.
  */
 export const Route = createFileRoute("/")({ component: Shell })
 
@@ -26,6 +33,10 @@ function Shell() {
   const t = useT()
 
   const { data: session } = useSession()
+  const { data: rooms } = useRooms()
+  const activate = useActivateRoom()
+  const selectRoom = (code: string) =>
+    activate.mutate(code, { onSuccess: () => setHome(false) })
   const { settings } = useSettings()
   const host = useHost(settings?.displayName)
   const join = useJoin(settings?.displayName)
@@ -77,13 +88,32 @@ function Shell() {
   // A tailshare:// link joins as if its code were typed. Kept in a ref so the
   // subscription is made once but always calls the newest handler. Until the
   // session is known, "idle" cannot be told from "busy", so the link waits.
+  const knownRooms = useRef<Map<string, string | undefined> | null>(null)
+  useEffect(() => {
+    if (!rooms) return
+    const next = new Map(
+      rooms.rooms
+        .filter((room) => room.room)
+        .map((room) => [room.room!, room.roomName])
+    )
+    for (const [code, name] of knownRooms.current ?? []) {
+      if (!next.has(code)) rememberRoom(name, code)
+    }
+    knownRooms.current = next
+  }, [rooms])
+
   const pendingLink = useRef<string | null>(null)
   const onLink = useRef((code: string) => joinCode(code))
   useEffect(() => {
     onLink.current = (code) => {
       if (state === undefined) pendingLink.current = code
-      else if (state === "idle") joinCode(code)
-      else announce(t("index.leaveTheOpenRoomFirst"), "assertive")
+      else if (
+        rooms?.rooms.some(
+          (room) => foldCode(room.room ?? "") === foldCode(code)
+        )
+      )
+        selectRoom(code)
+      else joinCode(code)
     }
   })
   useEffect(
@@ -108,7 +138,9 @@ function Shell() {
 
   // Main keeps the room's code for as long as it runs, so a reloaded page can
   // get its folder and share controls back. The sidecar never repeats the code.
-  const roomCodeNow = session?.role === "host" ? (code ?? hostCode) : joinedCode
+  const roomCodeNow =
+    session?.room ??
+    (session?.role === "host" ? (code ?? hostCode) : joinedCode)
   useEffect(() => {
     if (state === "idle") void window.tailshare.setCurrentRoom(null).catch(noop)
     else if (state && roomCodeNow)
@@ -119,7 +151,7 @@ function Shell() {
   const role = session?.role
   const restored = useRef(false)
   useEffect(() => {
-    if (restored.current || !state || state === "idle") return
+    if (session?.room || restored.current || !state || state === "idle") return
 
     restored.current = true
     void window.tailshare
@@ -134,7 +166,7 @@ function Shell() {
         }
       })
       .catch(noop)
-  }, [state, role])
+  }, [state, role, session?.room])
 
   // Requests need an announcement even while another tile or Home is open.
   const joinWaiting = session?.role === "host" && !!session.join
@@ -153,6 +185,7 @@ function Shell() {
   // it already was.
   const members = session?.members
   const knownMembers = useRef<Map<string, string> | null>(null)
+  const knownRoom = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (!members || (state !== "hosting" && state !== "connected")) {
       knownMembers.current = null
@@ -162,7 +195,9 @@ function Shell() {
     const now = new Map(
       members.filter((member) => !member.you).map((m) => [m.id, m.displayName])
     )
-    const before = knownMembers.current
+    const before =
+      knownRoom.current === session?.room ? knownMembers.current : null
+    knownRoom.current = session?.room
     knownMembers.current = now
     if (!before) return
 
@@ -170,7 +205,7 @@ function Shell() {
       if (!before.has(id)) announce(t("index.joined", { name: name }))
     for (const [id, name] of before)
       if (!now.has(id)) announce(t("index.left", { name: name }))
-  }, [members, state, t])
+  }, [members, state, t, session?.room])
 
   useEffect(() => {
     if (state !== "idle" || !openRoom.current) return
@@ -188,7 +223,7 @@ function Shell() {
 
   const busy =
     host.isPending || join.isPending || session.state === "connecting"
-  const error = host.error ?? join.error ?? leave.error
+  const error = host.error ?? join.error ?? leave.error ?? activate.error
   const createRoom = (name: string) =>
     host.mutate(name, {
       onSuccess: () => setHome(false),
@@ -203,7 +238,7 @@ function Shell() {
   const leaveRoom = () => {
     const hosting = session.role === "host"
     setOwnEnd(true)
-    leave.mutate(undefined, {
+    leave.mutate(session.room, {
       onSuccess: () =>
         announce(hosting ? t("index.roomEnded") : t("index.youLeftTheRoom")),
       onError: () => setOwnEnd(false),
@@ -233,6 +268,8 @@ function Shell() {
               compact
               homeActive={!active || showHome}
               session={session}
+              openRooms={rooms?.rooms}
+              onSelectRoom={selectRoom}
               busy={busy}
               onHome={() => setHome(true)}
               onOpenRoom={() => setHome(false)}
@@ -260,6 +297,7 @@ function Shell() {
             className={`min-h-0 flex-1 ${active && !showHome ? "hidden" : ""}`}
           >
             <HomeBoard
+              openRooms={rooms?.rooms}
               session={session}
               busy={busy}
               onCreate={() => setNaming(true)}
@@ -274,6 +312,7 @@ function Shell() {
               className={`min-h-0 flex-1 ${showHome ? "hidden" : ""}`}
             >
               <RoomView
+                key={session.room}
                 session={session}
                 peer={session.peer}
                 roomName={session.roomName}
@@ -281,13 +320,13 @@ function Shell() {
                 leaving={leave.isPending}
                 code={
                   session.role === "host"
-                    ? (session.code ?? hostCode ?? undefined)
+                    ? (session.room ?? session.code ?? hostCode ?? undefined)
                     : undefined
                 }
                 roomCode={
                   session.role === "host"
-                    ? (session.code ?? hostCode ?? undefined)
-                    : (joinedCode ?? undefined)
+                    ? (session.room ?? session.code ?? hostCode ?? undefined)
+                    : (session.room ?? joinedCode ?? undefined)
                 }
                 expiresAt={session.expiresAt}
                 onLeave={leaveRoom}

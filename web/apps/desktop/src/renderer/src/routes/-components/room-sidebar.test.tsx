@@ -51,7 +51,7 @@ const connected: SessionState = {
   ],
 }
 
-function show(session: SessionState) {
+function show(session: SessionState, busy = false) {
   const onNewRoom = vi.fn()
   const onJoin = vi.fn()
   const onRejoin = vi.fn()
@@ -60,7 +60,7 @@ function show(session: SessionState) {
     <TooltipProvider>
       <RoomSidebar
         session={session}
-        busy={false}
+        busy={busy}
         onNewRoom={onNewRoom}
         onJoin={onJoin}
         onRejoin={onRejoin}
@@ -82,7 +82,7 @@ describe("RoomSidebar", () => {
   })
 
   it("keeps New room and Join room in Tab order and ignores clicks while busy", () => {
-    const { onNewRoom, onJoin } = show(connected)
+    const { onNewRoom, onJoin } = show(connected, true)
     const newRoom = screen.getByRole("button", { name: "New room" })
 
     newRoom.focus()
@@ -95,7 +95,7 @@ describe("RoomSidebar", () => {
     expect(onJoin).not.toHaveBeenCalled()
   })
 
-  it("does not rejoin or reopen a recent room while a room is open", async () => {
+  it("rejoins or reopens a saved room while another room is open", async () => {
     const { onRejoin, onReopen } = show(connected)
 
     fireEvent.click(
@@ -105,8 +105,8 @@ describe("RoomSidebar", () => {
     )
     fireEvent.click(screen.getByRole("button", { name: "Reopen Pat's room" }))
 
-    expect(onRejoin).not.toHaveBeenCalled()
-    expect(onReopen).not.toHaveBeenCalled()
+    expect(onRejoin).toHaveBeenCalledOnce()
+    expect(onReopen).toHaveBeenCalledOnce()
   })
 
   it("tells assistive tech about Ctrl+K on the search box", () => {
@@ -119,7 +119,7 @@ describe("RoomSidebar", () => {
     ).toBe("Control+K")
   })
 
-  it("shows the open room with its member count, and locks New room", () => {
+  it("shows the open room with its member count and enables New room", () => {
     show(connected)
 
     expect(screen.getByText("Pat's room")).toBeTruthy()
@@ -127,7 +127,7 @@ describe("RoomSidebar", () => {
     for (const name of ["New room", "Join room"])
       expect(
         screen.getByRole("button", { name }).getAttribute("aria-disabled")
-      ).toBe("true")
+      ).toBe("false")
   })
 
   it("shows the host's name for the room", () => {
@@ -319,15 +319,56 @@ it("names the current room and shows its host status in a tooltip", async () => 
   )
 })
 
-it("lets keyboard users read a disabled recent room and why rejoin is unavailable", async () => {
+it("lets keyboard users read and rejoin recent rooms with another open", async () => {
   show(connected)
   const rejoin = await screen.findByRole("button", {
     name: "Rejoin Pat's room, recent room",
   })
-  expect(rejoin.getAttribute("aria-disabled")).toBe("true")
+  expect(rejoin.getAttribute("aria-disabled")).toBe("false")
   expect(rejoin.hasAttribute("disabled")).toBe(false)
   fireEvent.focus(rejoin)
   const tooltip = await screen.findByRole("tooltip")
   expect(tooltip.textContent).toContain("Pat's room · Recent")
-  expect(tooltip.textContent).toContain("Leave this room first")
+})
+
+it("shows several open rooms, marks the active one and switches on click", () => {
+  const rooms: SessionState[] = [
+    { state: "hosting", room: "7K3Q-9PXM", role: "host", roomName: "First" },
+    { state: "hosting", room: "8K3Q-9PXM", role: "host", roomName: "Second" },
+  ]
+  const select = vi.fn()
+  render(
+    <TooltipProvider>
+      <RoomSidebar
+        session={rooms[0]!}
+        openRooms={rooms}
+        onSelectRoom={select}
+        busy={false}
+        onNewRoom={vi.fn()}
+        onJoin={vi.fn()}
+        onRejoin={vi.fn()}
+        onReopen={vi.fn()}
+      />
+    </TooltipProvider>
+  )
+  const first = screen.getByRole("button", {
+    name: "Open First, host, current room",
+  })
+  const second = screen.getByRole("button", {
+    name: "Open Second, host, current room",
+  })
+  expect(first.getAttribute("aria-current")).toBe("page")
+  expect(second.getAttribute("aria-current")).toBeNull()
+  fireEvent.click(second)
+  expect(select).toHaveBeenCalledWith("8K3Q-9PXM")
+  expect(
+    screen
+      .getByRole("button", { name: "New room" })
+      .getAttribute("aria-disabled")
+  ).toBe("false")
+  expect(
+    screen
+      .getByRole("button", { name: "Join room" })
+      .getAttribute("aria-disabled")
+  ).toBe("false")
 })

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { resetRoomData } from "./room-cache"
 import { liveRevision } from "../live/apply"
 import { apiFetch } from "./client"
 import { keys } from "./keys"
-import type { SessionState } from "./types"
+import type { RoomsState, SessionState } from "./types"
 
 /** The session. The live socket keeps it fresh, so it never refetches alone. */
 export function useSession() {
@@ -14,7 +15,10 @@ export function useSession() {
 }
 
 /** Run a call that answers with the new session state and store the answer. */
-function useSessionCall<Input>(send: (input: Input) => Promise<SessionState>) {
+function useSessionCall<Input>(
+  send: (input: Input) => Promise<SessionState>,
+  selects = false
+) {
   const client = useQueryClient()
 
   return useMutation({
@@ -22,8 +26,15 @@ function useSessionCall<Input>(send: (input: Input) => Promise<SessionState>) {
     // The socket may have said something newer while the call was away.
     onMutate: () => liveRevision(client),
     onSuccess: (state, _input, started) => {
-      if (liveRevision(client) === started)
+      const previous = client.getQueryData<SessionState>(keys.session)
+      if (
+        (selects && state.room && state.room !== previous?.room) ||
+        liveRevision(client) === started
+      ) {
         client.setQueryData(keys.session, state)
+        if (previous?.room !== state.room) resetRoomData(client)
+      }
+      void client.invalidateQueries({ queryKey: keys.rooms })
     },
   })
 }
@@ -37,31 +48,40 @@ function useSessionCall<Input>(send: (input: Input) => Promise<SessionState>) {
 export function useHost(displayName?: string) {
   return useSessionCall<
     string | undefined | { roomName: string; code: string }
-  >((room) =>
-    apiFetch<SessionState>("/api/session/host", {
-      method: "POST",
-      body: {
-        displayName,
-        ...(typeof room === "object" ? room : { roomName: room }),
-      },
-    })
+  >(
+    (room) =>
+      apiFetch<SessionState>("/api/session/host", {
+        method: "POST",
+        body: {
+          displayName,
+          ...(typeof room === "object" ? room : { roomName: room }),
+        },
+      }),
+    true
   )
 }
 
 /** Join the other computer by code, introducing this one as `displayName`. */
 export function useJoin(displayName?: string) {
-  return useSessionCall<string>((code) =>
-    apiFetch<SessionState>("/api/session/join", {
-      method: "POST",
-      body: { code, displayName },
-    })
+  return useSessionCall<string>(
+    (code) =>
+      apiFetch<SessionState>("/api/session/join", {
+        method: "POST",
+        body: { code, displayName },
+      }),
+    true
   )
 }
 
 /** Leave the session, or stop waiting for a joiner. */
 export function useLeave() {
-  return useSessionCall<void>(() =>
-    apiFetch<SessionState>("/api/session", { method: "DELETE" })
+  return useSessionCall<string | undefined>(
+    (room) =>
+      apiFetch<SessionState>(
+        room ? `/api/session?room=${encodeURIComponent(room)}` : "/api/session",
+        { method: "DELETE" }
+      ),
+    true
   )
 }
 
@@ -99,5 +119,26 @@ export function useRemoveMember() {
 export function useDenyJoin() {
   return useSessionCall<number>((id) =>
     apiFetch<SessionState>(`/api/session/joins/${id}/deny`, { method: "POST" })
+  )
+}
+
+/** Open rooms, maintained by the live socket. */
+export function useRooms() {
+  return useQuery({
+    queryKey: keys.rooms,
+    queryFn: () => apiFetch<RoomsState>("/api/rooms"),
+    staleTime: Infinity,
+  })
+}
+
+/** Select a room before loading any of its active-default data. */
+export function useActivateRoom() {
+  return useSessionCall<string>(
+    (room) =>
+      apiFetch<SessionState>("/api/rooms/active", {
+        method: "POST",
+        body: { room },
+      }),
+    true
   )
 }
