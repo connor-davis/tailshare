@@ -32,6 +32,8 @@ win:
 linux:
   # The architecture comes from the task's --x64 flag; one AppImage per run.
   target: AppImage
+  # The package name @tailshare/desktop is not a safe file name.
+  executableName: tailshare
   icon: build/icon.png
   category: Network
   artifactName: Tailshare-${version}-linux-${arch}.${ext}
