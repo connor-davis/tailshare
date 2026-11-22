@@ -91,7 +91,7 @@ export function HomeBoard({
                       {Array.from({ length: 8 }, (_, index) => (
                         <span
                           key={index}
-                          className={`size-3.5 rounded-sm border-2 ${index < count ? "border-primary bg-primary" : "border-input"}`}
+                          className={`size-3.5 rounded-sm border-2 ${index < count ? "border-primary bg-primary" : "border-border"}`}
                         />
                       ))}
                     </span>
@@ -198,7 +198,7 @@ function RoomCardHeader({
     <div className="flex items-center gap-3 bg-chrome p-4 text-chrome-foreground">
       <span
         aria-hidden
-        className={`grid size-12 shrink-0 place-items-center rounded-md text-xl font-bold ${active ? "bg-primary text-primary-foreground" : "border-2 border-dashed border-input text-chrome-foreground"}`}
+        className={`grid size-12 shrink-0 place-items-center rounded-md text-xl font-bold ${active ? "bg-primary text-primary-foreground" : "border-2 border-dashed border-border text-chrome-foreground"}`}
       >
         {Array.from(name)[0]?.toUpperCase()}
       </span>

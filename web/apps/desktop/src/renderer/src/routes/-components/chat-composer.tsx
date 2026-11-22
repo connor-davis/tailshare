@@ -70,7 +70,7 @@ export function ChatComposer({
     >
       <div className="flex w-full flex-col gap-1.5">
         {/* T3 shape: the text on top, a tool row under it. */}
-        <div className="flex flex-col rounded-2xl border border-input bg-field focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+        <div className="flex flex-col rounded-2xl border border-border bg-field focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
           <Textarea
             value={text}
             onChange={(event) => setText(event.target.value)}

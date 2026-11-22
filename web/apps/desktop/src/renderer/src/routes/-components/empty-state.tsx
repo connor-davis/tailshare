@@ -48,7 +48,7 @@ export function EmptyState({
             </p>
           ) : null}
         </div>
-        <div className="spaces-rail w-full rounded-lg border border-dashed border-input p-4">
+        <div className="spaces-rail w-full rounded-lg border border-dashed border-border p-4">
           <JoinForm
             id="join-input"
             enabled={enabled}
