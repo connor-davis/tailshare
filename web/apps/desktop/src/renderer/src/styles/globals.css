@@ -232,7 +232,7 @@ html.mica body {
 .spaces-rail-compact li {
   height: 44px;
   margin-bottom: 8px;
-  border: 1px solid var(--input);
+  border: 1px solid var(--border);
 }
 
 .spaces-rail-compact section > button > span:not(.rail-initial),
