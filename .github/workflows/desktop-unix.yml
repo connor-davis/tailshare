@@ -1,0 +1,115 @@
+name: Desktop Linux and macOS
+# Builds the Linux AppImage and the two unsigned macOS dmgs. Nightly and Release call this
+# after the Windows job created the release, so a failure here never blocks the Windows files.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Release version, for example 0.1.4-nightly.202611221200
+        type: string
+        required: true
+      channel:
+        description: Update channel, nightly or latest
+        type: string
+        required: true
+      upload:
+        description: Attach the packages to the release v<version>
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            targets: AppImage
+          - name: mac-arm64
+            runner: macos-latest
+            goos: darwin
+            goarch: arm64
+            targets: dmg
+          - name: mac-x64
+            runner: macos-latest
+            goos: darwin
+            goarch: amd64
+            targets: dmg
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.22.2
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install Task
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.54.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+        working-directory: web
+      - name: Build without publishing
+        env:
+          VERSION: ${{ inputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+          GOOS_TARGET: ${{ matrix.goos }}
+          GOARCH_TARGET: ${{ matrix.goarch }}
+          TARGETS: ${{ matrix.targets }}
+        run: task dist VERSION="$VERSION" CHANNEL="$CHANNEL" GOOS="$GOOS_TARGET" GOARCH="$GOARCH_TARGET" TARGETS="$TARGETS"
+      - name: Collect the release files
+        env:
+          NAME: ${{ matrix.name }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          mkdir -p upload
+          shopt -s nullglob
+          if [ "$NAME" = linux-x64 ]; then
+            # The AppImage updater reads <channel>-linux.yml next to the AppImage.
+            files=(dist/*.AppImage dist/*.AppImage.blockmap "dist/$CHANNEL-linux.yml")
+          else
+            # macOS never self-updates (unsigned), so only the dmg ships.
+            files=(dist/*.dmg)
+          fi
+          for file in "${files[@]}"; do
+            [ -f "$file" ] || { echo "Missing release file: $file"; exit 1; }
+            cp "$file" upload/
+          done
+          # Show what ships; the sidecar executable bit inside the package is checked by hand.
+          ls -l upload
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tailshare-${{ matrix.name }}
+          path: upload/*
+          if-no-files-found: error
+          retention-days: 14
+  upload:
+    needs: build
+    if: inputs.upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: tailshare-*
+          path: packages
+          merge-multiple: true
+      - name: Attach the packages to the release
+        run: |
+          ls -l packages
+          gh release upload "v$VERSION" packages/* --clobber

@@ -100,7 +100,9 @@ export function UpdatesCard({
               {status
                 ? status.reason === "portable"
                   ? t("updatesCard.portableUpdates")
-                  : messages()[status.state]
+                  : status.reason === "unsigned"
+                    ? t("updatesCard.unsignedUpdates")
+                    : messages()[status.state]
                 : t("updatesCard.checkingForUpdates")}
               {status?.state === "downloading" && status.percent !== undefined
                 ? ` ${Math.round(status.percent)}%`
@@ -108,7 +110,7 @@ export function UpdatesCard({
             </span>
           }
         >
-          {status?.reason === "portable" ? (
+          {status?.reason ? (
             <Button
               variant="outline"
               onClick={() =>

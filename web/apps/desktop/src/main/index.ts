@@ -294,6 +294,7 @@ async function main() {
   const updater = createUpdater({
     packaged: app.isPackaged,
     isPortable,
+    platform: process.platform,
     adapter: updaterPackage.autoUpdater,
     channel: settings.get().updateChannel,
     send: (status) => {

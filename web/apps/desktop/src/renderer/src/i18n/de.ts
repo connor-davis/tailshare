@@ -5,6 +5,8 @@ import type { en } from "./en"
 export const de = {
   "updatesCard.portableUpdates":
     "Portable Kopien aktualisieren sich nicht selbst. Lade die neue Version von der Veröffentlichungsseite herunter.",
+  "updatesCard.unsignedUpdates":
+    "Aktualisierungen auf diesem Mac sind manuell. Lade die neue Version von der Veröffentlichungsseite herunter.",
   "updatesCard.releasesPage": "Veröffentlichungsseite",
   "api.unauthorized": "Diese Anfrage ist nicht autorisiert.",
   "api.forbidden": "Diese Anfrage ist nicht erlaubt.",

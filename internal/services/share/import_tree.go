@@ -24,8 +24,12 @@ func (shared *Root) ImportTree(source string) (AddedFile, error) {
 		return AddedFile{}, ErrBadPath
 	}
 
+	// Links above the picked folder (macOS /var is one) are the person's own layout. Follow
+	// them once up front; the picked folder itself and everything below it stay link-free.
+	source = filepath.Join(resolveParentLinks(filepath.Dir(source)), filepath.Base(source))
+
 	// A destination inside the source would copy its own growing output.
-	if relative, err := filepath.Rel(source, shared.root.Name()); err == nil &&
+	if relative, err := filepath.Rel(source, resolveParentLinks(shared.root.Name())); err == nil &&
 		(relative == "." || filepath.IsLocal(relative)) {
 		return AddedFile{}, ErrDenied
 	}

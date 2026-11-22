@@ -280,5 +280,9 @@ Paths below are under `web/apps/desktop/src/`.
 | --- | --- |
 | Parameterised sidecar/package OS, architecture, targets and Windows feed names | `Taskfile.yml` (`dist`), `web/apps/desktop/electron-builder.yml` |
 | Non-required Linux/macOS Go tests and Windows-hosted cross-compile gates | `.github/workflows/platforms.yml` |
+| Linux AppImage and unsigned macOS dmg builds, attached to the release the Windows job made | `.github/workflows/desktop-unix.yml` (called by `nightly.yml`, `release.yml`); `linux:` and `mac:` in `electron-builder.yml` |
+| macOS update switch-off (reason `unsigned`) and its releases-page copy | `updater.ts`, `updates-card.tsx`; tests in `updater.test.ts`, `updates-card.test.tsx` |
+| Per-OS window frame (system frame off Windows) and the Explorer-menu Windows guard | `web/apps/desktop/src/main/window.ts`, `explorer-menu.ts` |
+| Running the sidecar alone: host and join by code over the local API, stdin-open rule | [headless.md](headless.md); `cmd/tailshare/serve_test.go` |
 | ARM64 GitHub update manifest selection preserving nightly tag matching; x64 uses upstream provider | `web/apps/desktop/src/main/update-provider.ts`; integration tests in `updater.test.ts` |
 | Portable launcher detection, adjacent `Tailshare Data` path and room-protocol registration guard | `web/apps/desktop/src/main/portable.ts`, `portable.test.ts`; login/Explorer guards in their existing owners |

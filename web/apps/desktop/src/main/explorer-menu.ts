@@ -13,10 +13,13 @@ export async function applyExplorerMenu(
   options: {
     packaged: boolean
     isPortable?: boolean
+    platform?: NodeJS.Platform
     execPath: string
     run?: (args: string[]) => Promise<void>
   }
 ) {
+  // reg.exe only exists on Windows; Linux and macOS have no Explorer menu to fill.
+  if ((options.platform ?? process.platform) !== "win32") return
   if (!options.packaged || options.isPortable) return
 
   const run =

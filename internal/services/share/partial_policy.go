@@ -143,7 +143,12 @@ func (shared *Root) ClaimPartial(wire, owner, hash string, size int64) error {
 		}
 
 		if !entry.IsDir() && strings.HasSuffix(name, PartialSuffix) {
+			// Commit and RemovePartial run without this lock, so a partial listed a moment
+			// ago may be gone. A vanished file no longer counts against the limits.
 			info, err := entry.Info()
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
@@ -152,6 +157,9 @@ func (shared *Root) ClaimPartial(wire, owner, hash string, size int64) error {
 			total += info.Size()
 			if strings.HasSuffix(name, ".meta"+PartialSuffix) {
 				file, err := shared.root.Open(filepath.FromSlash(name))
+				if errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
 				if err != nil {
 					return err
 				}

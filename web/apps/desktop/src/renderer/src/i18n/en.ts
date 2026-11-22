@@ -2,6 +2,8 @@
 export const en = {
   "updatesCard.portableUpdates":
     "Portable copies do not update themselves. Download the new version from the releases page.",
+  "updatesCard.unsignedUpdates":
+    "Updates on this Mac are manual. Download the new version from the releases page.",
   "updatesCard.releasesPage": "Releases page",
   "api.unauthorized": "This request is not authorized.",
   "api.forbidden": "This request is not allowed.",

@@ -67,11 +67,23 @@ export function titleBarOverlay(look: WindowLook) {
  * Window settings. Isolation and the sandbox are on and Node is off, so the
  * page only reaches what the preload bridge exposes. The title bar is ours,
  * but Windows draws the real minimise, maximise and close buttons over it.
+ * Linux and macOS keep the system frame: the hidden bar and Mica are Windows
+ * features, and the page has no room reserved for other platforms' buttons.
  */
 export function windowOptions(
   preload: string,
-  look: WindowLook = { material: "none", dark: false }
+  look: WindowLook = { material: "none", dark: false },
+  platform: NodeJS.Platform = process.platform
 ): BrowserWindowConstructorOptions {
+  const windows: BrowserWindowConstructorOptions =
+    platform === "win32"
+      ? {
+          titleBarStyle: "hidden",
+          titleBarOverlay: titleBarOverlay(look),
+          backgroundMaterial: look.material,
+        }
+      : {}
+
   return {
     title: t("window.tailshare"),
     width: 1100,
@@ -80,9 +92,7 @@ export function windowOptions(
     // panels, need this much; smaller windows clipped the transfer buttons.
     minWidth: 800,
     minHeight: 600,
-    titleBarStyle: "hidden",
-    titleBarOverlay: titleBarOverlay(look),
-    backgroundMaterial: look.material,
+    ...windows,
     backgroundColor: windowBackground(look),
     webPreferences: {
       preload,
@@ -104,10 +114,17 @@ export interface ControlledWindow {
  * Switches a live window between Mica and the solid colour, and recolours the
  * caption symbols to match the theme.
  */
-export function applyLook(window: ControlledWindow, look: WindowLook): void {
-  window.setBackgroundMaterial(look.material)
+export function applyLook(
+  window: ControlledWindow,
+  look: WindowLook,
+  platform: NodeJS.Platform = process.platform
+): void {
+  // Mica and the caption overlay do not exist off Windows; those methods may be missing.
+  const windows = platform === "win32"
+
+  if (windows) window.setBackgroundMaterial(look.material)
   window.setBackgroundColor(windowBackground(look))
-  window.setTitleBarOverlay(titleBarOverlay(look))
+  if (windows) window.setTitleBarOverlay(titleBarOverlay(look))
 }
 
 /** What the page is told about its window. */
