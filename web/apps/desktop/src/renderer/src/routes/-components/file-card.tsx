@@ -162,7 +162,7 @@ export function FileCard({
         <FileIcon aria-hidden className="mt-0.5 size-8 shrink-0 text-primary" />
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="truncate font-medium" title={attachment.name}>
+        <p className="truncate font-medium" title={attachment.name} dir="auto">
           {attachment.name}
         </p>
         <p className="text-xs text-muted-foreground tabular-nums">

@@ -136,7 +136,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
                     </time>
                   </p>
                   {message.text ? (
-                    <p className="break-words whitespace-pre-wrap">
+                    <p className="break-words whitespace-pre-wrap" dir="auto">
                       {message.text}
                     </p>
                   ) : null}
@@ -162,7 +162,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
           <Alert
             role={share.error ? "alert" : "status"}
             variant={share.error ? "destructive" : "default"}
-            className="relative pr-10"
+            className="relative pe-10"
           >
             <AlertDescription>
               {share.error ??
@@ -173,7 +173,7 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
             <Button
               size="icon-xs"
               variant="ghost"
-              className="absolute top-2 right-2"
+              className="absolute end-2 top-2"
               aria-label={t("roomChat.dismissChatNotice")}
               onClick={share.dismiss}
             >

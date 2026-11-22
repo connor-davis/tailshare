@@ -30,7 +30,9 @@ export function JoinRequest({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <p className="break-words">{join.displayName}</p>
+        <p className="break-words" dir="auto">
+          {join.displayName}
+        </p>
         {join.fingerprint ? (
           <p className="text-xs text-muted-foreground">
             {t("joinRequest.fingerprint")}

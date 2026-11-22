@@ -75,7 +75,7 @@ export function UpdateButton() {
         onOpenChange={setOpen}
       >
         <DialogContent className="p-6 [-webkit-app-region:no-drag]">
-          <DialogHeader className="pr-8">
+          <DialogHeader className="pe-8">
             <DialogTitle>
               {t("updateButton.whatSNewIn", { version: status?.version ?? "" })}
             </DialogTitle>

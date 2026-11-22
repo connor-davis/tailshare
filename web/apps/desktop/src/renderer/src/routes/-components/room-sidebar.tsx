@@ -140,7 +140,7 @@ export function RoomSidebar({
       aria-label={t("roomSidebar.rooms")}
       className={`spaces-rail flex h-full min-h-0 flex-col ${compact ? "spaces-rail-compact" : ""}`}
     >
-      <DragBar className="gap-2 pl-3 text-xs font-medium">
+      <DragBar className="gap-2 ps-3 text-xs font-medium">
         <img src={logo} alt="" className="size-4" />
         {t("roomSidebar.tailshare")}
       </DragBar>
@@ -161,7 +161,7 @@ export function RoomSidebar({
         <div className="relative min-w-0 flex-1">
           <SearchIcon
             aria-hidden
-            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             ref={searchRef}
@@ -171,7 +171,7 @@ export function RoomSidebar({
             aria-keyshortcuts="Control+K"
             placeholder={t("roomSidebar.searchRooms")}
             autoComplete="off"
-            className="pl-8"
+            className="ps-8"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") setQuery("")
@@ -250,7 +250,7 @@ export function RoomSidebar({
                       { name: live }
                     )}
                     onClick={onOpenRoom}
-                    className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
+                    className="relative flex h-8 items-center gap-2 rounded-md bg-accent px-2 text-accent-foreground before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-primary"
                   >
                     <span aria-hidden className="rail-initial">
                       {Array.from(live)[0]}
@@ -260,7 +260,7 @@ export function RoomSidebar({
                       <span className="sr-only">
                         {t("roomSidebar.openNow")}
                       </span>
-                      {live}
+                      <bdi>{live}</bdi>
                     </span>
                     {session.members?.length ? (
                       <span className="text-xs text-muted-foreground tabular-nums">

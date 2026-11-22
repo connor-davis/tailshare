@@ -97,7 +97,7 @@ export function RoomHeader({
           className="min-w-40 flex-1 truncate outline-none"
         >
           {roomName ? (
-            <span className="text-xl font-semibold" title={roomName}>
+            <span className="text-xl font-semibold" title={roomName} dir="auto">
               {roomName}
               <span className="font-normal text-muted-foreground">
                 {t("roomHeader.waitingForSomeoneToJoin")}

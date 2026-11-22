@@ -35,6 +35,7 @@ export function FilePreview({
 
   return (
     <p
+      dir="auto"
       className="line-clamp-2 rounded-md bg-muted px-2 py-1 text-xs break-words text-muted-foreground"
       aria-label={t("filePreview.startOf", { name: name })}
     >

@@ -203,12 +203,12 @@ html.mica body {
 
 .spaces-rail-compact input[type="search"] {
   width: 44px;
-  padding-left: 32px;
+  padding-inline-start: 32px;
 }
 
 /* Centre the 16px icon in the 44px box: (44 - 16) / 2. */
 .spaces-rail-compact div:has(> input[type="search"]) > svg {
-  left: 14px;
+  inset-inline-start: 14px;
   z-index: 21;
 }
 
@@ -216,7 +216,7 @@ html.mica body {
   position: relative;
   z-index: 20;
   width: 220px;
-  padding-left: 36px;
+  padding-inline-start: 36px;
 }
 
 .spaces-rail-compact section > h2,

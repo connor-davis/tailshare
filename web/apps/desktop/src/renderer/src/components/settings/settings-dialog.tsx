@@ -78,7 +78,7 @@ function SettingsBody() {
     <div className="flex min-h-0 flex-1">
       <nav
         aria-label={t("settingsDialog.settingsSections")}
-        className="spaces-rail flex w-28 shrink-0 flex-col gap-1 border-r p-2 sm:w-44 sm:p-3"
+        className="spaces-rail flex w-28 shrink-0 flex-col gap-1 border-e p-2 sm:w-44 sm:p-3"
       >
         <DialogTitle className="mb-2 border-b border-primary px-2 pt-1 pb-3 text-base font-semibold">
           {t("settingsDialog.settings")}
@@ -90,7 +90,7 @@ function SettingsBody() {
             aria-current={current === id ? "page" : undefined}
             onClick={() => setCurrent(id)}
             className={cn(
-              "rounded-md px-2 py-1.5 text-left text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              "rounded-md px-2 py-1.5 text-start text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               current === id && "bg-accent text-accent-foreground"
             )}
           >
@@ -100,7 +100,7 @@ function SettingsBody() {
       </nav>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-4 p-4 pr-10 sm:p-6 sm:pr-12">
+        <div className="flex flex-col gap-4 p-4 pe-10 sm:p-6 sm:pe-12">
           <DialogDescription>
             {t("settingsDialog.speedLimitsYourDisplayNameAndTransfers")}
           </DialogDescription>

@@ -42,6 +42,7 @@ export function NameEditor() {
           value={text}
           maxLength={64}
           autoComplete="off"
+          dir="auto"
           onChange={(event) => setText(event.target.value)}
           onBlur={finish}
           onKeyDown={(event) => {
@@ -67,7 +68,7 @@ export function NameEditor() {
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-accent/60"
+            className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-start hover:bg-accent/60"
             aria-label={t("nameEditor.displayNameClickToEdit", {
               displayName: settings.displayName,
             })}
@@ -83,7 +84,7 @@ export function NameEditor() {
             >
               {Array.from(settings.displayName)[0]?.toUpperCase()}
             </span>
-            <span className="min-w-0 flex-1 truncate">
+            <span className="min-w-0 flex-1 truncate" dir="auto">
               {settings.displayName}
             </span>
           </button>

@@ -54,7 +54,7 @@ export function HomeBoard({
           className="flex flex-col gap-3"
         >
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="mr-auto text-xl font-semibold">
+            <h2 className="me-auto text-xl font-semibold">
               {t("homeBoard.yourRooms")}
             </h2>
             <Input
@@ -203,7 +203,11 @@ function RoomCardHeader({
         {Array.from(name)[0]?.toUpperCase()}
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-base font-semibold" title={name}>
+        <h3
+          className="truncate text-base font-semibold"
+          title={name}
+          dir="auto"
+        >
           {name}
         </h3>
         <p className="text-xs text-chrome-muted">{detail}</p>

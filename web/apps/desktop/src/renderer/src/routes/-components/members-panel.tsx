@@ -56,10 +56,10 @@ export function MembersPanel({
           {t("membersPanel.of8Seats", { length: members.length })}
         </p>
       ) : (
-        <DragBar reserveCaption className="pl-3">
+        <DragBar reserveCaption className="ps-3">
           <h2 className="text-sm font-semibold">
             {t("membersPanel.members")}
-            <span className="ml-2 font-normal text-muted-foreground tabular-nums">
+            <span className="ms-2 font-normal text-muted-foreground tabular-nums">
               {members.length}
             </span>
           </h2>
@@ -84,9 +84,14 @@ export function MembersPanel({
               {members.map((member) => (
                 <li key={member.id} className="flex min-w-0 items-center gap-2">
                   <span className="min-w-0 flex-1 truncate">
-                    <span title={member.displayName}>{label(member)}</span>
+                    <span title={member.displayName} dir="auto">
+                      {label(member)}
+                    </span>
                     {member.you ? (
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span
+                        className="block truncate text-xs text-muted-foreground"
+                        dir="auto"
+                      >
                         {member.displayName}
                       </span>
                     ) : null}

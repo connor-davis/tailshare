@@ -1,7 +1,7 @@
 /** Languages whose settings values remain stable across catalog releases. */
 export const LANGUAGES = ["en", "es", "fr", "de", "ar"] as const
 
-/** A supported language preference. Only English has a catalog in E1. */
+/** A supported language preference with complete renderer and main catalogs. */
 export type Language = (typeof LANGUAGES)[number]
 
 /** Resolve an operating-system locale to a supported base language. */

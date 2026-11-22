@@ -79,7 +79,7 @@ export function RoomView({
         <span aria-hidden className="size-2.5 shrink-0 bg-primary" />
         <h2
           id={`tile-${name}`}
-          className="mr-auto text-xs font-extrabold tracking-widest uppercase"
+          className="me-auto text-xs font-extrabold tracking-widest uppercase"
         >
           {t(tileKeys[name])}
         </h2>
@@ -132,7 +132,7 @@ export function RoomView({
         {/* People may be below the fold or hidden by another expanded tile. */}
         {session.role === "host" && session.join && expanded !== "People" ? (
           <div className="flex flex-wrap items-center gap-3 border-b bg-card px-3 py-2">
-            <p className="mr-auto">{t("roomView.someoneWantsToJoin2")}</p>
+            <p className="me-auto">{t("roomView.someoneWantsToJoin2")}</p>
             <Button
               variant="outline"
               onClick={() => {

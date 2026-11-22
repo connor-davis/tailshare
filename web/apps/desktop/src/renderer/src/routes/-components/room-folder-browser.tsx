@@ -61,10 +61,10 @@ function Directory({
             {open ? (
               <ChevronDownIcon aria-hidden />
             ) : (
-              <ChevronRightIcon aria-hidden />
+              <ChevronRightIcon aria-hidden className="rtl:-scale-x-100" />
             )}
             <FolderIcon aria-hidden className="text-primary" />
-            <span className="truncate" title={folder.name}>
+            <span className="truncate" title={folder.name} dir="auto">
               {folder.name}
             </span>
           </Button>
@@ -91,7 +91,7 @@ function Directory({
         </div>
       ) : null}
       {open ? (
-        <div className={depth ? "ml-3 min-w-0 border-l pl-3" : "min-w-0"}>
+        <div className={depth ? "ms-3 min-w-0 border-s ps-3" : "min-w-0"}>
           <Input
             aria-label={t("roomFolderBrowser.filter", { name: folder.name })}
             placeholder={t("roomFolderBrowser.filterLoadedNames")}
@@ -142,7 +142,11 @@ function Directory({
                   aria-hidden
                   className="size-4 shrink-0 text-primary"
                 />
-                <span className="min-w-0 flex-1 truncate" title={entry.name}>
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  title={entry.name}
+                  dir="auto"
+                >
                   {entry.name}
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">
@@ -220,6 +224,7 @@ export function RoomFolderBrowser({
           tabIndex={-1}
           className="min-w-0 truncate font-semibold outline-none"
           title={folder.name}
+          dir="auto"
         >
           {folder.name}
         </h3>

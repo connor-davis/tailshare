@@ -29,11 +29,11 @@ export function MainBar({
           aria-expanded={roomsOpen}
           onClick={onToggleRooms}
         >
-          <PanelLeftIcon aria-hidden />
+          <PanelLeftIcon aria-hidden className="rtl:-scale-x-100" />
         </Button>
       </NoDrag>
-      <span className="ml-2 font-semibold">{t("mainBar.tailshare")}</span>
-      <div className="ml-auto" />
+      <span className="ms-2 font-semibold">{t("mainBar.tailshare")}</span>
+      <div className="ms-auto" />
       <UpdateButton />
     </DragBar>
   )

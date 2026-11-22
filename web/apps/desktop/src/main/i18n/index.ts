@@ -1,5 +1,6 @@
 import { createTranslator, type Language } from "../../shared/i18n"
 import { en } from "./en"
+import { catalogs } from "./catalogs"
 
 let language: Language = "en"
 
@@ -8,8 +9,8 @@ export function setMainLocale(next: Language): void {
   language = next
 }
 
-/** Main never loads renderer code; missing catalogs fall back to English. */
+/** Main uses the same language preference without loading renderer code. */
 export const t = createTranslator<typeof en>(
-  () => en,
+  () => catalogs[language],
   () => language
 )

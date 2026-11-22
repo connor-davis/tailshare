@@ -104,7 +104,7 @@ export function RoomFiles({ connected }: { connected: boolean }) {
       </ScrollArea>
       {share.error || share.skipped.length ? (
         <Alert
-          className="relative rounded-none pr-12"
+          className="relative rounded-none pe-12"
           role={share.error ? "alert" : "status"}
           variant={share.error ? "destructive" : "default"}
         >
@@ -123,7 +123,7 @@ export function RoomFiles({ connected }: { connected: boolean }) {
             variant="ghost"
             size="icon-xs"
             aria-label={t("roomFiles.dismissFileNotice")}
-            className="absolute top-2 right-2"
+            className="absolute end-2 top-2"
             onClick={share.dismiss}
           >
             <XIcon aria-hidden />

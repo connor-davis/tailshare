@@ -356,7 +356,7 @@ export function AppSection({ settings, save, saving }: SectionProps) {
       title={t("settingsFields.app")}
       description={t("settingsFields.howTailshareLivesOnThisComputer")}
     >
-      <SettingsLanguage save={save} saving={saving} />
+      <SettingsLanguage settings={settings} save={save} saving={saving} />
       <RadioGroup
         aria-label={t("settingsFields.appearance")}
         value={settings.theme}

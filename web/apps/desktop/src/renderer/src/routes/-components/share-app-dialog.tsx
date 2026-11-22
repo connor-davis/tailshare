@@ -80,7 +80,7 @@ function ShareForm({
 
   return (
     <form
-      className="flex flex-col gap-4 text-left"
+      className="flex flex-col gap-4 text-start"
       onSubmit={(event) => {
         event.preventDefault()
         if (valid && !busy) onShare(number, label.trim())

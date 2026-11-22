@@ -104,7 +104,11 @@ export function TransferRow({
             ? t("transferRow.upload")
             : t("transferRow.download")}
         </span>
-        <span className="min-w-32 flex-1 basis-40 truncate" title={item.source}>
+        <span
+          className="min-w-32 flex-1 basis-40 truncate"
+          title={item.source}
+          dir="auto"
+        >
           {name}
         </span>
         <Progress
@@ -119,7 +123,7 @@ export function TransferRow({
         <span className="w-20 shrink-0 text-xs font-medium">
           {stateWords()[item.state]}
         </span>
-        <span className="ml-auto flex shrink-0 gap-1">
+        <span className="ms-auto flex shrink-0 gap-1">
           {running ? (
             <Button
               size="sm"
@@ -177,7 +181,7 @@ export function TransferRow({
         </span>
       </div>
       {retrySeconds !== null ? (
-        <p className="pl-23 text-xs text-muted-foreground">
+        <p className="ps-23 text-xs text-muted-foreground">
           {t("transferRow.retryCountdown", {
             seconds: retrySeconds,
             attempt: (item.attempt ?? 0) + 1,
@@ -185,12 +189,12 @@ export function TransferRow({
         </p>
       ) : null}
       {item.error ? (
-        <p className="pl-23 text-xs text-destructive">
+        <p className="ps-23 text-xs text-destructive">
           {t("transferRow.failedError2", { error: item.error })}
         </p>
       ) : null}
       {action.error ? (
-        <p role="alert" className="pl-23 text-xs text-destructive">
+        <p role="alert" className="ps-23 text-xs text-destructive">
           {action.error.message}
         </p>
       ) : null}

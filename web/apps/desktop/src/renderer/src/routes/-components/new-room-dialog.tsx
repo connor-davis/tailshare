@@ -46,7 +46,7 @@ export function NewRoomDialog({
         </DialogDescription>
         {/* Mounted only while open, so the box starts fresh every time. */}
         <form
-          className="flex flex-col gap-4 text-left"
+          className="flex flex-col gap-4 text-start"
           onSubmit={(event) => {
             event.preventDefault()
             const name = String(
@@ -91,6 +91,7 @@ function NameBox({ defaultName }: { defaultName: string }) {
         maxLength={maxRoomName}
         onChange={(event) => setText(event.target.value)}
         autoComplete="off"
+        dir="auto"
         autoFocus
       />
     </div>

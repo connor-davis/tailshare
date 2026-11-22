@@ -54,6 +54,7 @@ export function ShareCode({
       }
     >
       <p
+        dir="ltr"
         className={
           compact
             ? "rounded-md bg-chrome px-3 py-1 font-mono text-base font-semibold tracking-widest text-primary tabular-nums"

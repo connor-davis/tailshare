@@ -342,3 +342,21 @@ describe("Settings dialog", () => {
     expect(screen.queryByRole("region", { name: "You" })).toBeNull()
   })
 })
+
+describe("Settings dialog layout for RTL", () => {
+  it("uses logical edges for the section list and content padding", async () => {
+    await open()
+    const dialog = screen.getByRole("dialog", { name: "Settings" })
+    const nav = dialog.querySelector("nav")!
+    const item = screen.getByRole("button", { name: "You" })
+
+    expect(nav.className).toContain("border-e")
+    expect(nav.className).not.toContain("border-r")
+    expect(item.className).toContain("text-start")
+    expect(item.className).not.toContain("text-left")
+    expect(dialog.innerHTML).toContain("pe-10")
+    expect(dialog.innerHTML).not.toMatch(/(?<![\w-])pr-/)
+    const close = screen.getByRole("button", { name: "Close" })
+    expect(close.className).toContain("end-3")
+  })
+})

@@ -33,7 +33,7 @@ export function JoinForm({
 
   return (
     <form
-      className="flex w-full flex-col gap-2 text-left"
+      className="flex w-full flex-col gap-2 text-start"
       onSubmit={(event) => {
         event.preventDefault()
         if (code && enabled && !busy) onJoin(code)
@@ -51,6 +51,7 @@ export function JoinForm({
           aria-describedby={problem ? `${id}-hint` : undefined}
           autoComplete="off"
           spellCheck={false}
+          dir="ltr"
           disabled={!enabled || busy}
         />
         <Button
