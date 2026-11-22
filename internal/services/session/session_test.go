@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/connor-davis/tailshare/internal/platform/config"
 	"github.com/connor-davis/tailshare/internal/services/codes"
 	"github.com/connor-davis/tailshare/internal/services/peer"
+	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/connor-davis/tailshare/internal/testsupport/tailcattest"
 )
 
@@ -157,6 +159,103 @@ func TestAllowLinksTwoMembers(t *testing.T) {
 		outgoing, incoming := dataPair(t, joiner, host)
 		exchange(t, outgoing, incoming, "hello host")
 		exchange(t, incoming, outgoing, "hello joiner")
+	}
+}
+
+func TestJoinTwoRoomsConcurrentlyWithSameIdentity(t *testing.T) {
+	options := localSettings(t)
+	private, _ := newIdentity()
+	identity, err := private.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{Identity: string(identity)}
+	joinOptions := options
+	joinOptions.identity, err = cfg.IdentityKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rooms := []struct {
+		file    string
+		host    *Session
+		code    codes.Code
+		results <-chan joinResult
+		joiner  *Session
+	}{
+		{file: "room-a.txt"},
+		{file: "room-b.txt"},
+	}
+	for index := range rooms {
+		room := &rooms[index]
+		folder := t.TempDir()
+		if err := os.WriteFile(filepath.Join(folder, room.file), []byte(room.file), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		root, err := share.Open(folder)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = root.Close() })
+		hostOptions := options
+		hostOptions.options.Root = root
+		room.host, room.code = startHost(t, hostOptions)
+	}
+	if rooms[0].code == rooms[1].code {
+		t.Fatal("hosts generated the same room code")
+	}
+
+	// Both bootstrap clients use the app's saved key on the same relay at once.
+	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
+	defer cancel()
+	for index := range rooms {
+		room := &rooms[index]
+		room.results = startMember(t, ctx, room.code, joinOptions)
+	}
+	for _, room := range rooms {
+		pending := waitPending(t, room.host)
+		public, _, err := room.host.PendingKey(pending.ID)
+		if err != nil || public != private.Public().String() {
+			t.Fatalf("room %s identity = %q, error = %v", room.code, public, err)
+		}
+
+		if err := room.host.Allow(pending.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for index := range rooms {
+		room := &rooms[index]
+		result := receiveJoin(t, room.results)
+		if result.err != nil {
+			t.Fatalf("join room %s: %v", room.code, result.err)
+		}
+		room.joiner = result.session
+		waitState(t, room.host, func() bool {
+			_, ok := room.host.Control(room.joiner.SelfID())
+			return ok
+		})
+	}
+
+	// Repeat the calls with both rooms open, so a later join cannot replace the first.
+	for range 2 {
+		for _, room := range rooms {
+			if len(room.host.Members()) != 2 || len(room.joiner.Members()) != 2 {
+				t.Fatalf("room %s lost a member while both rooms were open", room.code)
+			}
+			control, ok := room.joiner.Control(room.host.SelfID())
+			if !ok {
+				t.Fatalf("room %s lost its host control", room.code)
+			}
+
+			listing, err := control.List(ctx, "", 0, 0)
+			if err != nil {
+				t.Fatalf("list room %s: %v", room.code, err)
+			}
+			if listing.Total != 1 || len(listing.Entries) != 1 || listing.Entries[0].Name != room.file {
+				t.Fatalf("room %s listing = %+v, want only %s", room.code, listing, room.file)
+			}
+		}
 	}
 }
 
