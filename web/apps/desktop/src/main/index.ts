@@ -1,13 +1,17 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
+  nativeImage,
   nativeTheme,
+  Notification,
   session,
   shell,
   type Tray,
 } from "electron"
+import { lstatSync, rmSync } from "node:fs"
 import { release } from "node:os"
 import { join, resolve } from "node:path"
 import { Effect, ManagedRuntime } from "effect"
@@ -33,6 +37,10 @@ import {
 } from "./lifecycle"
 import { createJoinInbox, findJoinLink } from "./join-link"
 import { applyLoginItem } from "./login-item"
+import { registerNotifyIpc, toastText } from "./notify"
+import { applyExplorerMenu } from "./explorer-menu"
+import { createSendBatch, findSendPaths, sendToOpenRoom } from "./send-files"
+import { createSavedDownloads, registerSavedIpc } from "./saved-downloads"
 import { openRecentRooms } from "./recent-rooms"
 import { callMainApi, registerRoomIpc } from "./room-ipc"
 import type { AddFilesResult } from "../shared/bridge"
@@ -68,6 +76,8 @@ const joinInbox = createJoinInbox((code) => {
 // A link that started this launch. Read now, so it is not lost to startup.
 const startLink = findJoinLink(process.argv)
 if (startLink) joinInbox.push(startLink)
+const startupSends = findSendPaths(process.argv)
+let sendBatch: ReturnType<typeof createSendBatch> | undefined
 
 function createWindow(hidden: boolean, look: WindowLook) {
   window = new BrowserWindow({
@@ -107,10 +117,16 @@ async function main() {
   })
 
   const roomsDir = join(app.getPath("userData"), "rooms")
+  // Pasted pictures wait here for a moment. A crash can leave one behind.
+  const pasteDir = join(app.getPath("userData"), "paste")
+  rmSync(pasteDir, { recursive: true, force: true })
+
   const settings = openSettings(app.getPath("userData"), {
     downloads: app.getPath("downloads"),
   })
+
   let mainToken = newToken()
+
   const downloads = createDownloads({
     configure: async () =>
       callMainApi(
@@ -124,6 +140,7 @@ async function main() {
         window.webContents.send(CHANNELS.downloadsStatus, status)
     },
   })
+
   const limits = createLimits({
     settings: () => settings.get(),
     send: async (body) =>
@@ -134,10 +151,12 @@ async function main() {
         body
       ),
   })
+
   const runtime = ManagedRuntime.make(
     sidecarLayer({
       spawn: (token) => {
         mainToken = newToken()
+
         return spawnSidecar(binary, token, roomsDir, mainToken)
       },
       newToken,
@@ -146,6 +165,7 @@ async function main() {
       health: checkHealth,
     })
   )
+
   const sidecar = await runtime.runPromise(
     Effect.gen(function* () {
       return yield* Sidecar
@@ -159,6 +179,7 @@ async function main() {
       void limits.apply()
     }
   })
+
   if (sidecar.status() === "ready") {
     void downloads.apply()
     void limits.apply()
@@ -167,6 +188,7 @@ async function main() {
   closeToTray = settings.get().closeToTray
   // Forcing light or dark here flips prefers-color-scheme in the page too.
   nativeTheme.themeSource = settings.get().theme
+
   const loginItem = (enabled: boolean) =>
     applyLoginItem(enabled, {
       packaged: app.isPackaged,
@@ -178,25 +200,32 @@ async function main() {
     material: windowMaterial(mica, release()),
     dark: nativeTheme.shouldUseDarkColors,
   })
+
   const liveWindow = () => (window && !window.isDestroyed() ? window : null)
+
   const pushWindowState = (mica?: boolean) => {
     const open = liveWindow()
     open?.webContents.send(CHANNELS.windowState, windowState(look(mica)))
   }
+
   const refreshLook = (mica?: boolean) => {
     const open = liveWindow()
     if (open) applyLook(open, look(mica))
     pushWindowState(mica)
   }
+
   let shutdownPromise: Promise<void> | undefined
+
   const shutdown = () => {
     quitIntent = true
     updater.stop()
     shutdownPromise ??= runtime.dispose().then(() => {
       quitting = true
     })
+
     return shutdownPromise
   }
+
   const updater = createUpdater({
     packaged: app.isPackaged,
     adapter: updaterPackage.autoUpdater,
@@ -220,31 +249,79 @@ async function main() {
       ),
     pickFolder: async () => {
       const options = { properties: ["openDirectory" as const] }
+
       const result = window
         ? await dialog.showOpenDialog(window, options)
         : await dialog.showOpenDialog(options)
+
       return result.canceled ? null : (result.filePaths[0] ?? null)
     },
   }
+
   await runtime.runPromise(registerIpc(host))
-  registerRoomIpc(host, {
+
+  const recentRooms = openRecentRooms(app.getPath("userData"))
+
+  const saved = createSavedDownloads()
+
+  const trayIcons = trayIconPaths({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+  })
+
+  const roomFiles = registerRoomIpc(host, {
     roomsDir,
+    pasteDir,
+    saveFolder: () => settings.get().saveFolder,
+    roomSaveFolder: (code) => recentRooms.folderFor(code),
+    setRoomFolder: (code, folder, name) =>
+      void recentRooms.setFolder(code, folder, name),
+    remember: (item, folder) => saved.remember(item, folder),
+    clipboard: {
+      // Electron 45's clipboard is async and hands out typed items.
+      readPng: async () => {
+        for (const item of await clipboard.read()) {
+          if (!item.types.includes("image/png")) continue
+
+          const blob = await item.getType("image/png")
+
+          return Buffer.from(await blob.arrayBuffer())
+        }
+
+        return null
+      },
+      readText: () => clipboard.readText(),
+    },
     openPath: (path) => shell.openPath(path),
     pickFiles: async () => {
       const options = {
         properties: ["openFile" as const, "multiSelections" as const],
       }
+
       const result = window
         ? await dialog.showOpenDialog(window, options)
         : await dialog.showOpenDialog(options)
+
       return result.canceled ? null : result.filePaths
     },
+    pickFolder: () => host.pickFolder(),
+    saveFolderTree: async (request) =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/transfers/folder",
+        request,
+        600_000
+      ),
     saveMode: () => settings.get().saveMode,
     pickSaveFile: async (name) => {
       const options = { defaultPath: name }
+
       const result = window
         ? await dialog.showSaveDialog(window, options)
         : await dialog.showSaveDialog(options)
+
       return result.canceled ? null : (result.filePath ?? null)
     },
     saveToFolder: async ({ source, name }) =>
@@ -261,15 +338,89 @@ async function main() {
         "/api/transfers/save",
         request
       ),
-    addFiles: async (paths) => {
+    addFiles: async (paths, roomCode) => {
       const info = await runtime.runPromise(sidecar.connectionInfo)
-      return (await callMainApi(info, mainToken, "/api/room/files", {
-        paths,
-      })) as AddFilesResult
+
+      const hasFolder = paths.some((path) => {
+        try {
+          return lstatSync(path).isDirectory()
+        } catch {
+          return false
+        }
+      })
+
+      return (await callMainApi(
+        info,
+        mainToken,
+        "/api/room/files",
+        {
+          paths,
+          ...(roomCode ? { roomCode } : {}),
+        },
+        hasFolder ? 600_000 : 120_000
+      )) as AddFilesResult
     },
   })
+
+  const showToast = ({ title, body }: { title: string; body: string }) => {
+    if (!Notification.isSupported()) return
+
+    const toast = new Notification({ title, body })
+    toast.on("click", () => showWindow(window))
+    toast.show()
+  }
+
+  sendBatch = createSendBatch(async (paths) => {
+    await sendToOpenRoom(paths, {
+      currentRoom: roomFiles.currentRoom,
+      connected: async () => {
+        const session = (await callMainApi(
+          await runtime.runPromise(sidecar.connectionInfo),
+          mainToken,
+          "/api/session",
+          undefined
+        )) as { state: string }
+
+        return session.state === "connected"
+      },
+      add: roomFiles.add,
+      post: async (name, roomCode) => {
+        await callMainApi(
+          await runtime.runPromise(sidecar.connectionInfo),
+          mainToken,
+          "/api/chat",
+          { text: "", attachment: { path: name }, roomCode }
+        )
+      },
+      showWindow: () => showWindow(window),
+      noRoom: () => showToast(toastText("send", "")),
+    })
+  })
+
+  registerNotifyIpc(host, {
+    enabled: () => settings.get().notifications,
+    windowActive: () => {
+      const open = liveWindow()
+
+      return !!open && open.isVisible() && open.isFocused()
+    },
+    show: showToast,
+  })
+
+  const dragIcon = nativeImage.createFromPath(trayIcons.large)
+  registerSavedIpc(host, saved, {
+    startDrag: (file) =>
+      liveWindow()?.webContents.startDrag({ file, icon: dragIcon }),
+    preview: async ({ folder, name }) =>
+      callMainApi(
+        await runtime.runPromise(sidecar.connectionInfo),
+        mainToken,
+        "/api/downloads/preview",
+        { folder, name }
+      ),
+  })
+
   registerUpdateIpc(host, settings, updater, (url) => shell.openExternal(url))
-  const recentRooms = openRecentRooms(app.getPath("userData"))
   registerRecentRoomsIpc(host, recentRooms)
   recentRooms.onChange((rooms) => {
     for (const open of BrowserWindow.getAllWindows())
@@ -279,11 +430,27 @@ async function main() {
   ipcMain.on(CHANNELS.rendererReady, (event) => {
     if (event.sender === window?.webContents) joinInbox.ready()
   })
+
   registerDownloadsIpc(host, downloads.status)
   registerWindowIpc(host, {
     state: () => windowState(look()),
   })
 
+  let menuUpdate = Promise.resolve()
+
+  const explorerMenu = (enabled: boolean) => {
+    menuUpdate = menuUpdate
+      .then(() =>
+        applyExplorerMenu(enabled, {
+          packaged: app.isPackaged,
+          execPath: process.execPath,
+        })
+      )
+      .catch(() => {
+        // Registry errors never include the executable path in logs.
+        console.warn("Could not update the Explorer menu.")
+      })
+  }
   // One place reacts to a saved change: updater, login item, tray flag, windows.
   settings.onChange((next, previous) => {
     closeToTray = next.closeToTray
@@ -298,6 +465,8 @@ async function main() {
       updater.setChannel(next.updateChannel)
     if (next.startWithWindows !== previous.startWithWindows)
       loginItem(next.startWithWindows)
+    if (next.explorerMenu !== previous.explorerMenu)
+      explorerMenu(next.explorerMenu)
     if (next.mica !== previous.mica) refreshLook(next.mica)
     if (next.theme !== previous.theme) nativeTheme.themeSource = next.theme
     for (const open of BrowserWindow.getAllWindows())
@@ -307,6 +476,7 @@ async function main() {
   nativeTheme.on("updated", () => refreshLook())
   // Keeps the entry pointing at this build after an update moves it.
   loginItem(settings.get().startWithWindows)
+  explorerMenu(settings.get().explorerMenu)
 
   sidecar.onStatus((status) => {
     if (window && !window.isDestroyed()) {
@@ -318,6 +488,7 @@ async function main() {
   app.on("before-quit", (event) => {
     quitIntent = true
     if (quitting) return
+
     event.preventDefault()
     void shutdown()
       .then(() => app.quit())
@@ -334,15 +505,15 @@ async function main() {
       callback({ requestHeaders: fixSocketOrigin(details.requestHeaders) })
   )
 
-  createWindow(startsHidden(process.argv) && !startLink, look())
+  createWindow(
+    startsHidden(process.argv) && !startLink && !startupSends.length,
+    look()
+  )
+  sendBatch.push(startupSends.splice(0))
 
   tray = createTray(
     { onOpen: () => showWindow(window), onQuit: () => app.quit() },
-    trayIconPaths({
-      packaged: app.isPackaged,
-      resourcesPath: process.resourcesPath,
-      appPath: app.getAppPath(),
-    })
+    trayIcons
   )
 
   app.on("activate", () => {
@@ -369,6 +540,9 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", (_event, argv) => {
     showWindow(window)
 
+    const paths = findSendPaths(argv)
+    if (sendBatch) sendBatch.push(paths)
+    else startupSends.push(...paths)
     const code = findJoinLink(argv)
     if (code) joinInbox.push(code)
   })

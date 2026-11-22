@@ -1,6 +1,8 @@
 package api
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -65,4 +67,32 @@ func TestChatAttachments(t *testing.T) {
 		f.send("POST", "/api/chat", map[string]any{"attachment": map[string]string{"path": path}}).expect(t, 400, "bad_path")
 	}
 	f.send("POST", "/api/chat", map[string]any{"attachment": map[string]string{"path": "missing"}}).expect(t, 404, "not_found")
+}
+
+func TestChatFolderAttachmentUsesImportedSummary(t *testing.T) {
+	f := newFixture(t, config.Config{}, nil)
+	f.chooseFolder()
+	f.connectPipe()
+	source := filepath.Join(t.TempDir(), "Album")
+	if err := os.MkdirAll(filepath.Join(source, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(source, "sub", "note.txt"), []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	added := f.send("POST", "/api/room/files", map[string]any{"paths": []string{source}}, mainHeader)
+	added.expect(t, 200, "")
+	entry := added.Body["added"].([]any)[0].(map[string]any)
+	if entry["folder"] != true || entry["count"] != float64(1) || entry["size"] != float64(5) {
+		t.Fatal(string(added.Raw))
+	}
+
+	result := f.send("POST", "/api/chat", map[string]any{"attachment": map[string]any{"path": "Album", "folder": false, "size": 999, "count": 999}})
+	result.expect(t, 201, "")
+	attachment := result.Body["attachment"].(map[string]any)
+	if attachment["folder"] != true || attachment["count"] != float64(1) || attachment["size"] != float64(5) {
+		t.Fatal(string(result.Raw))
+	}
 }

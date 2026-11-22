@@ -58,6 +58,7 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Job | Owner |
 | --- | --- |
 | Confined child room creation and reuse | `internal/services/share/room.go` (`OpenRoom`) |
+| Bounded folder import, import-time counts, safe parent creation and reserved top folders | `internal/services/share/import_tree.go` (`ImportTree`, `TreeSummary`, `MakeDirs`, `ReserveFolder`); `import_tree_test.go` (caps, links and escape attempts) |
 | Regular-file import, atomic no-replace copy and collision names | `internal/services/share/import.go` (`Import`, `AvailableName`, `NumberedName`); `import_windows.go`, `import_other.go` (link and junction checks) |
 | Open the shared folder once (`os.Root`), list, stat, close | `internal/services/share/share.go` (`Open`, `Root`) |
 | Peer path rules (slash paths, no `..`, drives, streams, device names) | `internal/services/share/path.go` (`Localize`) |
@@ -79,6 +80,7 @@ Session owns the code server and local approval; mesh owns independently keyed m
 | Local room and peer folder listing | `internal/api/files.go` |
 | Canonical room root and per-session manager creation | `internal/api/rooms.go` |
 | Main-only header guard, consented file import and downloads root configuration | `internal/api/room_files.go` |
+| Main-only folder download, paged peer walk and validated entry names | `internal/api/folder_transfer.go`; `folder_walk_test.go`, `transfer_integration_test.go` (paging, caps, escapes and real nested downloads) |
 | Main-only save into a Save-dialog folder (`POST /api/transfers/save`) | `internal/api/save_transfer.go` |
 | Chat routes (memory-only history from the peer) | `internal/api/chat.go` |
 | Transfer routes, clear (`POST /api/transfers/clear`), main-only limits (`PUT /api/transfers/limits`), the session-owned `Transfers` interface and API DTOs | `internal/api/transfers.go` (`Transfers`, `TransferItem`) |
@@ -140,6 +142,10 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Settings field rules (one place, shared by main and the bridge types) | `src/shared/ipc-schema.ts` (`SETTINGS_FIELDS`) |
 | Tray: Open / Quit menu, tooltip, icon paths (dev `build/`, packaged resources) | `src/main/tray.ts` |
 | Close-to-tray decision, show window, `--hidden` start | `src/main/lifecycle.ts` |
+| Explorer send argv, 500 ms batches and current-room send guard | `src/main/send-files.ts`, `send-files.test.ts`; import and chat also check the main-supplied room code in the sidecar |
+| Per-user Explorer menu registration and uninstall cleanup | `src/main/explorer-menu.ts`, `build/installer.nsh`, `electron-builder.yml` |
+| Folder picker, save-choice routing and folder call timeout tests | `src/main/folder-download.test.ts` |
+| Lazy folder pages and loaded-name filtering in the expanded Files tile | `src/renderer/src/lib/api/files.ts`, `routes/-components/room-folder-browser.tsx`, `folder-browse-context.tsx`; `room-folder-browser.test.tsx`, `folder-card.test.tsx` beside them |
 | Start with Windows (login item, packaged builds only) | `src/main/login-item.ts` |
 | Window options (native Windows caption buttons via `titleBarOverlay`, symbol colour follows the theme), navigation lock and the socket Origin rewrite (`fixSocketOrigin`) | `src/main/window.ts` |
 | Window drag strips for the black rail and app toolbar (138 px kept free for native caption buttons) | `src/renderer/src/components/drag-bar.tsx`, `drag-bar.test.tsx` beside it |
@@ -178,6 +184,11 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Adding files from the button or a drop, one chat message per file | `src/renderer/src/routes/-components/use-share-files.ts` (calls `window.tailshare.addFiles` and `addDroppedFiles`) |
 | Apps tab: shared apps list, Share dialog, Open, Copy, Open in browser | `src/renderer/src/routes/-components/` (`apps-panel.tsx`, `share-app-dialog.tsx`), `src/renderer/src/lib/api/forwards.ts` |
 | Open-in-browser link check (`isForwardLink`) and its main-process handler | `src/shared/bridge.ts`, `src/main/ipc.ts` (`openForwardLink`) |
+| Windows toasts (text built in main, setting and window guard) | `src/main/notify.ts` (renderer asks from `src/renderer/src/lib/live/apply.ts`) |
+| Finished-download memory: drag a file out, preview a saved file (id to folder, capped at 200) | `src/main/saved-downloads.ts` |
+| Paste to send (clipboard read in main, temp file under `userData/paste`) and the per-room save folder | `src/main/room-ipc.ts`; folder kept in `src/main/recent-rooms.ts` (`setFolder`, `folderFor`) |
+| Paste button, room save folder button, file preview on cards | `routes/-components/chat-composer.tsx`, `room-save-folder.tsx`, `file-preview.tsx`, `file-card.tsx`; hooks in `lib/api/preview.ts` |
+| Local preview of a shared or saved file (images up to 256 KB, 2 KB of text; no SVG or HTML) | `internal/api/preview.go` |
 | Transfer row (the only piece left in `session/`) | `src/renderer/src/routes/session/-components/transfer-row.tsx` |
 | Generated route tree (router plugin owns it) | `src/renderer/src/routeTree.gen.ts` |
 | shadcn generation and class utility | `components.json`, `src/renderer/src/lib/utils.ts` |
@@ -185,6 +196,8 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Design rules and light/dark semantic tokens | root `DESIGN.md`, `src/renderer/src/styles/globals.css` |
 
 ## Transfers
+
+Folder downloads reserve one new top folder, create parents inside the pinned root, and queue ordinary file downloads in `internal/services/transfer/folder.go` (`DownloadTree`, `TreeFile`), covered by `folder_test.go`.
 
 | Job | Owner |
 | --- | --- |

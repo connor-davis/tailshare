@@ -190,6 +190,11 @@ Owners: `internal/services/peer/share.go` (wire types),
 
 - `chat` carries an `id` and `text` (and the sender's `sentAt`).
 - Optional `attachment` is `{ "name": "file.pdf", "path": "docs/file.pdf", "size": 123 }`.
+  Folders additionally carry optional `folder: true` and `count` (regular files);
+  `size` is their total bytes. Version 0.1.2 ignores these extra fields.
+  A folder click on that build fails as an ordinary file transfer. No method
+  or protocol version changes; browsing and downloads use existing list and
+  transfer methods.
   `path` is relative to the sender's room and passes `share.Localize`; `name`
   is its base name (at most 255 bytes), `path` is at most 4096 bytes, and
   `size` is between zero and 1 TiB. The sender stats its own room file

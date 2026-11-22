@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/connor-davis/tailshare/internal/platform/apperr"
+	"github.com/connor-davis/tailshare/internal/services/codes"
 	"github.com/connor-davis/tailshare/internal/services/share"
 	"github.com/gofiber/fiber/v3"
 )
@@ -21,14 +22,18 @@ func (server *Server) mainOnly(c fiber.Ctx) error {
 
 func (server *Server) addRoomFiles(c fiber.Ctx) error {
 	var in struct {
-		Paths []string `json:"paths"`
+		Paths    []string `json:"paths"`
+		RoomCode string   `json:"roomCode"`
 	}
+
 	if json.Unmarshal(c.Body(), &in) != nil || len(in.Paths) > 100 {
 		return apperr.BadRequest("Choose at most 100 files at a time.")
 	}
+
 	// Leave waits for imports, while live state and transfer requests can continue.
 	server.roomIO.RLock()
 	defer server.roomIO.RUnlock()
+
 	server.mu.Lock()
 	root, phase := server.root, server.phase
 	server.mu.Unlock()
@@ -37,20 +42,38 @@ func (server *Server) addRoomFiles(c fiber.Ctx) error {
 		return errNotConnected()
 	}
 
+	if in.RoomCode != "" {
+		code, err := codes.Parse(in.RoomCode)
+		if err != nil || root.Name() != code.String() {
+			return errNotConnected()
+		}
+	}
+
 	added := make([]share.AddedFile, 0, len(in.Paths))
 	skipped := make([]fiber.Map, 0)
 	for _, source := range in.Paths {
-		file, err := root.Import(source)
+		var file share.AddedFile
+
+		var err error
+		if info, statErr := os.Lstat(source); statErr == nil && info.IsDir() {
+			file, err = root.ImportTree(source)
+		} else {
+			file, err = root.Import(source)
+		}
+
 		if err != nil {
 			name := filepath.Base(source)
 			if _, bad := share.Localize(name); bad != nil || name == "." {
 				name = "File"
 			}
-			skipped = append(skipped, fiber.Map{"name": name, "reason": "Choose a readable regular file."})
+
+			skipped = append(skipped, fiber.Map{"name": name, "reason": "Choose a readable file or folder without links, with at most 10,000 files and 32 levels."})
 			continue
 		}
+
 		added = append(added, file)
 	}
+
 	return c.JSON(fiber.Map{"added": added, "skipped": skipped})
 }
 

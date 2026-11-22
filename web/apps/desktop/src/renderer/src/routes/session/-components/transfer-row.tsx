@@ -37,6 +37,29 @@ function useRetrySeconds(retryAt?: string): number | null {
   return Number.isNaN(end) ? null : Math.max(0, Math.ceil((end - now) / 1000))
 }
 
+// Asks main whether this finished download can be dragged out. Main only says
+// yes for files it saved itself and that are still there.
+function useCanDrag(id: string, finished: boolean): boolean {
+  const [can, setCan] = useState(false)
+
+  useEffect(() => {
+    if (!finished) return
+
+    let alive = true
+    // No bridge (a test or a plain browser) just means no drag.
+    Promise.resolve(window.tailshare?.canDragFile(id))
+      .then((ok) => alive && setCan(ok === true))
+      .catch(() => alive && setCan(false))
+
+    return () => {
+      alive = false
+    }
+  }, [id, finished])
+
+  // A row that is no longer finished is never draggable, whatever was asked before.
+  return finished && can
+}
+
 /** One transfer: name, progress, speed, state word and the buttons it needs. */
 export function TransferRow({
   item,
@@ -49,11 +72,28 @@ export function TransferRow({
   const name = baseName(item.source)
   const running = ["queued", "starting", "running"].includes(item.state)
   const done = percent(item.bytes, item.size)
+  const finished = item.direction === "download" && item.state === "done"
+  const draggable = useCanDrag(item.id, finished)
   const act = (choice: "pause" | "resume" | "cancel") =>
     action.mutate({ id: item.id, action: choice })
 
   return (
-    <li className="flex flex-col gap-1 border-b px-3 py-2">
+    <li
+      className="flex flex-col gap-1 border-b px-3 py-2"
+      draggable={draggable || undefined}
+      title={draggable ? "Drag this file to a folder" : undefined}
+      onDragStart={
+        draggable
+          ? (event) => {
+              // Electron starts the real file drag; the page's own drag is not wanted.
+              event.preventDefault()
+              Promise.resolve(window.tailshare.startFileDrag(item.id)).catch(
+                () => {}
+              )
+            }
+          : undefined
+      }
+    >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="w-20 shrink-0 text-xs text-muted-foreground">
           {item.direction === "upload" ? "Upload" : "Download"}

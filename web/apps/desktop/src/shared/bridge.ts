@@ -29,8 +29,12 @@ export interface Settings {
   readonly transfersAtOnce: number
   /** Launch hidden in the tray when Windows signs in. */
   readonly startWithWindows: boolean
+  /** Adds Send with Tailshare to Windows Explorer. */
+  readonly explorerMenu: boolean
   /** Closing the window hides it instead of quitting. */
   readonly closeToTray: boolean
+  /** Show a Windows toast for join requests and finished transfers while the window is in the background. */
+  readonly notifications: boolean
   /** Windows 11 Mica background. */
   readonly mica: boolean
   /** `system` follows Windows; `light` and `dark` force the look. */
@@ -120,6 +124,8 @@ export interface RecentRoom {
   readonly code: string
   /** When the room was last joined or left, in ms since 1970. */
   readonly lastSeen: number
+  /** Absolute folder for this room's downloads. Missing means "use my save folder". */
+  readonly saveFolder?: string
 }
 
 /** Checks a recent-room list without loading Effect in the sandboxed preload. */
@@ -183,9 +189,33 @@ export interface ConnectionInfo {
 
 /** The result of copying consented files into a room. */
 export interface AddFilesResult {
-  readonly added: { name: string; size: number }[]
+  readonly added: {
+    name: string
+    size: number
+    folder?: boolean
+    count?: number
+  }[]
   readonly skipped: { name: string; reason: string }[]
 }
+
+/** What a toast is about. */
+export type NotifyKind = "join" | "done" | "failed" | "send"
+
+/** What Paste found on the clipboard. */
+export type PasteResult =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "file"; readonly result: AddFilesResult }
+  | { readonly kind: "none" }
+
+/** A small look at a file: a picture (base64 with its type), a few lines, or nothing. */
+export type FilePreview =
+  | {
+      readonly kind: "image"
+      readonly mime: "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+      readonly data: string
+    }
+  | { readonly kind: "text"; readonly text: string; readonly cut?: boolean }
+  | { readonly kind: "none" }
 
 /**
  * The only thing browser code can reach in the desktop shell. Nothing here
@@ -258,6 +288,8 @@ export interface TailshareBridge {
   readonly chooseFolder: () => Promise<string | null>
   /** Opens a native multi-file picker and copies selected files into the room. */
   readonly addFiles: () => Promise<AddFilesResult | null>
+  /** Opens a native folder picker and copies its tree into the room. */
+  readonly addFolder: () => Promise<AddFilesResult | null>
   /** Resolves real dropped Files in preload; paths never enter renderer code. */
   readonly addDroppedFiles: (files: File[]) => Promise<AddFilesResult>
   /**
@@ -268,7 +300,32 @@ export interface TailshareBridge {
   readonly startDownload: (request: {
     source: string
     name: string
+    folder?: boolean
   }) => Promise<unknown>
+  /**
+   * Asks for a Windows toast. Main shows it only when the window is hidden or
+   * not focused and the setting is on, and builds the words itself.
+   */
+  readonly notify: (request: {
+    kind: NotifyKind
+    name: string
+  }) => Promise<void>
+  /**
+   * Reads the clipboard in main, only when called. A picture is added to the room
+   * (and the temporary copy deleted); text is handed back to send.
+   */
+  readonly pasteFromClipboard: () => Promise<PasteResult>
+  /** Sets or clears (`null`) the folder this room's downloads go to. */
+  readonly setRoomFolder: (room: {
+    code: string
+    folder: string | null
+  }) => Promise<void>
+  /** True when main remembers this finished download and the file is still there. */
+  readonly canDragFile: (transferId: string) => Promise<boolean>
+  /** Starts dragging a finished download out of the window. Sends an id, never a path. */
+  readonly startFileDrag: (transferId: string) => Promise<void>
+  /** A small preview of a download saved by this window. Never leaves the machine. */
+  readonly previewDownload: (transferId: string) => Promise<FilePreview>
   /** Opens the persistent folder for a validated room code. */
   readonly openRoomFolder: (code: string) => Promise<void>
   /** Calls `listener` on each status change. Returns an unsubscribe. */

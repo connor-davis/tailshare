@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "./confirm-dialog"
 import { ShareCode } from "./share-code"
 import { CodeCountdown } from "./code-countdown"
+import { RoomSaveFolder } from "./room-save-folder"
 import type { PeerInfo } from "@/lib/api/types"
 import { useLiveStatus } from "@/lib/live/use-live"
 
@@ -106,6 +107,7 @@ export function RoomHeader({
           Open folder
         </Button>
       ) : null}
+      {roomCode ? <RoomSaveFolder roomCode={roomCode} /> : null}
       <Button
         variant="outline"
         disabled={leaving}

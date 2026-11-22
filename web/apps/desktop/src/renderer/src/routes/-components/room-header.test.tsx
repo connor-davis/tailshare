@@ -14,7 +14,13 @@ vi.mock("@/lib/live/use-live", () => ({ useLiveStatus: () => "open" }))
 
 const openRoomFolder = vi.fn()
 
-beforeEach(() => vi.stubGlobal("tailshare", { openRoomFolder }))
+beforeEach(() =>
+  vi.stubGlobal("tailshare", {
+    openRoomFolder,
+    getRecentRooms: async () => [],
+    onRecentRoomsChanged: () => () => {},
+  })
+)
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -69,6 +75,64 @@ describe("RoomHeader Leave", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
 
     expect(onLeave).toHaveBeenCalledOnce()
+  })
+})
+
+describe("RoomHeader room save folder", () => {
+  const header = () =>
+    render(
+      <TooltipProvider>
+        <RoomHeader leaving={false} onLeave={() => {}} roomCode="7K3Q-9PXM" />
+      </TooltipProvider>
+    )
+
+  it("picks a folder for this room and can go back to the default", async () => {
+    const setRoomFolder = vi.fn(async () => {})
+    vi.stubGlobal("tailshare", {
+      openRoomFolder,
+      chooseFolder: async () => "D:\\Pics",
+      setRoomFolder,
+      getRecentRooms: async () => [
+        { name: "A", code: "7K3Q9PXM", lastSeen: 1, saveFolder: "D:\\Pics" },
+      ],
+      onRecentRoomsChanged: () => () => {},
+    })
+    header()
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Saves to Pics/ })
+    )
+    await waitFor(() =>
+      expect(setRoomFolder).toHaveBeenCalledWith({
+        code: "7K3Q9PXM",
+        folder: "D:\\Pics",
+      })
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Use my default" }))
+    await waitFor(() =>
+      expect(setRoomFolder).toHaveBeenLastCalledWith({
+        code: "7K3Q9PXM",
+        folder: null,
+      })
+    )
+  })
+
+  it("says so in plain words when the folder is refused", async () => {
+    vi.stubGlobal("tailshare", {
+      openRoomFolder,
+      chooseFolder: async () => "D:\\Pics",
+      setRoomFolder: async () => {
+        throw new Error("no")
+      },
+      getRecentRooms: async () => [],
+      onRecentRoomsChanged: () => () => {},
+    })
+    header()
+
+    fireEvent.click(screen.getByRole("button", { name: "Room save folder" }))
+
+    expect(await screen.findByRole("alert")).toBeTruthy()
   })
 })
 

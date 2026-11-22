@@ -251,6 +251,29 @@ kept as little as possible.
 - Text is at most 8 KiB of valid UTF-8, and the ID has no control characters,
   so the other computer cannot send anything the screen cannot show.
 
+## Previews, paste and drag out
+
+- A file card preview is built on this computer only. Nothing about it goes to
+  the other computer, and the peer protocol did not change.
+- `GET /api/room/preview` reads a file we shared through `root.OpenRead`, so
+  it has the same path rules as a download: `..`, drive letters, absolute
+  paths, streams and links out of the folder are refused (tests try each).
+  `POST /api/downloads/preview` is main-only and checks its folder like a
+  save folder. The page sends a transfer id; main builds the path.
+- Pictures are PNG, JPEG, GIF or WebP up to 256 KB, picked by the file's
+  bytes, not its name. Text is the first 2 KB of valid UTF-8. SVG, HTML and
+  XML are never shown. The page checks the type again and shows pictures as
+  `data:` URLs.
+- Paste reads the clipboard in main, only on a click. A picture over 25 MB
+  is refused. It is written to `userData/paste/<random>/` (mode 0600), handed
+  to the normal add-file path, then deleted, even when that fails. The folder
+  is also cleared at start-up.
+- Drag out and preview only work for downloads main started itself, from an
+  in-memory list of 200. The folder must be a real folder and the file a
+  regular file, not a link.
+- Toast text is built in main from a short kind and a name: control
+  characters removed, 64 characters at most, file names cut to the base name.
+
 ## Shared apps (port forwarding)
 
 A member can share a local TCP port with the room. It is room-wide: every
@@ -314,8 +337,8 @@ drive it.
   renderer token.
 - **Add-files consent.** Main obtains paths from its native multi-file dialog or
   preload resolves real dropped Files with `webUtils.getPathForFile`. Empty
-  paths are dropped. At most 100 files are copied through the room root; folders,
-  links, junctions and unreadable sources are skipped. Publication is atomic and
+  paths are dropped. At most 100 top-level file or folder paths are accepted per call. Links,
+  junctions and unreadable sources are refused. File publication is atomic and
   never replaces a file. Replies contain base names and safe sentences only.
   Open folder accepts a validated code; main constructs the canonical path itself.
 - **Downloads configuration.** Main sends the save folder after health succeeds
@@ -332,3 +355,40 @@ The current local API still selects one control peer for browsing, chat and
 transfers. After that peer is removed while the mesh session survives, its
 manager closes and the API attaches a fresh manager to a surviving or newly
 joined member. Per-member API ownership is a later change.
+
+
+## Folder sharing and Explorer send
+
+`share.Root.ImportTree` checks the source and its parents for links, junctions
+and reparse points, then copies through pinned source and destination roots.
+Opened files and directories must match their checked identity. Only regular
+files are copied; empty folders are omitted. Every name goes through `Localize`.
+Each tree is limited to 10,000 files, 32 nested directories and 1 TiB total.
+The new top folder has a collision-safe name. A failed import removes its
+incomplete tree. Counts and total bytes are captured during the copy and kept
+in room memory for attachment metadata; renderer-supplied counts are ignored.
+An import cannot contain its own destination.
+
+`POST /api/transfers/folder` requires the main token. It walks the peer's
+existing paged list method, validates each entry as a single base name before
+joining paths, refuses duplicate names without regard to case, and enforces
+the file and depth caps before creating jobs. Empty-folder walks are also
+bounded to 20,000 entries. It reserves a new destination folder and makes
+parents only through `os.Root`. Each ordinary file transfer pins that root,
+including a parent chosen with Ask every time or a room's save folder. The
+single-file destination guard still refuses nested names.
+
+Packaged Electron builds register Send with Tailshare under exactly
+`HKCU\Software\Classes\*\shell\Tailshare` and
+`HKCU\Software\Classes\Directory\shell\Tailshare`. Main uses `reg.exe`
+with argument arrays and the quoted command `"<exe>" --send "%1"`; it never
+runs a shell. The default-on Explorer setting applies immediately, and the
+NSIS uninstaller deletes those same app-owned keys. Development runs do not
+write the registry. No administrator access is needed.
+
+Only explicit, absolute, existing `--send` paths are accepted. Launches are
+batched for 500 ms, then use the guarded room import path. A disconnected or
+missing room shows the open-room notice and retains no paths for later. Main
+checks the live sidecar state, and sends the expected room code with imports
+and chat posts so a stale window cannot send into a different room. Paths,
+argv, room codes and registry runner errors are never logged.

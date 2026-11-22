@@ -173,7 +173,9 @@ type Attachment struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 	// Size is the file length in bytes.
-	Size int64 `json:"size"`
+	Size   int64 `json:"size"`
+	Folder bool  `json:"folder,omitempty"`
+	Count  int64 `json:"count,omitempty"`
 }
 
 func checkAttachment(attachment *Attachment) error {
@@ -181,7 +183,8 @@ func checkAttachment(attachment *Attachment) error {
 		return nil
 	}
 	if attachment.Path == "" || attachment.Name == "" || attachment.Size < 0 || attachment.Size > 1<<40 ||
-		len(attachment.Name) > 255 || len(attachment.Path) > 4096 ||
+		attachment.Count < 0 || attachment.Count > share.MaxTreeFiles ||
+		(!attachment.Folder && attachment.Count != 0) || len(attachment.Name) > 255 || len(attachment.Path) > 4096 ||
 		path.Base(attachment.Path) != attachment.Name {
 		return errors.New("That attachment is not valid.")
 	}

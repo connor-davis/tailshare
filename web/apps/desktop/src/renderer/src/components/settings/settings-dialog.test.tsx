@@ -17,6 +17,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { SettingsDialogProvider, useOpenSettings } from "./settings-dialog"
 
 const saved: Settings = {
+  notifications: true,
   updateChannel: "latest",
   displayName: "Connor's PC",
   saveMode: "folder",
@@ -25,6 +26,7 @@ const saved: Settings = {
   downloadLimitKiB: 512,
   transfersAtOnce: 2,
   startWithWindows: false,
+  explorerMenu: true,
   closeToTray: true,
   mica: true,
   theme: "system",
@@ -280,6 +282,10 @@ describe("Settings dialog", () => {
       expect(updateSettings).toHaveBeenLastCalledWith({
         startWithWindows: true,
       })
+    )
+    fireEvent.click(screen.getByRole("switch", { name: /Send from Explorer/ }))
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenLastCalledWith({ explorerMenu: false })
     )
     fireEvent.click(screen.getByRole("switch", { name: /Close to tray/ }))
     await waitFor(() =>

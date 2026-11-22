@@ -81,6 +81,8 @@ export interface TransferView extends TransferItem {
 
 /** Body of `POST /api/transfers`. */
 export interface TransferRequest {
+  /** Uses the local folder-download route. */
+  folder?: boolean
   /** Which way the file goes. */
   direction: "upload" | "download"
   /** Path on the sending side. */
@@ -91,6 +93,10 @@ export interface TransferRequest {
 
 /** A file sent in chat. The path is inside the sender's room folder. */
 export interface ChatAttachment {
+  /** True when the attachment is a folder. */
+  folder?: boolean
+  /** Number of regular files in the folder. */
+  count?: number
   /** Base name, for display and for saving. */
   name: string
   /** Path to ask the sender for. */

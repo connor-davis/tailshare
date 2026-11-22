@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { TransferState, TransferView } from "@/lib/api/types"
 import { TransferRow } from "./transfer-row"
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 function show(
   state: TransferState,
@@ -71,6 +80,46 @@ describe("TransferRow", () => {
 
     expect(screen.getByLabelText("cat.png progress")).toBeTruthy()
     expect(screen.getByText(/42%/)).toBeTruthy()
+  })
+})
+
+describe("TransferRow drag out", () => {
+  const bridge = (can: boolean) => {
+    const startFileDrag = vi.fn(async () => {})
+    vi.stubGlobal("tailshare", { canDragFile: async () => can, startFileDrag })
+    return startFileDrag
+  }
+  const row = () => screen.getByRole("listitem")
+
+  it("can be dragged out once finished, and starts one drag", async () => {
+    const startFileDrag = bridge(true)
+    show("done")
+
+    await waitFor(() => expect(row().getAttribute("draggable")).toBe("true"))
+    fireEvent.dragStart(row())
+
+    expect(startFileDrag).toHaveBeenCalledTimes(1)
+    expect(startFileDrag).toHaveBeenCalledWith("t1")
+  })
+
+  it("is not draggable when main does not know the file", async () => {
+    bridge(false)
+    show("done")
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(row().getAttribute("draggable")).toBeNull()
+  })
+
+  it("is not draggable while running or for an upload", async () => {
+    bridge(true)
+    show("running")
+    show("done", undefined, { direction: "upload" })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    for (const li of screen.getAllByRole("listitem"))
+      expect(li.getAttribute("draggable")).toBeNull()
   })
 })
 

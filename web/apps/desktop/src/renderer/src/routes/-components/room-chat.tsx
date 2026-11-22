@@ -179,6 +179,8 @@ export function RoomChat({ connected = true }: { connected?: boolean }) {
         connected={connected}
         busy={share.busy}
         onAddFiles={() => void share.addFiles()}
+        onAddFolder={() => void share.addFolder()}
+        onPaste={() => void share.paste()}
       />
       {dragging ? (
         <div

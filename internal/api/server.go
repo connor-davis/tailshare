@@ -170,6 +170,8 @@ func (server *Server) routes() {
 	api.Post("/session/joins/:id/deny", server.denyJoin)
 
 	api.Post("/room/files", server.mainOnly, server.addRoomFiles)
+	api.Get("/room/preview", server.roomPreview)
+	api.Post("/downloads/preview", server.mainOnly, server.downloadPreview)
 	api.Put("/downloads", server.mainOnly, server.putDownloads)
 	api.Get("/files/local", server.localFiles)
 	api.Get("/files/peer", server.peerFiles)
@@ -187,6 +189,7 @@ func (server *Server) routes() {
 	api.Post("/transfers", server.startTransfer)
 	api.Post("/transfers/clear", server.clearTransfers)
 	api.Post("/transfers/save", server.mainOnly, server.saveTransfer)
+	api.Post("/transfers/folder", server.mainOnly, server.folderTransfer)
 	api.Put("/transfers/limits", server.mainOnly, server.putTransferLimits)
 	api.Post("/transfers/:id/pause", server.pauseTransfer)
 	api.Post("/transfers/:id/resume", server.resumeTransfer)

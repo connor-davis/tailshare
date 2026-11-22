@@ -8,6 +8,7 @@ import {
   isWindowState,
   type CurrentRoom,
   type DownloadsStatus,
+  type NotifyKind,
   type RecentRoom,
   type Settings,
   type SettingsPatch,
@@ -91,6 +92,7 @@ const bridge: TailshareBridge = Object.freeze({
   getConnectionInfo: () => ipcRenderer.invoke("tailshare:connection-info"),
   chooseFolder: () => ipcRenderer.invoke("tailshare:choose-folder"),
   addFiles: () => ipcRenderer.invoke("tailshare:add-files"),
+  addFolder: () => ipcRenderer.invoke("tailshare:add-folder"),
   addDroppedFiles: (files: File[]) => {
     const paths = files.flatMap((file) => {
       try {
@@ -102,8 +104,22 @@ const bridge: TailshareBridge = Object.freeze({
     })
     return ipcRenderer.invoke("tailshare:add-dropped-files", paths)
   },
-  startDownload: (request: { source: string; name: string }) =>
-    ipcRenderer.invoke("tailshare:start-download", request),
+  startDownload: (request: {
+    source: string
+    name: string
+    folder?: boolean
+  }) => ipcRenderer.invoke("tailshare:start-download", request),
+  notify: (request: { kind: NotifyKind; name: string }) =>
+    ipcRenderer.invoke("tailshare:notify", request),
+  pasteFromClipboard: () => ipcRenderer.invoke("tailshare:paste-clipboard"),
+  setRoomFolder: (room: { code: string; folder: string | null }) =>
+    ipcRenderer.invoke("tailshare:set-room-folder", room),
+  canDragFile: (transferId: string) =>
+    ipcRenderer.invoke("tailshare:can-drag-file", transferId),
+  startFileDrag: (transferId: string) =>
+    ipcRenderer.invoke("tailshare:start-file-drag", transferId),
+  previewDownload: (transferId: string) =>
+    ipcRenderer.invoke("tailshare:preview-download", transferId),
   openRoomFolder: (code: string) =>
     ipcRenderer.invoke("tailshare:open-room-folder", code),
   onSidecarStatus: (listener: (status: SidecarStatus) => void) => {

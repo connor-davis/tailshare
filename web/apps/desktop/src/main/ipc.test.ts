@@ -501,6 +501,15 @@ const saveStubs = {
   saveMode: () => "folder" as const,
   saveToFolder: async () => null,
   saveInto: async () => null,
+  saveFolder: () => "D:\\Save",
+  roomSaveFolder: (): string | undefined => undefined,
+  setRoomFolder: () => {},
+  remember: () => {},
+  clipboard: {
+    readPng: async (): Promise<Buffer | null> => null,
+    readText: async () => "",
+  },
+  pasteDir: "D:\\Paste",
 }
 
 describe("room file IPC", () => {

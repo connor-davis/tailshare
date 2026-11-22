@@ -13,7 +13,9 @@ import (
 
 // AddedFile describes a copied room file without exposing its source path.
 type AddedFile struct {
-	Name string `json:"name"`
+	Name   string `json:"name"`
+	Folder bool   `json:"folder,omitempty"`
+	Count  int64  `json:"count,omitempty"`
 	// Size is the number of bytes copied.
 	Size int64 `json:"size"`
 }

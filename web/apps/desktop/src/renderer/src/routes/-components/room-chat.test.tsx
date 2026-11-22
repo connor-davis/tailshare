@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,6 +17,13 @@ const mocks = vi.hoisted(() => ({
   startMutate: vi.fn(),
   messages: [] as unknown[],
   transfers: [] as unknown[],
+  roomPreview: undefined as unknown,
+  downloadPreview: undefined as unknown,
+}))
+
+vi.mock("@/lib/api/preview", () => ({
+  useRoomPreview: () => ({ data: mocks.roomPreview }),
+  useDownloadPreview: () => ({ data: mocks.downloadPreview }),
 }))
 
 vi.mock("@/lib/api/chat", () => ({
@@ -67,6 +75,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.messages = []
   mocks.transfers = []
+  mocks.roomPreview = undefined
+  mocks.downloadPreview = undefined
   mocks.sendAsync.mockResolvedValue({})
   vi.stubGlobal("tailshare", {
     addFiles,
@@ -235,6 +245,75 @@ describe("drag and drop", () => {
 })
 
 describe("file cards", () => {
+  it("shows a small picture for our own image", () => {
+    mocks.roomPreview = { kind: "image", mime: "image/png", data: "AAAA" }
+    mocks.messages = [message({ fromPeer: false, attachment })]
+    render(<RoomChat />)
+
+    expect(
+      screen
+        .getByRole("img", { name: "Preview of plan.pdf" })
+        .getAttribute("src")
+    ).toBe("data:image/png;base64,AAAA")
+  })
+
+  it("never shows a picture type that is not on the list", () => {
+    mocks.roomPreview = { kind: "image", mime: "image/svg+xml", data: "AAAA" }
+    mocks.messages = [message({ fromPeer: false, attachment })]
+    render(<RoomChat />)
+
+    expect(screen.queryByRole("img", { name: /Preview/ })).toBeNull()
+  })
+
+  it("shows the start of our own text file", () => {
+    mocks.roomPreview = { kind: "text", text: "hello there", cut: true }
+    mocks.messages = [message({ fromPeer: false, attachment })]
+    render(<RoomChat />)
+
+    expect(screen.getByText("hello there…")).toBeTruthy()
+  })
+
+  it("shows nothing for a file with no preview", () => {
+    mocks.roomPreview = { kind: "none" }
+    mocks.messages = [message({ fromPeer: false, attachment })]
+    render(<RoomChat />)
+
+    expect(screen.queryByRole("img", { name: /Preview/ })).toBeNull()
+  })
+
+  it("says their file can be previewed after the download", () => {
+    mocks.messages = [message({ attachment })]
+    render(<RoomChat />)
+
+    expect(screen.getByText("Preview after you download it")).toBeTruthy()
+  })
+
+  it("previews their file once it is saved", () => {
+    mocks.transfers = [transfer({ state: "done", bytes: 100 })]
+    mocks.downloadPreview = { kind: "text", text: "saved words" }
+    mocks.messages = [message({ attachment })]
+    render(<RoomChat />)
+
+    // The card must follow the transfer, which starts with a click.
+    fireEvent.click(screen.getByRole("button", { name: "Download plan.pdf" }))
+    act(() => mocks.startMutate.mock.calls[0][1].onSuccess({ id: "t1" }))
+
+    expect(screen.getByText("saved words")).toBeTruthy()
+    expect(screen.queryByText("Preview after you download it")).toBeNull()
+  })
+
+  it("pastes what was copied", async () => {
+    const pasteFromClipboard = vi.fn(async () => ({ kind: "none" }))
+    vi.stubGlobal("tailshare", { pasteFromClipboard })
+    render(<RoomChat />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste" }))
+
+    expect(pasteFromClipboard).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText(/Nothing to paste/)).toBeTruthy()
+    vi.unstubAllGlobals()
+  })
+
   it("marks our own file as Shared, with no Download button", () => {
     mocks.messages = [message({ fromPeer: false, attachment })]
     render(<RoomChat />)

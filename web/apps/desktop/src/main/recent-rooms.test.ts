@@ -147,6 +147,36 @@ describe("recent rooms", () => {
     expect(readdirSync(path)).toEqual(["recent-rooms.json"])
   })
 
+  it("keeps a room's save folder, and a touch does not lose it", () => {
+    const path = directory()
+    const folder = directory()
+    const store = openRecentRooms(path, clock().now)
+    store.touch({ name: "A", code: code(1) })
+
+    store.setFolder(code(1), folder, "A")
+    store.touch({ name: "A", code: code(1) })
+
+    expect(store.folderFor(code(1))).toBe(folder)
+    expect(openRecentRooms(path, clock().now).folderFor(code(1))).toBe(folder)
+
+    store.setFolder(code(1), null, "A")
+    expect(store.folderFor(code(1))).toBeUndefined()
+  })
+
+  it("adds an unknown room when it gets a folder, and refuses a bad folder", () => {
+    const store = openRecentRooms(directory(), clock().now)
+
+    store.setFolder(code(2), "C:\\Pics", "Pics")
+    expect(store.get()[0]).toMatchObject({
+      code: code(2),
+      saveFolder: "C:\\Pics",
+    })
+
+    expect(() => store.setFolder(code(2), "relative", "Pics")).toThrow()
+    expect(() => store.setFolder("bad", "C:\\Pics", "Pics")).toThrow()
+    expect(store.folderFor(code(2))).toBe("C:\\Pics")
+  })
+
   it("stores only name, code and time", () => {
     const path = directory()
     openRecentRooms(path, clock().now).touch({

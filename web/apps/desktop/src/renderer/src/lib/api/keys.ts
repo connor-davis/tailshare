@@ -1,5 +1,6 @@
 /** Every query key in one place, so live events and the UI agree. */
 export const keys = {
+  files: ["files"] as const,
   session: ["session"] as const,
   transfers: ["transfers"] as const,
   chat: ["chat"] as const,
