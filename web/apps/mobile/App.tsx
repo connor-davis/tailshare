@@ -1,5 +1,5 @@
 import * as DocumentPicker from "expo-document-picker"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { StatusBar, StyleSheet, Text, View } from "react-native"
 
 import { core, type RemoteEntry } from "./modules/tailshare-core"
@@ -28,8 +28,34 @@ export default function App() {
   const [transfers, setTransfers] = useState<Record<string, Transfer>>({})
   const [messages, setMessages] = useState<ChatMessage[]>([])
 
+  // Files shared from the share sheet while no room is open. The ref is what join reads, so a
+  // share that lands mid-join is never missed; the state is only for the Home line.
+  const [pendingShare, setPendingShare] = useState<string[]>([])
+  const pendingRef = useRef<string[]>([])
+  // True once transfers are on, so a share can go straight to the room.
+  const readyRef = useRef(false)
+  const pathRef = useRef("")
+  useEffect(() => {
+    pathRef.current = path
+  }, [path])
+
+  const setPending = useCallback((paths: string[]) => {
+    pendingRef.current = paths
+    setPendingShare(paths)
+  }, [])
+
+  const uploadAll = useCallback(async (paths: string[], dir: string) => {
+    try {
+      await Promise.all(paths.map((local) => core.upload(local, dir)))
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure))
+    }
+  }, [])
+
   // Back to an empty Home, after Leave or when the host ends the room.
   const reset = useCallback(() => {
+    readyRef.current = false
+    setPending([])
     setInRoom(false)
     setTab("files")
     setError("")
@@ -39,7 +65,22 @@ export default function App() {
     setCode("")
     setTransfers({})
     setMessages([])
-  }, [])
+  }, [setPending])
+
+  // The share sheet: send now when a room is open, otherwise hold the files for the next join.
+  useEffect(
+    () =>
+      core.onShareEvent((event) => {
+        if (event.failed > 0) setError(strings.shareUnreadable)
+        if (event.paths.length === 0) return
+        if (readyRef.current) {
+          void uploadAll(event.paths, pathRef.current)
+        } else {
+          setPending([...pendingRef.current, ...event.paths])
+        }
+      }),
+    [setPending, uploadAll]
+  )
 
   const open = useCallback(async (dir: string) => {
     setLoading(true)
@@ -140,7 +181,12 @@ export default function App() {
       setRoom(core.roomName())
       await core.enableTransfers()
       await open("")
+      readyRef.current = true
       setInRoom(true)
+      // Join opens the shared folder root, so held files go there.
+      const held = pendingRef.current
+      setPending([])
+      if (held.length > 0) void uploadAll(held, "")
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure))
     } finally {
@@ -212,6 +258,8 @@ export default function App() {
           code={code}
           joining={joining}
           error={error}
+          waitingFiles={pendingShare.length}
+          onClearShare={() => setPending([])}
           onCodeChange={setCode}
           onJoin={() => void join()}
           onScan={() => setScanning(true)}

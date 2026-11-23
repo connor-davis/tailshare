@@ -25,6 +25,15 @@ export default function config(): ExpoConfig {
       // Never change this: sideloaded updates only install over the same id.
       package: "connor.davis.tailshare",
       versionCode: Number(process.env.TAILSHARE_VERSION_CODE ?? "1"),
+      // Puts Tailshare in the Android share sheet for one or many files.
+      intentFilters: [
+        "android.intent.action.SEND",
+        "android.intent.action.SEND_MULTIPLE",
+      ].map((action) => ({
+        action,
+        category: ["android.intent.category.DEFAULT"],
+        data: [{ mimeType: "*/*" }],
+      })),
     },
   }
 }

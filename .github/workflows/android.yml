@@ -193,6 +193,9 @@ jobs:
             sleep 8
             adb shell pidof connor.davis.tailshare
             adb exec-out screencap -p > shots/phone-join-dark.png
+            adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT hi -n connor.davis.tailshare/.MainActivity
+            sleep 5
+            adb shell pidof connor.davis.tailshare
             adb logcat -d -s AndroidRuntime:E ReactNativeJS:E > shots/logcat-errors.txt || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

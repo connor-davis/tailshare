@@ -23,11 +23,19 @@ type Native = {
   leave(): Promise<void>
   sendChat(text: string): Promise<void>
   watchChat(): void
+  watchShare(): void
   addListener(
     event: "onRoomEvent" | "onTransferEvent" | "onChatEvent",
     listener: (event: { json: string }) => void
   ): { remove(): void }
+  addListener(
+    event: "onShareEvent",
+    listener: (event: ShareEvent) => void
+  ): { remove(): void }
 }
+
+/** Files shared to Tailshare from the Android share sheet, already copied into the app cache. `failed` counts files that could not be read. */
+export type ShareEvent = { type: "share"; paths: string[]; failed: number }
 
 /** Something the host did that the screen should show. */
 export type RoomEvent = { type: "files.changed" } | { type: "closed" }
@@ -128,6 +136,14 @@ export const core = {
     })
     // Listen first, then start the pump, so the history replay reaches this handler.
     native.watchChat()
+
+    return () => subscription.remove()
+  },
+  /** Calls handler for each share-sheet share, including one that arrived before this call; the returned function unsubscribes. */
+  onShareEvent(handler: (event: ShareEvent) => void): () => void {
+    const subscription = native.addListener("onShareEvent", handler)
+    // Listen first, then flush, so a cold-start share reaches this handler.
+    native.watchShare()
 
     return () => subscription.remove()
   },

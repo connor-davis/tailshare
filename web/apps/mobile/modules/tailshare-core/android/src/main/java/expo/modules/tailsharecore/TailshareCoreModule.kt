@@ -1,8 +1,12 @@
 package expo.modules.tailsharecore
 
 import android.content.ContentValues
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -10,6 +14,7 @@ import tailshare.Client
 import tailshare.Tailshare
 import org.json.JSONObject
 import java.io.File
+import java.util.UUID
 import kotlin.concurrent.thread
 
 /** Thin bridge from JavaScript to the Go core built by gomobile. */
@@ -108,10 +113,99 @@ class TailshareCoreModule : Module() {
     }
   }
 
+  // The last share intent handled, so entering the foreground again does not copy it twice.
+  private var lastShareIntent: Intent? = null
+  private var shareListening = false
+  // Shares that arrived before JavaScript listened (a cold start from the share sheet).
+  private val unsentShares = ArrayList<Map<String, Any>>()
+
+  // The URIs a share carries: one for SEND, many for SEND_MULTIPLE, clipData as a fallback.
+  @Suppress("DEPRECATION")
+  private fun sharedUris(intent: Intent): List<Uri> {
+    // Read by action: the untyped reads below API 33 do not check the type, so asking SEND_MULTIPLE
+    // for one Uri would hand back the whole list as a fake file.
+    val many = intent.action == Intent.ACTION_SEND_MULTIPLE
+    val found: List<Uri> = if (Build.VERSION.SDK_INT >= 33) {
+      if (many) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java) ?: emptyList()
+      else listOfNotNull(intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java))
+    } else {
+      if (many) intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
+      else listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+    }
+    if (found.isNotEmpty()) return found
+    val clip = intent.clipData ?: return emptyList()
+    return (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
+  }
+
+  // Copies each shared file into its own batch folder in the cache (Go only sends files under
+  // the cache) and returns the paths. A file that cannot be read is counted, never dropped.
+  private fun copyShared(uris: List<Uri>): Map<String, Any> {
+    val context = appContext.reactContext!!
+    val batch = File(context.cacheDir, "share/${UUID.randomUUID()}").apply { mkdirs() }
+    val paths = ArrayList<String>()
+    var failed = 0
+    uris.forEachIndexed { index, uri ->
+      try {
+        // Only content:// is read, so a share can never point us at the app's own files.
+        if (uri.scheme != "content") throw IllegalArgumentException("Not a content URI.")
+        val shown = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+          ?.use { if (it.moveToFirst()) it.getString(0) else null }
+        // File(..).name drops any folders a display name might carry.
+        var name = File(shown ?: "shared-file-$index").name
+        if (File(batch, name).exists()) name = "$index-$name"
+        val file = File(batch, name)
+        context.contentResolver.openInputStream(uri)!!.use { input ->
+          file.outputStream().use { input.copyTo(it) }
+        }
+        paths.add(file.canonicalPath)
+      } catch (error: Exception) {
+        failed++
+      }
+    }
+    return mapOf("type" to "share", "paths" to paths, "failed" to failed)
+  }
+
+  // Handles one share intent once. Text shares have no stream and are ignored.
+  private fun handleShare(intent: Intent?) {
+    if (intent == null || intent === lastShareIntent) return
+    if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return
+    lastShareIntent = intent
+    val uris = sharedUris(intent)
+    if (uris.isEmpty()) return
+    thread(name = "tailshare-share") {
+      val share = copyShared(uris)
+      synchronized(unsentShares) {
+        if (shareListening) sendEvent("onShareEvent", share) else unsentShares.add(share)
+      }
+    }
+  }
+
   override fun definition() = ModuleDefinition {
     Name("TailshareCore")
 
-    Events("onRoomEvent", "onTransferEvent", "onChatEvent")
+    Events("onRoomEvent", "onTransferEvent", "onChatEvent", "onShareEvent")
+
+    OnCreate {
+      // ponytail: shared copies stay in the cache until the next app start. Upgrade: delete
+      // each batch once its uploads are done.
+      appContext.reactContext?.let { File(it.cacheDir, "share").deleteRecursively() }
+      handleShare(appContext.currentActivity?.intent)
+    }
+
+    // A cold start from the share sheet has no activity yet in OnCreate, so look again here.
+    OnActivityEntersForeground { handleShare(appContext.currentActivity?.intent) }
+
+    // The app was already open and the share sheet reused it.
+    OnNewIntent { intent -> handleShare(intent) }
+
+    // Started by the screen once it listens; sends any share that came in before that.
+    Function("watchShare") {
+      synchronized(unsentShares) {
+        shareListening = true
+        unsentShares.forEach { sendEvent("onShareEvent", it) }
+        unsentShares.clear()
+      }
+    }
 
     AsyncFunction("join") { code: String, name: String, promise: Promise ->
       val fresh = Tailshare.newClient(name, "", 0L)
