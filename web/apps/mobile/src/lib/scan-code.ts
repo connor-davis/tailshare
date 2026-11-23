@@ -1,3 +1,8 @@
+/** The join link for a code, like tailshare://join/7K3Q9PXM (no dash, same as the desktop). */
+export function joinLink(code: string): string {
+  return `tailshare://join/${code.replace(/-/g, "")}`
+}
+
 /** Reads a Tailshare join link or bare code, returning the canonical code or null. */
 export function scanCode(raw: string): string | null {
   const text = raw.trim()

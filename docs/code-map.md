@@ -254,7 +254,12 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Phone file transfers: turn on the queue after join, download a host file, upload a picked file, progress as JSON from `NextTransferEvent` (downloads cannot resume after an app restart) | `mobile/tailshare/transfers.go` (`EnableTransfers`, `Download`, `Upload`, `NextTransferEvent`) |
 | Phone share sheet "Send to room": manifest filters, copy shared files into the cache, `onShareEvent` | `web/apps/mobile/app.config.ts` (`intentFilters`), `modules/tailshare-core/android/.../TailshareCoreModule.kt` (`handleShare`), `modules/tailshare-core/index.ts` (`onShareEvent`) |
 | Phone chat with the host: send text, history then live messages as JSON from `NextChatEvent`, with replay flagged for notification suppression (memory only) | `mobile/tailshare/chat.go` (`SendChat`, `NextChatEvent`) |
+| Phone roster pushed as JSON from `NextRosterEvent` (first call is the current roster, then real changes only) and the in-memory room code (`RoomCode`) | `mobile/tailshare/roster.go` (`NextRosterEvent`, `RoomCode`); `mobile/tailshare/client.go` (`code` field) |
 | Offline facade tests on the local relay (join, list, bad paths, cancel) | `mobile/tailshare/client_test.go` |
+| Offline roster and room code tests on the local relay | `mobile/tailshare/roster_test.go` |
+| Phone People tab: read-only 8-seat grid that is the roster, invite block with Copy code and Copy link | `web/apps/mobile/src/screens/people.tsx` |
+| Phone roster pump (`pumpRoster`, `watchRoster`), room code getter and clipboard copy (`copyText`) | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/TailshareCoreModule.kt`; `web/apps/mobile/modules/tailshare-core/index.ts` (`onRosterEvent`, `roomCode`, `copyText`, `MAX_SEATS`) |
+| Phone `tailshare://join/<CODE>` link builder (no dash, desktop format) | `web/apps/mobile/src/lib/scan-code.ts` (`joinLink`) |
 | Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |
 | Android build, unsigned PR artifact, signing and release upload (reusable, not a required check) | `.github/workflows/android.yml`; called from `nightly.yml` and `release.yml` |
 | Expo app, version name and code from CI env, `applicationId connor.davis.tailshare` | `web/apps/mobile/app.config.ts`, `App.tsx` |

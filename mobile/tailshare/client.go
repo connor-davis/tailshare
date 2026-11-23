@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/connor-davis/tailshare/internal/platform/config"
+	"github.com/connor-davis/tailshare/internal/services/codes"
 	"github.com/connor-davis/tailshare/internal/services/peer"
 	"github.com/connor-davis/tailshare/internal/services/session"
 	"github.com/connor-davis/tailshare/internal/services/share"
@@ -43,6 +44,13 @@ type Client struct {
 	chat *chatStream
 	// chatEnded is set once NextChatEvent has reported the room closed.
 	chatEnded bool
+	// code is the canonical share code, set after a successful Join. Memory only: never
+	// log it or save it.
+	code string
+	// roster tracks what NextRosterEvent sent last; nil until the first call.
+	roster *rosterStream
+	// rosterEnded is set once NextRosterEvent has reported the room closed.
+	rosterEnded bool
 }
 
 // NewClient makes a client that shows name to the host. An empty relayMapURL
@@ -93,6 +101,11 @@ func (client *Client) Join(code string) error {
 		return withDetails(err)
 	}
 	client.session = joined
+
+	// session.Join already parsed this code, so Parse cannot fail here.
+	if parsed, err := codes.Parse(code); err == nil {
+		client.code = string(parsed)
+	}
 
 	return nil
 }
@@ -277,6 +290,8 @@ func (client *Client) Leave() error {
 	client.events, client.eventsEnded = nil, false
 	chat := client.chat
 	client.chat, client.chatEnded = nil, false
+	client.roster, client.rosterEnded = nil, false
+	client.code = ""
 	client.mu.Unlock()
 	if joined == nil {
 		return nil

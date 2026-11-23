@@ -18,6 +18,17 @@ export type SavedRoom = {
   lastOpen: number
 }
 
+/** Seats in a room, the creator included. Same as peer.MaxShareMembers in Go. */
+export const MAX_SEATS = 8
+
+/** One person in the room. The host is flagged; `you` is this phone. */
+export type RosterMember = {
+  displayName: string
+  fingerprint: string
+  host: boolean
+  you: boolean
+}
+
 type Native = {
   listSavedRooms(): string
   saveRoom(name: string, role: SavedRoom["role"]): void
@@ -25,6 +36,8 @@ type Native = {
   join(code: string, name: string): Promise<void>
   cancel(): void
   roomName(): string
+  roomCode(): string
+  copyText(text: string): void
   connected(): boolean
   listRemote(dir: string): Promise<string>
   enableTransfers(): Promise<void>
@@ -33,11 +46,12 @@ type Native = {
   leave(): Promise<void>
   sendChat(text: string): Promise<void>
   watchChat(): void
+  watchRoster(): void
   watchShare(): void
   watchOpen(): void
   requestNotifications(): Promise<unknown>
   addListener(
-    event: "onRoomEvent" | "onTransferEvent" | "onChatEvent",
+    event: "onRoomEvent" | "onTransferEvent" | "onChatEvent" | "onRosterEvent",
     listener: (event: { json: string }) => void
   ): { remove(): void }
   addListener(
@@ -96,6 +110,10 @@ export type ChatEvent =
     }
   | { type: "closed" }
 
+/** Everyone in the room, or the end of it. The first event is the current roster. */
+export type RosterEvent =
+  { type: "roster"; members: RosterMember[] } | { type: "closed" }
+
 const native = requireNativeModule<Native>("TailshareCore")
 
 /** The Go core: join by code, then list the host's shared folder. */
@@ -114,6 +132,10 @@ export const core = {
   cancel: () => native.cancel(),
   /** The host's name for the room. */
   roomName: () => native.roomName(),
+  /** The share code like 7K3Q9PXM, or empty when not connected. Never log or store it. */
+  roomCode: () => native.roomCode(),
+  /** Puts text on the clipboard. */
+  copyText: (text: string) => native.copyText(text),
   /** False once the host closes the room. */
   connected: () => native.connected(),
   /** Lists one host folder; an empty path is the shared folder. */
@@ -164,6 +186,20 @@ export const core = {
     })
     // Listen first, then start the pump, so the history replay reaches this handler.
     native.watchChat()
+
+    return () => subscription.remove()
+  },
+  /** Calls handler with the roster now and after each change; the returned function unsubscribes. */
+  onRosterEvent(handler: (event: RosterEvent) => void): () => void {
+    const subscription = native.addListener("onRosterEvent", ({ json }) => {
+      try {
+        handler(JSON.parse(json) as RosterEvent)
+      } catch {
+        // A malformed event is ignored; the next one still arrives.
+      }
+    })
+    // Listen first, then start the pump, so the first roster reaches this handler.
+    native.watchRoster()
 
     return () => subscription.remove()
   },

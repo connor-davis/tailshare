@@ -10,6 +10,7 @@ import {
 import {
   core,
   type RemoteEntry,
+  type RosterMember,
   type SavedRoom,
 } from "./modules/tailshare-core"
 import { HomeTopBar } from "./src/components/hero"
@@ -51,6 +52,9 @@ export default function App() {
   const [error, setError] = useState(startupRooms.error)
   const [transfers, setTransfers] = useState<Record<string, Transfer>>({})
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [roster, setRoster] = useState<RosterMember[]>([])
+  // From the Go core after a join, held in memory only. Never log or store it.
+  const [roomCode, setRoomCode] = useState("")
 
   const reloadRooms = useCallback(() => {
     try {
@@ -106,6 +110,8 @@ export default function App() {
     setCode("")
     setTransfers({})
     setMessages([])
+    setRoster([])
+    setRoomCode("")
   }, [setPending])
 
   // The share sheet: send now when a room is open, otherwise hold the files for the next join.
@@ -189,6 +195,14 @@ export default function App() {
     })
   }, [room])
 
+  // The room event effect already resets on close, so a roster "closed" is ignored here.
+  useEffect(() => {
+    if (room === null) return
+    return core.onRosterEvent((event) => {
+      if (event.type === "roster") setRoster(event.members)
+    })
+  }, [room])
+
   const fail = (failure: unknown) =>
     setError(failure instanceof Error ? failure.message : String(failure))
 
@@ -241,6 +255,7 @@ export default function App() {
       await core.join(scanCode(roomCode) ?? roomCode, strings.phoneName)
       const joinedRoom = core.roomName()
       setRoom(joinedRoom)
+      setRoomCode(core.roomCode())
       void core.requestNotifications().catch(() => {})
       await core.enableTransfers()
       await open("")
@@ -320,6 +335,9 @@ export default function App() {
           onSend={send}
           messages={messages}
           onSendChat={sendChat}
+          roster={roster}
+          roomCode={roomCode}
+          onCopy={core.copyText}
         />
       ) : (
         <HomeScreen
@@ -331,6 +349,7 @@ export default function App() {
           joining={joining}
           error={error}
           waitingFiles={pendingShare.length}
+          seats={roster.length}
           onClearShare={() => setPending([])}
           onCodeChange={setCode}
           onJoin={() => void join()}
