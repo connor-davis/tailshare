@@ -21,8 +21,10 @@ type Native = {
   download(remote: string): Promise<string>
   upload(localPath: string, remoteDir: string): Promise<string>
   leave(): Promise<void>
+  sendChat(text: string): Promise<void>
+  watchChat(): void
   addListener(
-    event: "onRoomEvent" | "onTransferEvent",
+    event: "onRoomEvent" | "onTransferEvent" | "onChatEvent",
     listener: (event: { json: string }) => void
   ): { remove(): void }
 }
@@ -49,6 +51,20 @@ export type TransferEvent =
       size: number
       reason: string
       saved?: string
+    }
+  | { type: "closed" }
+
+/** One chat line. History replays after a re-subscribe, so dedupe by `id`. `fileName` is set for a file message. */
+export type ChatEvent =
+  | {
+      type: "chat"
+      id: string
+      from: string
+      fromName: string
+      text: string
+      sentAt: string
+      mine: boolean
+      fileName?: string
     }
   | { type: "closed" }
 
@@ -96,6 +112,22 @@ export const core = {
         // A malformed event is ignored; the next one still arrives.
       }
     })
+
+    return () => subscription.remove()
+  },
+  /** Sends one text message to the host; rejects with a plain sentence. */
+  sendChat: (text: string) => native.sendChat(text),
+  /** Calls handler for each chat message, history first; the returned function unsubscribes. */
+  onChatEvent(handler: (event: ChatEvent) => void): () => void {
+    const subscription = native.addListener("onChatEvent", ({ json }) => {
+      try {
+        handler(JSON.parse(json) as ChatEvent)
+      } catch {
+        // A malformed event is ignored; the next one still arrives.
+      }
+    })
+    // Listen first, then start the pump, so the history replay reaches this handler.
+    native.watchChat()
 
     return () => subscription.remove()
   },

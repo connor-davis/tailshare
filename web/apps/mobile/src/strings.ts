@@ -34,4 +34,10 @@ export const strings = {
   savedTo: "Saved to Downloads as",
   sent: "Sent",
   failed: "Failed",
+  noMessages: "No messages yet. Say hello.",
+  messages: "Messages",
+  messageLabel: "Message",
+  messagePlaceholder: "Type a message",
+  sendMessage: "Send",
+  you: "You",
 } as const
