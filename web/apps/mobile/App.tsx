@@ -7,7 +7,11 @@ import {
   useColorScheme,
 } from "react-native"
 
-import { core, type RemoteEntry } from "./modules/tailshare-core"
+import {
+  core,
+  type RemoteEntry,
+  type SavedRoom,
+} from "./modules/tailshare-core"
 import { HomeTopBar } from "./src/components/hero"
 import { scanCode } from "./src/lib/scan-code"
 import type { RoomTab } from "./src/components/tab-bar"
@@ -29,12 +33,41 @@ export default function App() {
   const [joining, setJoining] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [room, setRoom] = useState<string | null>(null)
+  // Preferences are synchronous, so load once without an extra effect-driven render.
+  const [startupRooms] = useState(() => {
+    try {
+      return { rooms: core.listSavedRooms(), error: "" }
+    } catch (failure) {
+      return {
+        rooms: [] as SavedRoom[],
+        error: failure instanceof Error ? failure.message : String(failure),
+      }
+    }
+  })
+  const [savedRooms, setSavedRooms] = useState(startupRooms.rooms)
   const [path, setPath] = useState("")
   const [entries, setEntries] = useState<RemoteEntry[]>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState(startupRooms.error)
   const [transfers, setTransfers] = useState<Record<string, Transfer>>({})
   const [messages, setMessages] = useState<ChatMessage[]>([])
+
+  const reloadRooms = useCallback(() => {
+    try {
+      setSavedRooms(core.listSavedRooms())
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure))
+    }
+  }, [])
+
+  const rememberRoom = useCallback((name: string) => {
+    try {
+      core.saveRoom(name, "joined")
+      setSavedRooms(core.listSavedRooms())
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure))
+    }
+  }, [])
 
   // Files shared from the share sheet while no room is open. The ref is what join reads, so a
   // share that lands mid-join is never missed; the state is only for the Home line.
@@ -60,7 +93,7 @@ export default function App() {
     }
   }, [])
 
-  // Back to an empty Home, after Leave or when the host ends the room.
+  // Back to Home, after Leave or when the host ends the room.
   const reset = useCallback(() => {
     readyRef.current = false
     setPending([])
@@ -126,10 +159,12 @@ export default function App() {
         void open(path)
       } else {
         // Native cleanup also runs in the background, before this event reaches the screen.
+        const wasOpen = readyRef.current
         reset()
+        if (wasOpen) rememberRoom(room)
       }
     })
-  }, [room, path, open, reset])
+  }, [room, path, open, reset, rememberRoom])
 
   // Progress from the Go core, pushed as it happens.
   useEffect(() => {
@@ -199,14 +234,23 @@ export default function App() {
     setError("")
     setJoining(true)
     try {
+      // Joining another room replaces the connection, so finish the old room's history first.
+      if (room !== null) await leave()
+
       // A pasted tailshare:// link works too; anything else goes through as typed.
       await core.join(scanCode(roomCode) ?? roomCode, strings.phoneName)
-      setRoom(core.roomName())
+      const joinedRoom = core.roomName()
+      setRoom(joinedRoom)
       void core.requestNotifications().catch(() => {})
       await core.enableTransfers()
       await open("")
+      if (!core.connected()) throw new Error(strings.roomEnded)
+
       readyRef.current = true
       setInRoom(true)
+      setCode("")
+      rememberRoom(joinedRoom)
+
       // Join opens the shared folder root, so held files go there.
       const held = pendingRef.current
       setPending([])
@@ -220,7 +264,18 @@ export default function App() {
 
   const leave = async () => {
     await core.leave()
+    const wasOpen = readyRef.current
     reset()
+    if (room !== null && wasOpen) rememberRoom(room)
+  }
+
+  const forgetRoom = (name: string) => {
+    try {
+      core.forgetRoom(name)
+      reloadRooms()
+    } catch (failure) {
+      fail(failure)
+    }
   }
 
   if (scanning) {
@@ -270,6 +325,8 @@ export default function App() {
         <HomeScreen
           theme={theme}
           room={room}
+          savedRooms={savedRooms}
+          onForgetRoom={forgetRoom}
           code={code}
           joining={joining}
           error={error}

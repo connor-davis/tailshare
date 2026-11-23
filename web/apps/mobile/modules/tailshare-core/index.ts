@@ -11,7 +11,17 @@ export type RemoteEntry = {
 /** One page of a host folder, as the Go core sends it. */
 export type RemoteList = { entries: RemoteEntry[]; total: number }
 
+/** A remembered room name and last-open time in epoch milliseconds; never a share code. */
+export type SavedRoom = {
+  name: string
+  role: "host" | "joined"
+  lastOpen: number
+}
+
 type Native = {
+  listSavedRooms(): string
+  saveRoom(name: string, role: SavedRoom["role"]): void
+  forgetRoom(name: string): void
   join(code: string, name: string): Promise<void>
   cancel(): void
   roomName(): string
@@ -90,6 +100,14 @@ const native = requireNativeModule<Native>("TailshareCore")
 
 /** The Go core: join by code, then list the host's shared folder. */
 export const core = {
+  /** Lists remembered rooms, newest first; connection status is never persisted. */
+  listSavedRooms: (): SavedRoom[] =>
+    JSON.parse(native.listSavedRooms()) as SavedRoom[],
+  /** Remembers a room or updates its last-open time without retaining its code. */
+  saveRoom: (name: string, role: SavedRoom["role"]) =>
+    native.saveRoom(name, role),
+  /** Removes a remembered room by name without changing the current connection. */
+  forgetRoom: (name: string) => native.forgetRoom(name),
   /** Connects and waits for the host to approve on the desktop. */
   join: (code: string, name: string) => native.join(code, name),
   /** Stops a join that is still waiting. */
