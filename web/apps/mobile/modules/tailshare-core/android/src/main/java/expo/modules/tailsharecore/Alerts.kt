@@ -95,7 +95,7 @@ internal class Alerts(private val context: Context) {
     fun builder(context: Context, channel: String): Notification.Builder {
       val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, channel)
         else Notification.Builder(context).setPriority(if (channel == "room") Notification.PRIORITY_LOW else Notification.PRIORITY_DEFAULT)
-      return builder.setSmallIcon(android.R.drawable.stat_sys_upload)
+      return builder.setSmallIcon(R.drawable.tailshare_notification)
         .setVisibility(Notification.VISIBILITY_PRIVATE)
     }
 
