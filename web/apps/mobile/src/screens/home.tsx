@@ -207,14 +207,8 @@ export function HomeScreen(props: {
             <Text style={[styles.heading, { color: theme.text }]}>
               {strings.noRooms}
             </Text>
+            {/* No buttons here: the hero and the join card above already offer Join and Scan QR. */}
             <Text style={{ color: theme.muted }}>{strings.noRoomsHint}</Text>
-            <Button theme={theme} label={strings.join} onPress={focusJoin} />
-            <Button
-              theme={theme}
-              label={strings.scanQr}
-              onPress={props.onScan}
-              quiet
-            />
           </View>
         )}
         {props.savedRooms.length > 0 && rooms.length === 0 ? (
