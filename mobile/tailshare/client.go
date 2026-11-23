@@ -39,6 +39,10 @@ type Client struct {
 	eventsEnded bool
 	// transfers is nil until EnableTransfers.
 	transfers *transfers
+	// chat is the one subscription NextChatEvent reads; nil until the first call.
+	chat *chatStream
+	// chatEnded is set once NextChatEvent has reported the room closed.
+	chatEnded bool
 }
 
 // NewClient makes a client that shows name to the host. An empty relayMapURL
@@ -271,12 +275,17 @@ func (client *Client) Leave() error {
 	client.session = nil
 	events := client.events
 	client.events, client.eventsEnded = nil, false
+	chat := client.chat
+	client.chat, client.chatEnded = nil, false
 	client.mu.Unlock()
 	if joined == nil {
 		return nil
 	}
 	if events != nil {
 		events.Close()
+	}
+	if chat != nil {
+		chat.subscription.Close()
 	}
 	client.closeTransfers()
 

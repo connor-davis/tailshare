@@ -5,6 +5,7 @@ import { Button } from "../components/button"
 import { TabBar, type RoomTab } from "../components/tab-bar"
 import { strings } from "../strings"
 import type { Theme } from "../theme"
+import { ChatScreen, type ChatMessage } from "./chat"
 import { FilesScreen } from "./files"
 import { TransfersScreen, type Transfer } from "./transfers"
 
@@ -24,6 +25,8 @@ export function RoomScreen(props: {
   onOpen: (path: string) => void
   onDownload: (entry: RemoteEntry) => void
   onSend: () => void
+  messages: ChatMessage[]
+  onSendChat: (text: string) => Promise<boolean>
 }) {
   const { theme, room, tab } = props
 
@@ -78,6 +81,12 @@ export function RoomScreen(props: {
           />
         ) : tab === "transfers" ? (
           <TransfersScreen theme={theme} transfers={props.transfers} />
+        ) : tab === "chat" ? (
+          <ChatScreen
+            theme={theme}
+            messages={props.messages}
+            onSend={props.onSendChat}
+          />
         ) : (
           <Text style={{ color: theme.muted }}>{strings.desktopOnly}</Text>
         )}

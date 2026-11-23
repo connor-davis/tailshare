@@ -251,6 +251,7 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | --- | --- |
 | gomobile facade: join by code, wait for host approval, list the host's shared folder as JSON, leave (every path through `share.Localize` and `peer.List`) | `mobile/tailshare/client.go` (`Client`, `NewClient`) |
 | Phone file transfers: turn on the queue after join, download a host file, upload a picked file, progress as JSON from `NextTransferEvent` (downloads cannot resume after an app restart) | `mobile/tailshare/transfers.go` (`EnableTransfers`, `Download`, `Upload`, `NextTransferEvent`) |
+| Phone chat with the host: send text, history then live messages as JSON from `NextChatEvent` (memory only) | `mobile/tailshare/chat.go` (`SendChat`, `NextChatEvent`) |
 | Offline facade tests on the local relay (join, list, bad paths, cancel) | `mobile/tailshare/client_test.go` |
 | Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |
 | Android build, unsigned PR artifact, signing and release upload (reusable, not a required check) | `.github/workflows/android.yml`; called from `nightly.yml` and `release.yml` |
@@ -260,6 +261,7 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Phone room header and five-tab content composition | `web/apps/mobile/src/screens/room.tsx` |
 | Phone host folder browser and file actions | `web/apps/mobile/src/screens/files.tsx` |
 | Phone transfer sentences, progress and queue list | `web/apps/mobile/src/screens/transfers.tsx` |
+| Phone chat message list and text box | `web/apps/mobile/src/screens/chat.tsx` |
 | Phone accessible actions and five-tab navigation | `web/apps/mobile/src/components/button.tsx`, `src/components/tab-bar.tsx` |
 | Phone strings (one catalog) and Polyphron light/dark colours | `web/apps/mobile/src/strings.ts`, `src/theme.ts` |
 | JS side and Kotlin bridge to the Go library | `web/apps/mobile/modules/tailshare-core/` (`index.ts`, `android/.../TailshareCoreModule.kt`) |

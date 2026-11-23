@@ -16,6 +16,8 @@ import kotlin.concurrent.thread
 class TailshareCoreModule : Module() {
   private var client: Client? = null
   private var downloadsDir: File? = null
+  // The client whose chat pump runs, so a second watchChat does not start another.
+  private var chatPumped: Client? = null
 
   // Finished downloads already copied out, by transfer id, so a replayed event copies once.
   private val saved = HashMap<String, String>()
@@ -40,7 +42,22 @@ class TailshareCoreModule : Module() {
         while (true) {
           val json = current.nextEvent()
           sendEvent("onRoomEvent", mapOf("json" to json))
-          if (json.contains("\"closed\"")) break
+          if (JSONObject(json).optString("type") == "closed") break
+        }
+      } catch (error: Exception) {
+        // The core returns an error once the room is gone; that ends the loop.
+      }
+    }
+  }
+
+  // Same loop again for chat. The type field decides "closed", never the text of a message.
+  private fun pumpChat(current: Client) {
+    thread(name = "tailshare-chat") {
+      try {
+        while (true) {
+          val json = current.nextChatEvent()
+          sendEvent("onChatEvent", mapOf("json" to json))
+          if (JSONObject(json).optString("type") == "closed") break
         }
       } catch (error: Exception) {
         // The core returns an error once the room is gone; that ends the loop.
@@ -94,7 +111,7 @@ class TailshareCoreModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("TailshareCore")
 
-    Events("onRoomEvent", "onTransferEvent")
+    Events("onRoomEvent", "onTransferEvent", "onChatEvent")
 
     AsyncFunction("join") { code: String, name: String, promise: Promise ->
       val fresh = Tailshare.newClient(name, "", 0L)
@@ -102,6 +119,24 @@ class TailshareCoreModule : Module() {
       background(promise, "ERR_JOIN") {
         fresh.join(code)
         pumpEvents(fresh)
+      }
+    }
+
+    // Started by the screen once it listens, so the history replay is not sent to nobody.
+    Function("watchChat") {
+      val current = client
+      if (current != null && chatPumped !== current) {
+        chatPumped = current
+        pumpChat(current)
+      }
+    }
+
+    AsyncFunction("sendChat") { text: String, promise: Promise ->
+      val current = client
+      if (current == null) {
+        promise.reject("ERR_CHAT", "This phone is not connected.", null)
+      } else {
+        background(promise, "ERR_CHAT") { current.sendChat(text) }
       }
     }
 

@@ -4,6 +4,7 @@ import { StatusBar, StyleSheet, Text, View } from "react-native"
 
 import { core, type RemoteEntry } from "./modules/tailshare-core"
 import type { RoomTab } from "./src/components/tab-bar"
+import type { ChatMessage } from "./src/screens/chat"
 import { HomeScreen } from "./src/screens/home"
 import { RoomScreen } from "./src/screens/room"
 import type { Transfer } from "./src/screens/transfers"
@@ -23,6 +24,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [transfers, setTransfers] = useState<Record<string, Transfer>>({})
+  const [messages, setMessages] = useState<ChatMessage[]>([])
 
   // Back to an empty Home, after Leave or when the host ends the room.
   const reset = useCallback(() => {
@@ -34,6 +36,7 @@ export default function App() {
     setPath("")
     setCode("")
     setTransfers({})
+    setMessages([])
   }, [])
 
   const open = useCallback(async (dir: string) => {
@@ -74,6 +77,19 @@ export default function App() {
     })
   }, [room])
 
+  // History replays after a re-subscribe, so a known id is skipped. Same 200 cap as the Go side.
+  useEffect(() => {
+    if (room === null) return
+    return core.onChatEvent((event) => {
+      if (event.type !== "chat") return
+      setMessages((current) =>
+        current.some((message) => message.id === event.id)
+          ? current
+          : [...current, event].slice(-200)
+      )
+    })
+  }, [room])
+
   const fail = (failure: unknown) =>
     setError(failure instanceof Error ? failure.message : String(failure))
 
@@ -81,6 +97,18 @@ export default function App() {
     core
       .download(path === "" ? entry.name : `${path}/${entry.name}`)
       .catch(fail)
+
+  const sendChat = (text: string) =>
+    core.sendChat(text).then(
+      () => {
+        setError("")
+        return true
+      },
+      (failure: unknown) => {
+        fail(failure)
+        return false
+      }
+    )
 
   const send = async () => {
     try {
@@ -158,6 +186,8 @@ export default function App() {
           onOpen={open}
           onDownload={download}
           onSend={send}
+          messages={messages}
+          onSendChat={sendChat}
         />
       ) : (
         <HomeScreen
