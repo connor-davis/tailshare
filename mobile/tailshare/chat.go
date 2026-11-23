@@ -22,6 +22,8 @@ type chatEvent struct {
 	Text     string `json:"text"`
 	SentAt   string `json:"sentAt"`
 	Mine     bool   `json:"mine"`
+	// History marks snapshot replay so native notifications only show live messages.
+	History  bool   `json:"history"`
 	FileName string `json:"fileName,omitempty"`
 }
 
@@ -72,7 +74,7 @@ func (client *Client) SendChat(text string) error {
 
 // NextChatEvent blocks until there is a chat message to show and returns it as JSON:
 // {"type":"chat","id","from","fromName","text","sentAt","mine","fileName"?}. The first
-// calls replay the history, one message each; then every new message follows.
+// calls replay the history, one message each, with history:true; live messages have history:false.
 // {"type":"closed"} comes once when the room ends, then an error. After a re-subscribe
 // the history replays again, so the screen must ignore ids it already has. Leave makes a
 // blocked call return.
@@ -106,13 +108,13 @@ func (client *Client) NextChatEvent() (string, error) {
 			stream.pending = stream.pending[1:]
 			client.mu.Unlock()
 
-			return client.encodeChat(joined, next), nil
+			return client.encodeChat(joined, next, true), nil
 		}
 		client.mu.Unlock()
 
 		for event := range stream.subscription.Events {
 			if event.Kind == peer.EventChat && event.Chat != nil {
-				return client.encodeChat(joined, *event.Chat), nil
+				return client.encodeChat(joined, *event.Chat, false), nil
 			}
 		}
 
@@ -137,13 +139,14 @@ func (client *Client) NextChatEvent() (string, error) {
 }
 
 // encodeChat turns one message into the screen's JSON.
-func (client *Client) encodeChat(joined *session.Session, message peer.ChatMessage) string {
+func (client *Client) encodeChat(joined *session.Session, message peer.ChatMessage, history bool) string {
 	event := chatEvent{
-		Type:   "chat",
-		ID:     message.ID,
-		Text:   message.Text,
-		SentAt: message.Time.Format(time.RFC3339),
-		Mine:   !message.FromPeer,
+		Type:    "chat",
+		History: history,
+		ID:      message.ID,
+		Text:    message.Text,
+		SentAt:  message.Time.Format(time.RFC3339),
+		Mine:    !message.FromPeer,
 	}
 	if message.Attachment != nil {
 		event.FileName = message.Attachment.Name

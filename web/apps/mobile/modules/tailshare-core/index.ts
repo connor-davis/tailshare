@@ -24,9 +24,15 @@ type Native = {
   sendChat(text: string): Promise<void>
   watchChat(): void
   watchShare(): void
+  watchOpen(): void
+  requestNotifications(): Promise<unknown>
   addListener(
     event: "onRoomEvent" | "onTransferEvent" | "onChatEvent",
     listener: (event: { json: string }) => void
+  ): { remove(): void }
+  addListener(
+    event: "onOpenEvent",
+    listener: (event: OpenEvent) => void
   ): { remove(): void }
   addListener(
     event: "onShareEvent",
@@ -36,6 +42,9 @@ type Native = {
 
 /** Files shared to Tailshare from the Android share sheet, already copied into the app cache. `failed` counts files that could not be read. */
 export type ShareEvent = { type: "share"; paths: string[]; failed: number }
+
+/** A notification destination; a room tab is used only while connected. */
+export type OpenEvent = { tab: "chat" | "transfers" | "home" }
 
 /** Something the host did that the screen should show. */
 export type RoomEvent = { type: "files.changed" } | { type: "closed" }
@@ -72,6 +81,7 @@ export type ChatEvent =
       text: string
       sentAt: string
       mine: boolean
+      history: boolean
       fileName?: string
     }
   | { type: "closed" }
@@ -144,6 +154,15 @@ export const core = {
     const subscription = native.addListener("onShareEvent", handler)
     // Listen first, then flush, so a cold-start share reaches this handler.
     native.watchShare()
+
+    return () => subscription.remove()
+  },
+  /** Asks once for Android notification permission after a successful join. */
+  requestNotifications: () => native.requestNotifications(),
+  /** Delivers notification taps, including a tap that launched the app. */
+  onOpenEvent(handler: (event: OpenEvent) => void): () => void {
+    const subscription = native.addListener("onOpenEvent", handler)
+    native.watchOpen()
 
     return () => subscription.remove()
   },
