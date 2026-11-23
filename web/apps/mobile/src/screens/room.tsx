@@ -1,13 +1,15 @@
-import { StyleSheet, Text, View } from "react-native"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 
 import type { RemoteEntry } from "../../modules/tailshare-core"
-import { Button } from "../components/button"
+import { Alert } from "../components/alert"
+import { GlyphButton, TopBar } from "../components/hero"
 import { TabBar, type RoomTab } from "../components/tab-bar"
+import { useKeyboardOpen } from "../lib/use-keyboard"
 import { strings } from "../strings"
 import type { Theme } from "../theme"
 import { ChatScreen, type ChatMessage } from "./chat"
 import { FilesScreen } from "./files"
-import { TransfersScreen, type Transfer } from "./transfers"
+import { countTransfers, TransfersScreen, type Transfer } from "./transfers"
 
 /** A connected room with five local-state tabs and an explicit way back Home. */
 export function RoomScreen(props: {
@@ -21,6 +23,7 @@ export function RoomScreen(props: {
   transfers: Transfer[]
   onTab: (tab: RoomTab) => void
   onHome: () => void
+  onDismissError: () => void
   onLeave: () => void
   onOpen: (path: string) => void
   onDownload: (entry: RemoteEntry) => void
@@ -29,34 +32,41 @@ export function RoomScreen(props: {
   onSendChat: (text: string) => Promise<boolean>
 }) {
   const { theme, room, tab } = props
+  const keyboardOpen = useKeyboardOpen()
+  const activeTransfers = countTransfers(props.transfers).active
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { backgroundColor: theme.chrome }]}>
+      <TopBar theme={theme}>
+        <GlyphButton
+          theme={theme}
+          glyph="←"
+          label={strings.backHome}
+          onPress={props.onHome}
+        />
         <Text
           accessibilityRole="header"
-          style={[styles.title, { color: theme.chromeText }]}
+          numberOfLines={1}
+          style={[styles.title, { color: theme.text }]}
         >
           {room}
         </Text>
-        <Text style={{ color: theme.chromeMuted }}>{strings.connected}</Text>
-        <View style={styles.actions}>
-          <Button
-            theme={theme}
-            label={strings.home}
-            onPress={props.onHome}
-            quiet
-            chrome
-          />
-          <Button
-            theme={theme}
-            label={strings.leave}
-            onPress={props.onLeave}
-            quiet
-            chrome
-          />
+        <View style={[styles.pill, { borderColor: theme.link }]}>
+          <Text style={[styles.pillText, { color: theme.link }]}>
+            {strings.connected}
+          </Text>
         </View>
-      </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={strings.leave}
+          onPress={props.onLeave}
+          style={styles.leave}
+        >
+          <Text style={[styles.leaveText, { color: theme.error }]}>
+            {strings.leave}
+          </Text>
+        </Pressable>
+      </TopBar>
       <View style={styles.body}>
         <Text
           accessibilityRole="header"
@@ -65,12 +75,15 @@ export function RoomScreen(props: {
           {strings[tab]}
         </Text>
         {props.error !== "" ? (
-          <Text accessibilityRole="alert" style={{ color: theme.error }}>
-            {props.error}
-          </Text>
+          <Alert
+            theme={theme}
+            message={props.error}
+            onDismiss={props.onDismissError}
+          />
         ) : null}
         {tab === "files" ? (
           <FilesScreen
+            key={props.path}
             theme={theme}
             path={props.path}
             entries={props.entries}
@@ -91,16 +104,30 @@ export function RoomScreen(props: {
           <Text style={{ color: theme.muted }}>{strings.desktopOnly}</Text>
         )}
       </View>
-      <TabBar theme={theme} active={tab} onSelect={props.onTab} />
+      {keyboardOpen ? null : (
+        <TabBar
+          theme={theme}
+          active={tab}
+          onSelect={props.onTab}
+          transferCount={activeTransfers}
+        />
+      )}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { padding: 16, paddingTop: 0, gap: 8 },
-  title: { fontSize: 20, fontWeight: "600" },
-  actions: { flexDirection: "row", gap: 12, marginTop: 8 },
+  title: { flex: 1, fontSize: 17, fontWeight: "700" },
+  pill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+  },
+  pillText: { fontSize: 12, fontWeight: "700" },
+  leave: { minHeight: 48, justifyContent: "center", paddingHorizontal: 4 },
+  leaveText: { fontSize: 14, fontWeight: "700" },
   body: { flex: 1, padding: 16, gap: 16 },
   heading: { fontSize: 20, fontWeight: "600" },
 })

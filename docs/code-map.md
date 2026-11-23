@@ -270,6 +270,10 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Phone transfer sentences, progress and queue list | `web/apps/mobile/src/screens/transfers.tsx` |
 | Phone chat message list and text box | `web/apps/mobile/src/screens/chat.tsx` |
 | Phone accessible actions and five-tab navigation | `web/apps/mobile/src/components/button.tsx`, `src/components/tab-bar.tsx` |
+| Phone hero, hazard stripe, Home top bar and shared top bar | `web/apps/mobile/src/components/hero.tsx` |
+| Phone dismissable alert banner | `web/apps/mobile/src/components/alert.tsx` |
+| Phone readable file sizes (`3.2 MB`) | `web/apps/mobile/src/lib/format.ts` |
+| Phone keyboard-open flag (hides the tab bar so the chat box sits on the keyboard) | `web/apps/mobile/src/lib/use-keyboard.ts` |
 | Phone strings (one catalog) and Polyphron light/dark colours | `web/apps/mobile/src/strings.ts`, `src/theme.ts` |
 | JS side and Kotlin bridge to the Go library | `web/apps/mobile/modules/tailshare-core/` (`index.ts`, `android/.../TailshareCoreModule.kt`) |
 

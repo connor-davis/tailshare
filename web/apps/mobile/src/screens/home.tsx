@@ -1,3 +1,4 @@
+import { useRef, type ComponentRef } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -8,7 +9,9 @@ import {
   View,
 } from "react-native"
 
+import { Alert } from "../components/alert"
 import { Button } from "../components/button"
+import { Hero } from "../components/hero"
 import { strings } from "../strings"
 import type { Theme } from "../theme"
 
@@ -25,15 +28,27 @@ export function HomeScreen(props: {
   onJoin: () => void
   onScan: () => void
   onCancel: () => void
+  onDismissError: () => void
   onOpenRoom: () => void
 }) {
   const { theme, room, code, joining, error } = props
+  const input = useRef<ComponentRef<typeof TextInput>>(null)
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null)
+  const cardTop = useRef(0)
 
   return (
     <ScrollView
+      ref={scroll}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      <Hero
+        theme={theme}
+        showActions={room === null && !joining}
+        onJoin={() => input.current?.focus()}
+        onScan={props.onScan}
+      />
+      <View style={styles.gap} />
       {props.waitingFiles > 0 ? (
         <View
           style={[
@@ -57,6 +72,9 @@ export function HomeScreen(props: {
       ) : null}
       {room === null ? (
         <View
+          onLayout={(event) => {
+            cardTop.current = event.nativeEvent.layout.y
+          }}
           style={[
             styles.card,
             { backgroundColor: theme.surface, borderColor: theme.border },
@@ -68,8 +86,15 @@ export function HomeScreen(props: {
           >
             {strings.joinTitle}
           </Text>
-          <Text style={{ color: theme.muted }}>{strings.codeHint}</Text>
+          <Text style={[styles.label, { color: theme.text }]}>
+            {strings.codeLabel}
+          </Text>
           <TextInput
+            ref={input}
+            // Bring the card to the top so the keyboard never covers the box.
+            onFocus={() =>
+              scroll.current?.scrollTo({ y: cardTop.current, animated: true })
+            }
             accessibilityLabel={strings.codeLabel}
             autoCapitalize="characters"
             autoCorrect={false}
@@ -87,6 +112,7 @@ export function HomeScreen(props: {
             ]}
             value={code}
           />
+          <Text style={{ color: theme.muted }}>{strings.codeHint}</Text>
           {joining ? (
             <View style={styles.waiting}>
               <ActivityIndicator
@@ -107,18 +133,12 @@ export function HomeScreen(props: {
             onPress={joining ? props.onCancel : props.onJoin}
             quiet={joining}
           />
-          {!joining ? (
-            <Button
-              theme={theme}
-              label={strings.scanQr}
-              onPress={props.onScan}
-              quiet
-            />
-          ) : null}
           {error !== "" ? (
-            <Text accessibilityRole="alert" style={{ color: theme.error }}>
-              {error}
-            </Text>
+            <Alert
+              theme={theme}
+              message={error}
+              onDismiss={props.onDismissError}
+            />
           ) : null}
         </View>
       ) : (
@@ -153,9 +173,11 @@ export function HomeScreen(props: {
             </View>
           </Pressable>
           {error !== "" ? (
-            <Text accessibilityRole="alert" style={{ color: theme.error }}>
-              {error}
-            </Text>
+            <Alert
+              theme={theme}
+              message={error}
+              onDismiss={props.onDismissError}
+            />
           ) : null}
         </View>
       )}
@@ -167,6 +189,8 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 48 },
   card: { borderWidth: 1, borderRadius: 8, padding: 16, gap: 16 },
   shareCard: { marginBottom: 16 },
+  gap: { height: 16 },
+  label: { fontSize: 14, fontWeight: "600" },
   heading: { fontSize: 20, fontWeight: "600" },
   input: {
     borderWidth: 1,

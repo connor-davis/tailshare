@@ -1,8 +1,15 @@
 import * as DocumentPicker from "expo-document-picker"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { StatusBar, StyleSheet, Text, View } from "react-native"
+import {
+  KeyboardAvoidingView,
+  StatusBar,
+  StyleSheet,
+  useColorScheme,
+} from "react-native"
 
 import { core, type RemoteEntry } from "./modules/tailshare-core"
+import { HomeTopBar } from "./src/components/hero"
+import { scanCode } from "./src/lib/scan-code"
 import type { RoomTab } from "./src/components/tab-bar"
 import type { ChatMessage } from "./src/screens/chat"
 import { HomeScreen } from "./src/screens/home"
@@ -15,6 +22,7 @@ import { useTheme } from "./src/theme"
 /** Owns the single native connection, pushed events and local phone navigation. */
 export default function App() {
   const theme = useTheme()
+  const scheme = useColorScheme()
   const [inRoom, setInRoom] = useState(false)
   const [tab, setTab] = useState<RoomTab>("files")
   const [code, setCode] = useState("")
@@ -170,13 +178,14 @@ export default function App() {
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
+        multiple: true,
       })
       if (picked.canceled) return
-      // The picker hands back a file:// URI in the app cache; Go wants the plain path.
-      const local = decodeURIComponent(
-        picked.assets[0].uri.replace(/^file:\/\//, "")
+      // The picker hands back file:// URIs in the app cache; Go wants plain paths.
+      const locals = picked.assets.map((asset) =>
+        decodeURIComponent(asset.uri.replace(/^file:\/\//, ""))
       )
-      await core.upload(local, path)
+      await uploadAll(locals, path)
     } catch (failure) {
       fail(failure)
     }
@@ -190,7 +199,8 @@ export default function App() {
     setError("")
     setJoining(true)
     try {
-      await core.join(roomCode, strings.phoneName)
+      // A pasted tailshare:// link works too; anything else goes through as typed.
+      await core.join(scanCode(roomCode) ?? roomCode, strings.phoneName)
       setRoom(core.roomName())
       void core.requestNotifications().catch(() => {})
       await core.enableTransfers()
@@ -228,24 +238,14 @@ export default function App() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle="light-content" />
-      <View
-        style={[
-          styles.hero,
-          {
-            backgroundColor: theme.chrome,
-            paddingTop: (StatusBar.currentHeight ?? 0) + 16,
-          },
-        ]}
-      >
-        <Text
-          accessibilityRole="header"
-          style={[styles.title, { color: theme.chromeText }]}
-        >
-          {strings.title}
-        </Text>
-      </View>
+    <KeyboardAvoidingView
+      behavior="padding"
+      style={[styles.screen, { backgroundColor: theme.background }]}
+    >
+      <StatusBar
+        barStyle={scheme === "light" ? "dark-content" : "light-content"}
+      />
+      {room !== null && inRoom ? null : <HomeTopBar theme={theme} />}
       {room !== null && inRoom ? (
         <RoomScreen
           theme={theme}
@@ -258,6 +258,7 @@ export default function App() {
           transfers={Object.values(transfers)}
           onTab={setTab}
           onHome={() => setInRoom(false)}
+          onDismissError={() => setError("")}
           onLeave={() => void leave().catch(fail)}
           onOpen={open}
           onDownload={download}
@@ -278,15 +279,14 @@ export default function App() {
           onJoin={() => void join()}
           onScan={() => setScanning(true)}
           onCancel={() => core.cancel()}
+          onDismissError={() => setError("")}
           onOpenRoom={() => setInRoom(true)}
         />
       )}
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  hero: { paddingHorizontal: 16, paddingBottom: 16 },
-  title: { fontSize: 28, fontWeight: "700" },
 })

@@ -1,14 +1,17 @@
+import { useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native"
 
 import type { RemoteEntry } from "../../modules/tailshare-core"
 import { Button } from "../components/button"
+import { formatSize } from "../lib/format"
 import { strings } from "../strings"
 import type { Theme } from "../theme"
 
@@ -23,6 +26,11 @@ export function FilesScreen(props: {
   onSend: () => void
 }) {
   const { theme, path, entries, loading, onOpen, onDownload, onSend } = props
+  const [filter, setFilter] = useState("")
+  // The filter only narrows the listing already on screen; it never asks the host.
+  const shown = entries.filter((entry) =>
+    entry.name.toLowerCase().includes(filter.trim().toLowerCase())
+  )
   const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""
 
   return (
@@ -37,6 +45,23 @@ export function FilesScreen(props: {
         />
       ) : null}
       <Button theme={theme} label={strings.send} onPress={onSend} />
+      <TextInput
+        accessibilityLabel={strings.searchFolder}
+        autoCapitalize="none"
+        autoCorrect={false}
+        onChangeText={setFilter}
+        placeholder={strings.searchFolder}
+        placeholderTextColor={theme.muted}
+        style={[
+          styles.search,
+          {
+            borderColor: theme.input,
+            backgroundColor: theme.field,
+            color: theme.text,
+          },
+        ]}
+        value={filter}
+      />
       {loading ? (
         <ActivityIndicator
           color={theme.primary}
@@ -44,11 +69,13 @@ export function FilesScreen(props: {
         />
       ) : null}
       <FlatList
-        data={entries}
+        data={shown}
         keyExtractor={(entry) => entry.name}
         ListEmptyComponent={
           loading ? undefined : (
-            <Text style={{ color: theme.muted }}>{strings.empty}</Text>
+            <Text style={{ color: theme.muted }}>
+              {entries.length > 0 ? strings.noMatches : strings.empty}
+            </Text>
           )
         }
         renderItem={({ item }) => (
@@ -64,7 +91,7 @@ export function FilesScreen(props: {
           >
             <Text style={{ color: theme.text }}>{item.name}</Text>
             <Text style={{ color: theme.muted }}>
-              {item.isDir ? strings.folder : `${item.size} ${strings.bytes}`}
+              {item.isDir ? strings.folder : formatSize(item.size)}
             </Text>
           </Pressable>
         )}
@@ -74,6 +101,13 @@ export function FilesScreen(props: {
 }
 
 const styles = StyleSheet.create({
+  search: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    minHeight: 48,
+  },
   body: { flex: 1, gap: 12 },
   item: { borderBottomWidth: 1, paddingVertical: 16, gap: 4, minHeight: 56 },
 })
