@@ -262,7 +262,8 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Phone ongoing room service, dataSync timeout and service lifetime | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/RoomService.kt` |
 | Phone system notification channels, strings, background alert policy and tap intents | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/Alerts.kt` |
 | Phone notification permission, native lifecycle and tap delivery | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/TailshareCoreModule.kt`; `web/apps/mobile/modules/tailshare-core/index.ts`, `web/apps/mobile/App.tsx` |
-| Phone Join card and single connected-room card | `web/apps/mobile/src/screens/home.tsx` |
+| Phone Join card, searchable saved-room cards and first-room empty state | `web/apps/mobile/src/screens/home.tsx` |
+| Phone saved rooms: name, role and last-open time in application SharedPreferences (never codes); lifecycle updates | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/TailshareCoreModule.kt` (`savedRooms`, `storeRooms`); `web/apps/mobile/modules/tailshare-core/index.ts`, `web/apps/mobile/App.tsx` |
 | Phone full-screen QR camera, permission and scan errors | `web/apps/mobile/src/screens/scan.tsx` |
 | Strict phone QR payload parsing and canonical code validation | `web/apps/mobile/src/lib/scan-code.ts` |
 | Phone room header and five-tab content composition | `web/apps/mobile/src/screens/room.tsx` |

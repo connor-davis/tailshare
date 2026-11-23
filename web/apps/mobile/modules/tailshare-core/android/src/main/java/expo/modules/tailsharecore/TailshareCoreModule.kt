@@ -15,6 +15,7 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import tailshare.Client
 import tailshare.Tailshare
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -52,6 +53,35 @@ class TailshareCoreModule : Module() {
 
   // Finished downloads already copied out, by transfer id, so a replayed event copies once.
   private val saved = HashMap<String, String>()
+
+  private val roomsLock = Any()
+
+  private fun roomPreferences() = (appContext.reactContext?.applicationContext
+    ?: throw IllegalStateException("The app has closed."))
+    .getSharedPreferences("rooms", Context.MODE_PRIVATE)
+
+  private fun savedRooms(): List<JSONObject> {
+    val records = JSONArray(roomPreferences().getString("records", "[]") ?: "[]")
+
+    // Rebuild records from the allowed fields so this bridge never returns extra stored data.
+    return (0 until records.length()).mapNotNull { index ->
+      val record = records.optJSONObject(index) ?: return@mapNotNull null
+      val name = record.optString("name")
+      val role = record.optString("role")
+      val lastOpen = record.optLong("lastOpen", -1L)
+      if (name.isBlank() || role !in listOf("host", "joined") || lastOpen < 0L) {
+        return@mapNotNull null
+      }
+
+      JSONObject().put("name", name).put("role", role).put("lastOpen", lastOpen)
+    }.distinctBy { it.getString("name") }.sortedByDescending { it.getLong("lastOpen") }
+  }
+
+  private fun storeRooms(records: List<JSONObject>) {
+    // ponytail: keep 50 recent names to bound phone storage. Add paging if a larger history is needed.
+    val recent = records.sortedByDescending { it.getLong("lastOpen") }.take(50)
+    roomPreferences().edit().putString("records", JSONArray(recent).toString()).apply()
+  }
 
   // Go calls can block for a minute (waiting for the host), so each runs on its own thread.
   private fun background(promise: Promise, code: String, work: () -> Any?) {
@@ -360,6 +390,27 @@ class TailshareCoreModule : Module() {
     }
 
     Function("cancel") { client?.cancel() }
+
+    Function("listSavedRooms") {
+      synchronized(roomsLock) { JSONArray(savedRooms()).toString() }
+    }
+
+    Function("saveRoom") { name: String, role: String ->
+      require(name.isNotBlank()) { "The room needs a name." }
+      require(role in listOf("host", "joined")) { "The room role is not supported." }
+
+      synchronized(roomsLock) {
+        val record = JSONObject().put("name", name).put("role", role)
+          .put("lastOpen", System.currentTimeMillis())
+        storeRooms(listOf(record) + savedRooms().filter { it.getString("name") != name })
+      }
+    }
+
+    Function("forgetRoom") { name: String ->
+      synchronized(roomsLock) {
+        storeRooms(savedRooms().filter { it.getString("name") != name })
+      }
+    }
 
     Function("roomName") { client?.roomName() ?: "" }
 
