@@ -82,6 +82,20 @@ export default function App() {
     [setPending, uploadAll]
   )
 
+  useEffect(
+    () =>
+      core.onOpenEvent(({ tab: destination }) => {
+        setScanning(false)
+        if (readyRef.current && destination !== "home") {
+          setInRoom(true)
+          setTab(destination)
+        } else {
+          setInRoom(false)
+        }
+      }),
+    []
+  )
+
   const open = useCallback(async (dir: string) => {
     setLoading(true)
     setError("")
@@ -103,8 +117,7 @@ export default function App() {
       if (event.type === "files.changed") {
         void open(path)
       } else {
-        // The room is over: release this phone's side too.
-        core.leave().catch(() => {})
+        // Native cleanup also runs in the background, before this event reaches the screen.
         reset()
       }
     })
@@ -179,6 +192,7 @@ export default function App() {
     try {
       await core.join(roomCode, strings.phoneName)
       setRoom(core.roomName())
+      void core.requestNotifications().catch(() => {})
       await core.enableTransfers()
       await open("")
       readyRef.current = true

@@ -1,5 +1,7 @@
 package expo.modules.tailsharecore
 
+import android.Manifest
+import android.content.Context
 import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
@@ -7,6 +9,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import expo.modules.interfaces.permissions.Permissions
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -19,7 +22,30 @@ import kotlin.concurrent.thread
 
 /** Thin bridge from JavaScript to the Go core built by gomobile. */
 class TailshareCoreModule : Module() {
-  private var client: Client? = null
+  @Volatile private var client: Client? = null
+  private val roomLock = Any()
+  private var alerts: Alerts? = null
+  private var nativeContext: Context? = null
+  @Volatile private var backgrounded = false
+
+  private fun stopRoom(closed: Boolean = false) {
+    val context = nativeContext ?: return
+    RoomService.stop(context)
+    if (closed) alerts?.closed(backgrounded) else (alerts ?: Alerts(context)).clear()
+    if (!closed) alerts = null
+  }
+
+  // Consume the extra itself, so even a recreated module cannot route an old tap again.
+  private var openListening = false
+  private var pendingOpen: String? = null
+  private fun handleOpen(intent: Intent?) {
+    val tab = intent?.getStringExtra(Alerts.TAB) ?: return
+    intent.removeExtra(Alerts.TAB)
+    if (tab !in listOf("home", "chat", "transfers")) return
+    synchronized(roomLock) {
+      if (openListening) sendEvent("onOpenEvent", mapOf("tab" to tab)) else pendingOpen = tab
+    }
+  }
   private var downloadsDir: File? = null
   // The client whose chat pump runs, so a second watchChat does not start another.
   private var chatPumped: Client? = null
@@ -46,11 +72,29 @@ class TailshareCoreModule : Module() {
       try {
         while (true) {
           val json = current.nextEvent()
-          sendEvent("onRoomEvent", mapOf("json" to json))
-          if (JSONObject(json).optString("type") == "closed") break
+          val closed = JSONObject(json).optString("type") == "closed"
+          synchronized(roomLock) {
+            if (client !== current) return@thread
+            if (closed) {
+              stopRoom(closed = true)
+              client = null
+            }
+            sendEvent("onRoomEvent", mapOf("json" to json))
+          }
+          if (closed) {
+            current.leave()
+            break
+          }
         }
       } catch (error: Exception) {
-        // The core returns an error once the room is gone; that ends the loop.
+        synchronized(roomLock) {
+          if (client === current) {
+            stopRoom(closed = true)
+            client = null
+            sendEvent("onRoomEvent", mapOf("json" to "{\"type\":\"closed\"}"))
+          }
+        }
+        runCatching { current.leave() }
       }
     }
   }
@@ -61,7 +105,11 @@ class TailshareCoreModule : Module() {
       try {
         while (true) {
           val json = current.nextChatEvent()
-          sendEvent("onChatEvent", mapOf("json" to json))
+          synchronized(roomLock) {
+            if (client !== current) return@thread
+            alerts?.chat(JSONObject(json), backgrounded)
+            sendEvent("onChatEvent", mapOf("json" to json))
+          }
           if (JSONObject(json).optString("type") == "closed") break
         }
       } catch (error: Exception) {
@@ -104,7 +152,11 @@ class TailshareCoreModule : Module() {
               }
             }
           }
-          sendEvent("onTransferEvent", mapOf("json" to event.toString()))
+          synchronized(roomLock) {
+            if (client !== current) return@thread
+            alerts?.transfer(event, backgrounded)
+            sendEvent("onTransferEvent", mapOf("json" to event.toString()))
+          }
           if (event.optString("type") == "closed") break
         }
       } catch (error: Exception) {
@@ -183,20 +235,67 @@ class TailshareCoreModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("TailshareCore")
 
-    Events("onRoomEvent", "onTransferEvent", "onChatEvent", "onShareEvent")
+    Events("onRoomEvent", "onTransferEvent", "onChatEvent", "onShareEvent", "onOpenEvent")
 
     OnCreate {
+      nativeContext = appContext.reactContext?.applicationContext
+      // A newly created module has no room; discard any notices from the old process.
+      stopRoom()
       // ponytail: shared copies stay in the cache until the next app start. Upgrade: delete
       // each batch once its uploads are done.
       appContext.reactContext?.let { File(it.cacheDir, "share").deleteRecursively() }
       handleShare(appContext.currentActivity?.intent)
+      handleOpen(appContext.currentActivity?.intent)
     }
 
     // A cold start from the share sheet has no activity yet in OnCreate, so look again here.
-    OnActivityEntersForeground { handleShare(appContext.currentActivity?.intent) }
+    OnActivityEntersForeground {
+      backgrounded = false
+      handleShare(appContext.currentActivity?.intent)
+      handleOpen(appContext.currentActivity?.intent)
+    }
+    OnActivityEntersBackground { backgrounded = true }
+
+    OnDestroy {
+      val current = synchronized(roomLock) {
+        val previous = client
+        client = null
+        stopRoom()
+        previous
+      }
+      current?.cancel()
+      thread(name = "tailshare-close") { current?.leave() }
+    }
 
     // The app was already open and the share sheet reused it.
-    OnNewIntent { intent -> handleShare(intent) }
+    OnNewIntent { intent ->
+      handleShare(intent)
+      handleOpen(intent)
+    }
+
+    Function("watchOpen") {
+      synchronized(roomLock) {
+        openListening = true
+        pendingOpen?.let { sendEvent("onOpenEvent", mapOf("tab" to it)) }
+        pendingOpen = null
+      }
+    }
+
+    AsyncFunction("requestNotifications") { promise: Promise ->
+      val context = appContext.reactContext
+      if (Build.VERSION.SDK_INT < 33 || context == null) {
+        promise.resolve(null)
+      } else {
+        val preferences = context.getSharedPreferences("notifications", Context.MODE_PRIVATE)
+        if (preferences.getBoolean("asked", false)) {
+          promise.resolve(null)
+        } else {
+          preferences.edit().putBoolean("asked", true).apply()
+          Permissions.askForPermissionsWithPermissionsManager(
+            appContext.permissions, promise, Manifest.permission.POST_NOTIFICATIONS)
+        }
+      }
+    }
 
     // Started by the screen once it listens; sends any share that came in before that.
     Function("watchShare") {
@@ -209,10 +308,36 @@ class TailshareCoreModule : Module() {
 
     AsyncFunction("join") { code: String, name: String, promise: Promise ->
       val fresh = Tailshare.newClient(name, "", 0L)
-      client = fresh
+      val previous = synchronized(roomLock) {
+        stopRoom()
+        val old = client
+        client = fresh
+        old
+      }
       background(promise, "ERR_JOIN") {
-        fresh.join(code)
-        pumpEvents(fresh)
+        try {
+          previous?.cancel()
+          previous?.leave()
+          fresh.join(code)
+          synchronized(roomLock) {
+            if (client !== fresh) throw IllegalStateException("Joining was cancelled.")
+            val context = appContext.reactContext?.applicationContext
+              ?: throw IllegalStateException("The app has closed.")
+            nativeContext = context
+            alerts = Alerts(context)
+            RoomService.start(context, fresh.roomName())
+            pumpEvents(fresh)
+          }
+        } catch (error: Exception) {
+          synchronized(roomLock) {
+            if (client === fresh) {
+              client = null
+              stopRoom()
+            }
+          }
+          runCatching { fresh.leave() }
+          throw error
+        }
       }
     }
 
@@ -286,8 +411,12 @@ class TailshareCoreModule : Module() {
     }
 
     AsyncFunction("leave") { promise: Promise ->
-      val current = client
-      client = null
+      val current = synchronized(roomLock) {
+        val previous = client
+        client = null
+        stopRoom()
+        previous
+      }
       background(promise, "ERR_LEAVE") { current?.leave() }
     }
   }

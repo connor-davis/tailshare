@@ -253,12 +253,15 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | gomobile facade: join by code, wait for host approval, list the host's shared folder as JSON, leave (every path through `share.Localize` and `peer.List`) | `mobile/tailshare/client.go` (`Client`, `NewClient`) |
 | Phone file transfers: turn on the queue after join, download a host file, upload a picked file, progress as JSON from `NextTransferEvent` (downloads cannot resume after an app restart) | `mobile/tailshare/transfers.go` (`EnableTransfers`, `Download`, `Upload`, `NextTransferEvent`) |
 | Phone share sheet "Send to room": manifest filters, copy shared files into the cache, `onShareEvent` | `web/apps/mobile/app.config.ts` (`intentFilters`), `modules/tailshare-core/android/.../TailshareCoreModule.kt` (`handleShare`), `modules/tailshare-core/index.ts` (`onShareEvent`) |
-| Phone chat with the host: send text, history then live messages as JSON from `NextChatEvent` (memory only) | `mobile/tailshare/chat.go` (`SendChat`, `NextChatEvent`) |
+| Phone chat with the host: send text, history then live messages as JSON from `NextChatEvent`, with replay flagged for notification suppression (memory only) | `mobile/tailshare/chat.go` (`SendChat`, `NextChatEvent`) |
 | Offline facade tests on the local relay (join, list, bad paths, cancel) | `mobile/tailshare/client_test.go` |
 | Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |
 | Android build, unsigned PR artifact, signing and release upload (reusable, not a required check) | `.github/workflows/android.yml`; called from `nightly.yml` and `release.yml` |
 | Expo app, version name and code from CI env, `applicationId connor.davis.tailshare` | `web/apps/mobile/app.config.ts`, `App.tsx` |
 | Phone native connection, pushed room/transfer events and Home/room navigation | `web/apps/mobile/App.tsx` |
+| Phone ongoing room service, dataSync timeout and service lifetime | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/RoomService.kt` |
+| Phone system notification channels, strings, background alert policy and tap intents | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/Alerts.kt` |
+| Phone notification permission, native lifecycle and tap delivery | `web/apps/mobile/modules/tailshare-core/android/src/main/java/expo/modules/tailsharecore/TailshareCoreModule.kt`; `web/apps/mobile/modules/tailshare-core/index.ts`, `web/apps/mobile/App.tsx` |
 | Phone Join card and single connected-room card | `web/apps/mobile/src/screens/home.tsx` |
 | Phone full-screen QR camera, permission and scan errors | `web/apps/mobile/src/screens/scan.tsx` |
 | Strict phone QR payload parsing and canonical code validation | `web/apps/mobile/src/lib/scan-code.ts` |

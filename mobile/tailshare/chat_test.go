@@ -100,6 +100,9 @@ func TestChatPhoneToHost(t *testing.T) {
 	if got.err != nil || message.Type != "chat" || message.Text != "hello desktop" || !message.Mine {
 		t.Fatalf("history = %+v %+v", got, message)
 	}
+	if !message.History {
+		t.Fatal("snapshot message was not marked as history")
+	}
 	if message.FromName != "Phone" || message.SentAt == "" || message.ID == "" {
 		t.Fatalf("fields = %+v", message)
 	}
@@ -118,7 +121,7 @@ func TestChatHostToPhone(t *testing.T) {
 
 	got := waitChat(t, pending)
 	message := decodeChat(t, got.event)
-	if got.err != nil || message.Text != "hello phone" || message.Mine || message.FromName != "Desktop" {
+	if got.err != nil || message.Text != "hello phone" || message.Mine || message.History || message.FromName != "Desktop" {
 		t.Fatalf("got = %+v %+v", got, message)
 	}
 }
@@ -131,6 +134,37 @@ func TestChatRefusesBadText(t *testing.T) {
 	}
 	if err := client.SendChat(strings.Repeat("a", 8<<10+1)); err == nil {
 		t.Fatal("too long text was sent")
+	}
+}
+
+func TestChatResubscribeMarksHistory(t *testing.T) {
+	_, client, control := startChatRig(t)
+	if _, err := control.SendChat(t.Context(), "from before the stream"); err != nil {
+		t.Fatal(err)
+	}
+
+	first := waitChat(t, readChat(client))
+	message := decodeChat(t, first.event)
+	if first.err != nil || !message.History || message.Mine {
+		t.Fatalf("snapshot = %+v %+v", first, message)
+	}
+
+	// A slow reader gets a new snapshot too; none of it should make a native alert.
+	client.mu.Lock()
+	client.chat.subscription.Close()
+	client.mu.Unlock()
+	replayed := waitChat(t, readChat(client))
+	replay := decodeChat(t, replayed.event)
+	if replayed.err != nil || !replay.History || replay.ID != message.ID {
+		t.Fatalf("replay = %+v %+v", replayed, replay)
+	}
+
+	if _, err := control.SendChat(t.Context(), "a live message"); err != nil {
+		t.Fatal(err)
+	}
+	live := waitChat(t, readChat(client))
+	if event := decodeChat(t, live.event); live.err != nil || event.History || event.Text != "a live message" {
+		t.Fatalf("live = %+v %+v", live, event)
 	}
 }
 
