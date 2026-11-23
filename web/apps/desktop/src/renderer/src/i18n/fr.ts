@@ -509,6 +509,10 @@ export const fr = {
   "shareAppDialog.devServer": "Serveur de développement",
   "shareAppDialog.cancel": "Annuler",
   "shareAppDialog.share": "Partager",
+  "shareCode.showQr": "Afficher le QR",
+  "shareCode.qrTitle": "Rejoindre par QR",
+  "shareCode.qrHint": "Scannez ceci avec l’application mobile Tailshare.",
+  "shareCode.qrLabel": "QR du code du salon",
   "shareCode.codeCopied": "Code copié",
   "shareCode.linkCopied": "Lien copié",
   "shareCode.couldNotCopySelectTheCodeInstead":

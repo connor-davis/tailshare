@@ -7,6 +7,7 @@ import type { RoomTab } from "./src/components/tab-bar"
 import type { ChatMessage } from "./src/screens/chat"
 import { HomeScreen } from "./src/screens/home"
 import { RoomScreen } from "./src/screens/room"
+import { ScanScreen } from "./src/screens/scan"
 import type { Transfer } from "./src/screens/transfers"
 import { strings } from "./src/strings"
 import { useTheme } from "./src/theme"
@@ -18,6 +19,7 @@ export default function App() {
   const [tab, setTab] = useState<RoomTab>("files")
   const [code, setCode] = useState("")
   const [joining, setJoining] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [room, setRoom] = useState<string | null>(null)
   const [path, setPath] = useState("")
   const [entries, setEntries] = useState<RemoteEntry[]>([])
@@ -126,15 +128,15 @@ export default function App() {
     }
   }
 
-  const join = async () => {
-    if (code.trim() === "") {
+  const join = async (roomCode = code) => {
+    if (roomCode.trim() === "") {
       setError(strings.noCode)
       return
     }
     setError("")
     setJoining(true)
     try {
-      await core.join(code, strings.phoneName)
+      await core.join(roomCode, strings.phoneName)
       setRoom(core.roomName())
       await core.enableTransfers()
       await open("")
@@ -149,6 +151,20 @@ export default function App() {
   const leave = async () => {
     await core.leave()
     reset()
+  }
+
+  if (scanning) {
+    return (
+      <ScanScreen
+        theme={theme}
+        onBack={() => setScanning(false)}
+        onScan={(scannedCode) => {
+          setScanning(false)
+          setCode(scannedCode)
+          void join(scannedCode)
+        }}
+      />
+    )
   }
 
   return (
@@ -197,7 +213,8 @@ export default function App() {
           joining={joining}
           error={error}
           onCodeChange={setCode}
-          onJoin={join}
+          onJoin={() => void join()}
+          onScan={() => setScanning(true)}
           onCancel={() => core.cancel()}
           onOpenRoom={() => setInRoom(true)}
         />

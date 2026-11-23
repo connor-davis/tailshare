@@ -504,6 +504,10 @@ export const en = {
   "shareAppDialog.devServer": "Dev server",
   "shareAppDialog.cancel": "Cancel",
   "shareAppDialog.share": "Share",
+  "shareCode.showQr": "Show QR",
+  "shareCode.qrTitle": "Join by QR",
+  "shareCode.qrHint": "Scan this with the Tailshare phone app.",
+  "shareCode.qrLabel": "Room code QR",
   "shareCode.codeCopied": "Code copied",
   "shareCode.linkCopied": "Link copied",
   "shareCode.couldNotCopySelectTheCodeInstead":

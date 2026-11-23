@@ -503,6 +503,10 @@ export const de = {
   "shareAppDialog.devServer": "Entwicklungsserver",
   "shareAppDialog.cancel": "Abbrechen",
   "shareAppDialog.share": "Teilen",
+  "shareCode.showQr": "QR anzeigen",
+  "shareCode.qrTitle": "Per QR beitreten",
+  "shareCode.qrHint": "Scanne diesen Code mit der Tailshare-Handy-App.",
+  "shareCode.qrLabel": "QR für den Raumcode",
   "shareCode.codeCopied": "Code kopiert",
   "shareCode.linkCopied": "Link kopiert",
   "shareCode.couldNotCopySelectTheCodeInstead":

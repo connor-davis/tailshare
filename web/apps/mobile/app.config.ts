@@ -12,6 +12,15 @@ export default function config(): ExpoConfig {
     orientation: "portrait",
     userInterfaceStyle: "automatic",
     platforms: ["android"],
+    plugins: [
+      [
+        "expo-camera",
+        {
+          cameraPermission: "Tailshare uses the camera to scan a room code.",
+          recordAudioAndroid: false,
+        },
+      ],
+    ],
     android: {
       // Never change this: sideloaded updates only install over the same id.
       package: "connor.davis.tailshare",
