@@ -252,6 +252,7 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | --- | --- |
 | gomobile facade: join by code, wait for host approval, list the host's shared folder as JSON, leave (every path through `share.Localize` and `peer.List`) | `mobile/tailshare/client.go` (`Client`, `NewClient`) |
 | Phone file transfers: turn on the queue after join, download a host file, upload a picked file, progress as JSON from `NextTransferEvent` (downloads cannot resume after an app restart) | `mobile/tailshare/transfers.go` (`EnableTransfers`, `Download`, `Upload`, `NextTransferEvent`) |
+| Phone share sheet "Send to room": manifest filters, copy shared files into the cache, `onShareEvent` | `web/apps/mobile/app.config.ts` (`intentFilters`), `modules/tailshare-core/android/.../TailshareCoreModule.kt` (`handleShare`), `modules/tailshare-core/index.ts` (`onShareEvent`) |
 | Phone chat with the host: send text, history then live messages as JSON from `NextChatEvent` (memory only) | `mobile/tailshare/chat.go` (`SendChat`, `NextChatEvent`) |
 | Offline facade tests on the local relay (join, list, bad paths, cancel) | `mobile/tailshare/client_test.go` |
 | Build the Go library and the APK (CI only, never in `check`) | `Taskfile.yml` (`mobile:aar`, `mobile:apk`) |

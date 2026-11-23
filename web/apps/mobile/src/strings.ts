@@ -50,4 +50,7 @@ export const strings = {
   messagePlaceholder: "Type a message",
   sendMessage: "Send",
   you: "You",
+  shareWaiting: "files waiting. They send after you join.",
+  shareWaitingOne: "1 file waiting. It sends after you join.",
+  shareUnreadable: "Some shared files could not be read.",
 } as const

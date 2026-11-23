@@ -19,6 +19,8 @@ export function HomeScreen(props: {
   code: string
   joining: boolean
   error: string
+  waitingFiles: number
+  onClearShare: () => void
   onCodeChange: (code: string) => void
   onJoin: () => void
   onScan: () => void
@@ -32,6 +34,27 @@ export function HomeScreen(props: {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {props.waitingFiles > 0 ? (
+        <View
+          style={[
+            styles.card,
+            styles.shareCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text accessibilityLiveRegion="polite" style={{ color: theme.text }}>
+            {props.waitingFiles === 1
+              ? strings.shareWaitingOne
+              : `${props.waitingFiles} ${strings.shareWaiting}`}
+          </Text>
+          <Button
+            theme={theme}
+            label={strings.cancel}
+            onPress={props.onClearShare}
+            quiet
+          />
+        </View>
+      ) : null}
       {room === null ? (
         <View
           style={[
@@ -143,6 +166,7 @@ export function HomeScreen(props: {
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 48 },
   card: { borderWidth: 1, borderRadius: 8, padding: 16, gap: 16 },
+  shareCard: { marginBottom: 16 },
   heading: { fontSize: 20, fontWeight: "600" },
   input: {
     borderWidth: 1,
