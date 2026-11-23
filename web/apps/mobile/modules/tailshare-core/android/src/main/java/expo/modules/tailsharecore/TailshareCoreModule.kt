@@ -1,12 +1,16 @@
 package expo.modules.tailsharecore
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import expo.modules.interfaces.permissions.Permissions
@@ -50,6 +54,8 @@ class TailshareCoreModule : Module() {
   private var downloadsDir: File? = null
   // The client whose chat pump runs, so a second watchChat does not start another.
   private var chatPumped: Client? = null
+  // The same guard for the roster pump.
+  private var rosterPumped: Client? = null
 
   // Finished downloads already copied out, by transfer id, so a replayed event copies once.
   private val saved = HashMap<String, String>()
@@ -139,6 +145,25 @@ class TailshareCoreModule : Module() {
             if (client !== current) return@thread
             alerts?.chat(JSONObject(json), backgrounded)
             sendEvent("onChatEvent", mapOf("json" to json))
+          }
+          if (JSONObject(json).optString("type") == "closed") break
+        }
+      } catch (error: Exception) {
+        // The core returns an error once the room is gone; that ends the loop.
+      }
+    }
+  }
+
+  // Same loop again for the People tab. Roster events have their own name, because the
+  // screen treats anything on onRoomEvent that is not files.changed as "room closed".
+  private fun pumpRoster(current: Client) {
+    thread(name = "tailshare-roster") {
+      try {
+        while (true) {
+          val json = current.nextRosterEvent()
+          synchronized(roomLock) {
+            if (client !== current) return@thread
+            sendEvent("onRosterEvent", mapOf("json" to json))
           }
           if (JSONObject(json).optString("type") == "closed") break
         }
@@ -265,7 +290,7 @@ class TailshareCoreModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("TailshareCore")
 
-    Events("onRoomEvent", "onTransferEvent", "onChatEvent", "onShareEvent", "onOpenEvent")
+    Events("onRoomEvent", "onTransferEvent", "onChatEvent", "onRosterEvent", "onShareEvent", "onOpenEvent")
 
     OnCreate {
       nativeContext = appContext.reactContext?.applicationContext
@@ -380,6 +405,24 @@ class TailshareCoreModule : Module() {
       }
     }
 
+    // Started by the screen once it listens; the first event is the current roster.
+    Function("watchRoster") {
+      val current = client
+      if (current != null && rosterPumped !== current) {
+        rosterPumped = current
+        pumpRoster(current)
+      }
+    }
+
+    // The code goes to the clipboard only because the person tapped Copy. Never log it.
+    Function("copyText") { text: String ->
+      val context = appContext.reactContext ?: throw IllegalStateException("The app has closed.")
+      Handler(Looper.getMainLooper()).post {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Tailshare", text))
+      }
+    }
+
     AsyncFunction("sendChat") { text: String, promise: Promise ->
       val current = client
       if (current == null) {
@@ -413,6 +456,9 @@ class TailshareCoreModule : Module() {
     }
 
     Function("roomName") { client?.roomName() ?: "" }
+
+    // Held in Go memory only; never store it with the saved rooms.
+    Function("roomCode") { client?.roomCode() ?: "" }
 
     Function("connected") { client?.connected() ?: false }
 

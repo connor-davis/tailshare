@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native"
 
-import type { RemoteEntry } from "../../modules/tailshare-core"
+import type { RemoteEntry, RosterMember } from "../../modules/tailshare-core"
 import { Alert } from "../components/alert"
 import { GlyphButton, TopBar } from "../components/hero"
 import { TabBar, type RoomTab } from "../components/tab-bar"
@@ -9,6 +9,7 @@ import { strings } from "../strings"
 import type { Theme } from "../theme"
 import { ChatScreen, type ChatMessage } from "./chat"
 import { FilesScreen } from "./files"
+import { PeopleScreen } from "./people"
 import { countTransfers, TransfersScreen, type Transfer } from "./transfers"
 
 /** A connected room with five local-state tabs and an explicit way back Home. */
@@ -30,6 +31,9 @@ export function RoomScreen(props: {
   onSend: () => void
   messages: ChatMessage[]
   onSendChat: (text: string) => Promise<boolean>
+  roster: RosterMember[]
+  roomCode: string
+  onCopy: (text: string) => void
 }) {
   const { theme, room, tab } = props
   const keyboardOpen = useKeyboardOpen()
@@ -99,6 +103,13 @@ export function RoomScreen(props: {
             theme={theme}
             messages={props.messages}
             onSend={props.onSendChat}
+          />
+        ) : tab === "people" ? (
+          <PeopleScreen
+            theme={theme}
+            roster={props.roster}
+            roomCode={props.roomCode}
+            onCopy={props.onCopy}
           />
         ) : (
           <Text style={{ color: theme.muted }}>{strings.desktopOnly}</Text>

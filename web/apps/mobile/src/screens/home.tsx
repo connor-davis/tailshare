@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native"
 
-import type { SavedRoom } from "../../modules/tailshare-core"
+import { MAX_SEATS, type SavedRoom } from "../../modules/tailshare-core"
 import { Alert } from "../components/alert"
 import { Button } from "../components/button"
 import { Hero } from "../components/hero"
@@ -26,6 +26,8 @@ export function HomeScreen(props: {
   joining: boolean
   error: string
   waitingFiles: number
+  /** People in the live room, for its seat line. */
+  seats: number
   onClearShare: () => void
   onCodeChange: (code: string) => void
   onJoin: () => void
@@ -264,11 +266,16 @@ export function HomeScreen(props: {
               </View>
               <View style={styles.roomBody}>
                 {live ? (
-                  <Button
-                    theme={theme}
-                    label={strings.openRoom}
-                    onPress={props.onOpenRoom}
-                  />
+                  <>
+                    <Text style={{ color: theme.muted }}>
+                      {strings.seatsCount(props.seats, MAX_SEATS)}
+                    </Text>
+                    <Button
+                      theme={theme}
+                      label={strings.openRoom}
+                      onPress={props.onOpenRoom}
+                    />
+                  </>
                 ) : (
                   <>
                     <Text style={{ color: theme.muted }}>
