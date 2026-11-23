@@ -526,6 +526,10 @@ export const ar = {
   "shareAppDialog.devServer": "خادم تطوير",
   "shareAppDialog.cancel": "إلغاء",
   "shareAppDialog.share": "مشاركة",
+  "shareCode.showQr": "عرض رمز QR",
+  "shareCode.qrTitle": "الانضمام عبر QR",
+  "shareCode.qrHint": "امسح هذا الرمز باستخدام تطبيق Tailshare للهاتف.",
+  "shareCode.qrLabel": "رمز QR للغرفة",
   "shareCode.codeCopied": "نُسخ الرمز",
   "shareCode.linkCopied": "نُسخ الرابط",
   "shareCode.couldNotCopySelectTheCodeInstead":

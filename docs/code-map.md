@@ -158,6 +158,7 @@ Paths below are relative to `web/apps/desktop` unless stated otherwise.
 | Spaces five-tile board, expand/return state and People header join notice | `src/renderer/src/routes/-components/room-view.tsx` |
 | Session attachment file collection, file picker/drop and existing download cards | `src/renderer/src/routes/-components/room-files.tsx` |
 | Shell pieces: main top bar, empty state, join form and dialog, new-room name dialog, share code with Copy code/Copy link and countdown, name editor | `src/renderer/src/routes/-components/` (`main-bar`, `empty-state`, `join-form`, `join-dialog`, `new-room-dialog`, `share-code`, `code-countdown`, `name-editor`) |
+| Host share-code QR dialog: existing join-link payload, white scan tile and written code | `src/renderer/src/routes/-components/share-code.tsx`, `share-code.test.tsx` beside it |
 | Update event subscription and initial-read race guard, shared by Settings and the update button | `src/renderer/src/components/use-update-status.ts` |
 | Allowlisted Markdown release notes in ScrollArea, guarded GitHub link clicks and explicit Download action, shared by Settings and the update dialog | `src/renderer/src/components/update-release.tsx` |
 | `tailshare://join/<CODE>` strict parser, argv scan and the hold-until-ready inbox | `src/main/join-link.ts`, `src/main/join-link.test.ts` |
@@ -258,6 +259,8 @@ Folder downloads reserve one new top folder, create parents inside the pinned ro
 | Expo app, version name and code from CI env, `applicationId connor.davis.tailshare` | `web/apps/mobile/app.config.ts`, `App.tsx` |
 | Phone native connection, pushed room/transfer events and Home/room navigation | `web/apps/mobile/App.tsx` |
 | Phone Join card and single connected-room card | `web/apps/mobile/src/screens/home.tsx` |
+| Phone full-screen QR camera, permission and scan errors | `web/apps/mobile/src/screens/scan.tsx` |
+| Strict phone QR payload parsing and canonical code validation | `web/apps/mobile/src/lib/scan-code.ts` |
 | Phone room header and five-tab content composition | `web/apps/mobile/src/screens/room.tsx` |
 | Phone host folder browser and file actions | `web/apps/mobile/src/screens/files.tsx` |
 | Phone transfer sentences, progress and queue list | `web/apps/mobile/src/screens/transfers.tsx` |

@@ -21,6 +21,7 @@ export function HomeScreen(props: {
   error: string
   onCodeChange: (code: string) => void
   onJoin: () => void
+  onScan: () => void
   onCancel: () => void
   onOpenRoom: () => void
 }) {
@@ -83,6 +84,14 @@ export function HomeScreen(props: {
             onPress={joining ? props.onCancel : props.onJoin}
             quiet={joining}
           />
+          {!joining ? (
+            <Button
+              theme={theme}
+              label={strings.scanQr}
+              onPress={props.onScan}
+              quiet
+            />
+          ) : null}
           {error !== "" ? (
             <Text accessibilityRole="alert" style={{ color: theme.error }}>
               {error}

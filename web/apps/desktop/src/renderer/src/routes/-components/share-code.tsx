@@ -1,11 +1,20 @@
 import { useT } from "@/i18n/provider"
 import { useState } from "react"
+import { QRCodeSVG } from "qrcode.react"
 import { announce } from "@/components/status-region"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { formatCode, joinLink } from "@/lib/code-input"
 
 /**
- * The share code with Copy code and Copy link. The link is what a friend
+ * The share code with copy actions and a QR dialog. The link is what a friend
  * clicks to join. `compact` is the one-line form for the room header; the
  * full form is big and centred, with the buttons under the code.
  */
@@ -63,13 +72,44 @@ export function ShareCode({
       >
         {formatCode(code)}
       </p>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size={size} onClick={() => copy("code")}>
           {copied === "code" ? t("shareCode.copied") : t("shareCode.copyCode")}
         </Button>
         <Button variant="outline" size={size} onClick={() => copy("link")}>
           {copied === "link" ? t("shareCode.copied") : t("shareCode.copyLink")}
         </Button>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size={size}>
+              {t("shareCode.showQr")}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="p-6 sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{t("shareCode.qrTitle")}</DialogTitle>
+              <DialogDescription>{t("shareCode.qrHint")}</DialogDescription>
+            </DialogHeader>
+            <div className="mx-auto max-w-full rounded-md bg-chrome-foreground p-4">
+              <QRCodeSVG
+                value={joinLink(code)}
+                size={256}
+                bgColor="var(--chrome-foreground)"
+                fgColor="var(--chrome)"
+                marginSize={4}
+                role="img"
+                aria-label={t("shareCode.qrLabel")}
+                className="h-auto max-w-full"
+              />
+            </div>
+            <p
+              dir="ltr"
+              className="text-center font-mono text-2xl font-semibold tracking-widest"
+            >
+              {formatCode(code)}
+            </p>
+          </DialogContent>
+        </Dialog>
       </div>
       {failed ? (
         <p role="alert" className="text-sm text-destructive">

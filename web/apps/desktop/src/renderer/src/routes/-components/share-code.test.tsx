@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -24,6 +25,21 @@ afterEach(() => {
 })
 
 describe("ShareCode", () => {
+  it("opens a QR dialog with the written share code", () => {
+    render(<ShareCode code="7K3Q-9PXM" compact />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show QR" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Join by QR" })
+    const qr = within(dialog).getByRole("img", { name: "Room code QR" })
+    expect(qr.tagName.toLowerCase()).toBe("svg")
+    expect(qr.querySelectorAll("path").length).toBeGreaterThan(0)
+    expect(within(dialog).getByText("7K3Q-9PXM")).toBeDefined()
+    expect(
+      within(dialog).getByText("Scan this with the Tailshare phone app.")
+    ).toBeDefined()
+  })
+
   it("copies the bare code and the join link", async () => {
     render(<ShareCode code="7K3Q-9PXM" />)
 
